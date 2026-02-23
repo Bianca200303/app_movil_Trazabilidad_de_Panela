@@ -1,0 +1,302 @@
+import 'package:drift/drift.dart';
+import 'package:panela_sys/core/database/app_database.dart';
+import 'package:panela_sys/core/database/tables/plots_table.dart';
+import 'package:panela_sys/core/offline/debug_logger.dart';
+import 'package:panela_sys/core/offline/sync_status.dart';
+
+part 'plots_dao.g.dart';
+
+/// Data Access Object for Plots table
+///
+/// Provides type-safe queries and CRUD operations for plots
+/// with comprehensive logging and local code generation for offline operations.
+@DriftAccessor(tables: [Plots])
+class PlotsDao extends DatabaseAccessor<AppDatabase> with _$PlotsDaoMixin {
+  PlotsDao(super.db);
+
+  /// Create a new plot in local database
+  ///
+  /// Logs all insert data for debugging. Returns local auto-increment ID.
+  Future<int> create(PlotsCompanion plot) async {
+    DebugLogger.info('PlotsDao', 'create',
+        'Creando parcela: ${plot.name.value} (${plot.code.value})');
+
+    DebugLogger.debug(
+        'PlotsDao',
+        'create',
+        'Insert data: name=${plot.name.value}, '
+        'code=${plot.code.value}, '
+        'producerLocalId=${plot.producerLocalId.value}, '
+        'syncStatus=${plot.syncStatus.value}');
+
+    final id = await into(plots).insert(plot);
+
+    DebugLogger.debug('PlotsDao', 'create', 'Inserted with local ID: $id');
+    DebugLogger.info(
+        'PlotsDao', 'create', 'Parcela creada exitosamente en DB local');
+
+    return id;
+  }
+
+  /// Generate next plot code for a producer
+  ///
+  /// Calculates code in format: DNI-{sequence}
+  /// Example: "12345678-1", "12345678-2", etc.
+  /// Logs calculation steps for debugging.
+  Future<String> getNextCodeForProducer(int producerLocalId) async {
+    DebugLogger.info('PlotsDao', 'getNextCodeForProducer',
+        'Calculando próximo código para productor localId=$producerLocalId');
+
+    // 1. Get producer DNI
+    final producer = await db.producersDao.getById(producerLocalId);
+    if (producer == null) {
+      DebugLogger.error('PlotsDao', 'getNextCodeForProducer',
+          'Producer not found: $producerLocalId');
+      throw Exception('Producer not found: $producerLocalId');
+    }
+
+    DebugLogger.debug(
+        'PlotsDao', 'getNextCodeForProducer', 'Producer DNI: ${producer.dni}');
+
+    // 2. Count existing plots for this producer
+    final query = selectOnly(plots)
+      ..addColumns([plots.id.count()])
+      ..where(plots.producerLocalId.equals(producerLocalId));
+
+    final count = await query
+            .map((row) => row.read(plots.id.count()))
+            .getSingleOrNull() ??
+        0;
+
+    DebugLogger.debug(
+        'PlotsDao', 'getNextCodeForProducer', 'Existing plots count: $count');
+
+    // 3. Generate code: DNI-{sequence}
+    final nextNumber = count + 1;
+    final code = '${producer.dni}-$nextNumber';
+
+    DebugLogger.info(
+        'PlotsDao', 'getNextCodeForProducer', 'Generated code: $code');
+
+    return code;
+  }
+
+  /// Get all plots for a specific producer
+  ///
+  /// Returns plots filtered by local producer ID. Logs results.
+  Future<List<Plot>> getByProducerLocalId(int producerLocalId) async {
+    DebugLogger.debug('PlotsDao', 'getByProducerLocalId',
+        'Obteniendo parcelas para productor: $producerLocalId');
+
+    final query = select(plots)
+      ..where((p) => p.producerLocalId.equals(producerLocalId));
+
+    final results = await query.get();
+
+    DebugLogger.debug('PlotsDao', 'getByProducerLocalId',
+        'Found ${results.length} plots for producer $producerLocalId');
+
+    return results;
+  }
+
+  /// Get all plots pending synchronization (ordered by creation date ASC)
+  ///
+  /// Returns plots with syncStatus = pending or modified.
+  /// Orders by createdAt ascending (oldest first) for proper sync order.
+  /// Logs each pending plot for debugging.
+  Future<List<Plot>> getPending() async {
+    DebugLogger.info('PlotsDao', 'getPending',
+        'Obteniendo parcelas pendientes de sync (ordenados por createdAt ASC)');
+
+    final query = select(plots)
+      ..where((p) =>
+          p.syncStatus.equals(SyncStatus.pending.value) |
+          p.syncStatus.equals(SyncStatus.modified.value))
+      ..orderBy([(p) => OrderingTerm.asc(p.createdAt)]);
+
+    final results = await query.get();
+
+    DebugLogger.debug(
+        'PlotsDao', 'getPending', 'Found ${results.length} pending plots');
+
+    for (final plot in results) {
+      DebugLogger.debug(
+          'PlotsDao',
+          'getPending',
+          'Pending: localId=${plot.id}, code=${plot.code}, '
+          'name=${plot.name}, '
+          'producerLocalId=${plot.producerLocalId}, '
+          'syncStatus=${plot.syncStatus}');
+    }
+
+    return results;
+  }
+
+  /// Count plots pending synchronization
+  ///
+  /// Returns count of plots with syncStatus = pending or modified.
+  Future<int> countPending() async {
+    DebugLogger.debug('PlotsDao', 'countPending', 'Contando parcelas pendientes');
+
+    final query = selectOnly(plots)
+      ..addColumns([plots.id.count()])
+      ..where(plots.syncStatus.equals(SyncStatus.pending.value) |
+          plots.syncStatus.equals(SyncStatus.modified.value));
+
+    final count =
+        await query.map((row) => row.read(plots.id.count())).getSingleOrNull() ??
+            0;
+
+    DebugLogger.debug('PlotsDao', 'countPending', 'Count: $count');
+
+    return count;
+  }
+
+  /// Mark plot as synchronized
+  ///
+  /// Updates syncStatus to synced, stores remote ID and remote producer ID,
+  /// and records sync timestamp. Logs all update data for debugging.
+  Future<void> markAsSynced({
+    required int localId,
+    required String remoteId,
+    required String remoteProducerId,
+  }) async {
+    DebugLogger.info('PlotsDao', 'markAsSynced',
+        'Marcando parcela como sincronizada: localId=$localId, remoteId=$remoteId');
+
+    final now = DateTime.now();
+
+    DebugLogger.debug(
+        'PlotsDao',
+        'markAsSynced',
+        'Update data: syncStatus=${SyncStatus.synced.value}, '
+        'remoteId=$remoteId, '
+        'remoteProducerId=$remoteProducerId, '
+        'syncedAt=$now');
+
+    await (update(plots)..where((p) => p.id.equals(localId))).write(
+      PlotsCompanion(
+        syncStatus: Value(SyncStatus.synced.value),
+        remoteId: Value(remoteId),
+        remoteProducerId: Value(remoteProducerId),
+        syncedAt: Value(now),
+      ),
+    );
+
+    DebugLogger.info(
+        'PlotsDao', 'markAsSynced', 'Parcela marcada como synced exitosamente');
+  }
+
+  /// Get plot by local ID
+  ///
+  /// Returns plot or null if not found. Logs result for debugging.
+  Future<Plot?> getById(int id) async {
+    DebugLogger.debug('PlotsDao', 'getById', 'Buscando parcela con ID: $id');
+
+    final query = select(plots)..where((p) => p.id.equals(id));
+    final result = await query.getSingleOrNull();
+
+    if (result != null) {
+      DebugLogger.debug('PlotsDao', 'getById',
+          'Found: ${result.name} (${result.code})');
+    } else {
+      DebugLogger.debug('PlotsDao', 'getById', 'No plot found with ID: $id');
+    }
+
+    return result;
+  }
+
+  /// Get all plots from local database
+  ///
+  /// Returns all plots regardless of sync status. Logs count for debugging.
+  Future<List<Plot>> getAll() async {
+    DebugLogger.debug('PlotsDao', 'getAll', 'Obteniendo todas las parcelas');
+
+    final results = await select(plots).get();
+
+    DebugLogger.debug('PlotsDao', 'getAll', 'Found ${results.length} plots');
+
+    return results;
+  }
+
+  /// Get plot by remote ID
+  ///
+  /// Returns plot matching remote Supabase ID, or null if not found.
+  Future<Plot?> getByRemoteId(String remoteId) async {
+    DebugLogger.debug('PlotsDao', 'getByRemoteId',
+        'Buscando parcela con remoteId: $remoteId');
+
+    final query = select(plots)..where((p) => p.remoteId.equals(remoteId));
+    final result = await query.getSingleOrNull();
+
+    if (result != null) {
+      DebugLogger.debug('PlotsDao', 'getByRemoteId',
+          'Found: localId=${result.id}, ${result.name} (${result.code})');
+    } else {
+      DebugLogger.debug(
+          'PlotsDao', 'getByRemoteId', 'No plot found with remoteId: $remoteId');
+    }
+
+    return result;
+  }
+
+  /// Get synced plots for a specific producer (for dropdown)
+  Future<List<Plot>> getSyncedByProducerLocalId(int producerLocalId) async {
+    DebugLogger.debug('PlotsDao', 'getSyncedByProducerLocalId',
+        'Getting synced plots for producer $producerLocalId');
+
+    return (select(plots)
+          ..where((p) => p.producerLocalId.equals(producerLocalId))
+          ..where((p) => p.syncStatus.equals(SyncStatus.synced.value))
+          ..where((p) => p.remoteId.isNotNull())
+          ..orderBy([(p) => OrderingTerm(expression: p.name)]))
+        .get();
+  }
+
+  /// Get all synced plots (for caching)
+  Future<List<Plot>> getAllSynced() async {
+    DebugLogger.debug('PlotsDao', 'getAllSynced', 'Getting all synced plots');
+
+    return (select(plots)
+          ..where((p) => p.syncStatus.equals(SyncStatus.synced.value))
+          ..where((p) => p.remoteId.isNotNull()))
+        .get();
+  }
+
+  /// Cache plots from remote (for offline dropdown usage)
+  ///
+  /// Replaces all synced plots with fresh data from remote.
+  /// Preserves local pending plots (those not yet synced).
+  Future<void> cacheFromRemote(List<PlotsCompanion> remotePlots) async {
+    DebugLogger.info('PlotsDao', 'cacheFromRemote',
+        'Caching ${remotePlots.length} plots from remote');
+
+    // Clear all synced plots first to avoid duplicates
+    await deleteSynced();
+
+    DebugLogger.debug('PlotsDao', 'cacheFromRemote',
+        'Cleared synced plots, inserting fresh data');
+
+    // Insert fresh data from remote
+    await batch((batch) {
+      batch.insertAll(plots, remotePlots);
+    });
+
+    DebugLogger.debug('PlotsDao', 'cacheFromRemote', 'Cache updated successfully');
+  }
+
+  /// Delete all synced plots (for cache cleanup)
+  ///
+  /// This preserves local pending plots while clearing cached remote data.
+  Future<void> deleteSynced() async {
+    DebugLogger.info('PlotsDao', 'deleteSynced',
+        'Deleting synced plots from cache');
+
+    final deleted = await (delete(plots)
+          ..where((p) => p.syncStatus.equals(SyncStatus.synced.value)))
+        .go();
+
+    DebugLogger.debug('PlotsDao', 'deleteSynced',
+        'Deleted $deleted synced plots');
+  }
+}

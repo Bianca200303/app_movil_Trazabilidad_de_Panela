@@ -1,0 +1,151 @@
+import 'package:flutter/material.dart';
+import 'package:panela_sys/widgets/forms/app_text_field.dart';
+import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/forms/form_section.dart';
+import 'package:panela_sys/widgets/production/production_step_header.dart';
+import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
+
+class TemperatureControlStep extends StatefulWidget {
+  final List<double> temperatures;
+  final Function(List<double>) onTemperaturesChanged;
+  final VoidCallback onContinue;
+  final VoidCallback onBack;
+
+  const TemperatureControlStep({
+    super.key,
+    required this.temperatures,
+    required this.onTemperaturesChanged,
+    required this.onContinue,
+    required this.onBack,
+  });
+
+  @override
+  State<TemperatureControlStep> createState() => _TemperatureControlStepState();
+}
+
+class _TemperatureControlStepState extends State<TemperatureControlStep> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = widget.temperatures
+        .map((temp) => TextEditingController(
+              text: temp == 0.0 ? '' : temp.toString(),
+            ))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FormSection(
+      children: [
+        ProductionStepHeader(
+          title: 'Registro de producción',
+          onBack: widget.onBack,
+        ),
+        SizedBox(height: context.responsiveSpacing * 0.5),
+        Text(
+          'Control de temperatura',
+          style: AppTextStyles.sectionTitle,
+        ),
+        SizedBox(height: context.responsiveSpacing),
+        Text(
+          'Ingrese las temperaturas registradas',
+          style: AppTextStyles.bodyText,
+        ),
+        SizedBox(height: context.responsiveSpacing),
+        ..._buildTemperatureFields(),
+        SizedBox(height: context.responsiveSpacing),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _addTemperature,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar temperatura'),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: context.responsiveSpacing * 1.5),
+        AppButton(
+          text: 'CONTINUAR',
+          onPressed: widget.onContinue,
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildTemperatureFields() {
+    return _controllers.asMap().entries.map((entry) {
+      final index = entry.key;
+      final controller = entry.value;
+      final isFirst = index == 0;
+      
+      return Padding(
+        padding: EdgeInsets.only(bottom: context.responsiveSpacing * 0.5),
+        child: Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: controller,
+                label: 'Temperatura ${index + 1}',
+                keyboardType: TextInputType.number,
+                suffixText: '°C',
+                onChanged: (value) => _updateTemperature(index, value),
+              ),
+            ),
+            if (!isFirst) ...[
+              SizedBox(width: context.responsiveSpacing * 0.5),
+              IconButton(
+                onPressed: () => _removeTemperature(index),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Eliminar temperatura',
+              ),
+            ],
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  void _addTemperature() {
+    setState(() {
+      _controllers.add(TextEditingController());
+    });
+    _notifyTemperaturesChanged();
+  }
+
+  void _removeTemperature(int index) {
+    if (_controllers.length > 1) {
+      setState(() {
+        _controllers[index].dispose();
+        _controllers.removeAt(index);
+      });
+      _notifyTemperaturesChanged();
+    }
+  }
+
+  void _updateTemperature(int index, String value) {
+    _notifyTemperaturesChanged();
+  }
+
+  void _notifyTemperaturesChanged() {
+    final temperatures = _controllers.map((controller) {
+      final text = controller.text.trim();
+      return text.isEmpty ? 0.0 : double.tryParse(text) ?? 0.0;
+    }).toList();
+    
+    widget.onTemperaturesChanged(temperatures);
+  }
+}
