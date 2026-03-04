@@ -17,6 +17,14 @@ class AuthService {
     required String password,
   }) async {
     try {
+      // ── DIAGNÓSTICO 401 ──────────────────────────────────────────────────
+      final session = _supabase.auth.currentSession;
+      final tokenEnviado = session?.accessToken ?? AppConfig.supabaseAnonKey;
+      print('🔑 [AUTH-DNI] URL destino : ${AppConfig.supabaseUrl}/functions/v1/auth-dni');
+      print('🔑 [AUTH-DNI] Token que se enviará (primeros 60 chars): ${tokenEnviado.substring(0, tokenEnviado.length.clamp(0, 60))}...');
+      print('🔑 [AUTH-DNI] ¿Es JWT? (debe empezar con "eyJ"): ${tokenEnviado.startsWith("eyJ")}');
+      print('🔑 [AUTH-DNI] Cooperative ID: ${AppConfig.current.id}');
+      // ────────────────────────────────────────────────────────────────────
       // Call our Edge Function for DNI/email authentication
       final response = await _supabase.functions.invoke(
         'auth-dni',
@@ -125,7 +133,14 @@ class AuthService {
 
       // 2. Intentar llamar a la nube
       print('☁️ [FLUTTER] Llamando a Edge Function "register-user"...');
-      
+      // ── DIAGNÓSTICO 401 ──────────────────────────────────────────────────
+      final _session = _supabase.auth.currentSession;
+      final _tokenEnviado = _session?.accessToken ?? AppConfig.supabaseAnonKey;
+      print('🔑 [REGISTER] URL destino : ${AppConfig.supabaseUrl}/functions/v1/register-user');
+      print('🔑 [REGISTER] Token que se enviará (primeros 60 chars): ${_tokenEnviado.substring(0, _tokenEnviado.length.clamp(0, 60))}...');
+      print('🔑 [REGISTER] ¿Es JWT? (debe empezar con "eyJ"): ${_tokenEnviado.startsWith("eyJ")}');
+      // ────────────────────────────────────────────────────────────────────
+
       final response = await _supabase.functions.invoke(
         'register-user',
         body: {

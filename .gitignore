@@ -54,3 +54,5 @@ app.*.map.json
 ##MODO RELEASE
 
 #flutter build apk --release --flavor caes --dart-define=COOPERATIVE_CODE=CAES --dart-define=USE_LOCAL_SUPABASE=false
+
+#web   flutter run -d chrome --dart-define=COOPERATIVE_CODE=CAES

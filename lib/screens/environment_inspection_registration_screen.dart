@@ -43,6 +43,9 @@ class _EnvironmentInspectionRegistrationScreenState
   // Saving state
   bool _isSaving = false;
 
+  // Scroll controller to reset position on step change
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +57,14 @@ class _EnvironmentInspectionRegistrationScreenState
   @override
   void dispose() {
     _inspectionDateController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
   }
 
   Future<void> _loadModules() async {
@@ -156,6 +166,7 @@ class _EnvironmentInspectionRegistrationScreenState
         _currentStep++;
       }
     });
+    _scrollToTop();
   }
 
   void _previousStep() {
@@ -186,6 +197,7 @@ class _EnvironmentInspectionRegistrationScreenState
       setState(() {
         _currentStep--;
       });
+      _scrollToTop();
     }
   }
 
@@ -327,6 +339,7 @@ class _EnvironmentInspectionRegistrationScreenState
         children: [
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: context.responsiveHorizontalPadding.copyWith(
                 top: context.responsivePadding.top,
                 bottom: context.responsivePadding.bottom,

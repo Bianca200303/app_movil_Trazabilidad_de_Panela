@@ -1,36 +1,39 @@
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 /// Central configuration for different cooperatives
 /// This is the single source of truth for app configuration
 class AppConfig {
   // Current cooperative configuration
   static CooperativeConfig get current => _getCurrentConfig();
 
-  // Environment configuration - determines if we use local or remote Supabase
-  // Default: true (use local Supabase for development)
-  // For production builds: pass --dart-define=USE_LOCAL_SUPABASE=false
-  static const bool useLocalSupabase = bool.fromEnvironment(
+  // 2. MAGIA AQUÍ: El defaultValue ahora es kDebugMode
+  // Si haces 'flutter run', kDebugMode es true -> usa local.
+  // Si haces 'flutter build apk --release', kDebugMode es false -> usa la nube.
+  static bool get useLocalSupabase => const bool.fromEnvironment(
     'USE_LOCAL_SUPABASE',
-    defaultValue: false,
+    defaultValue: kDebugMode, 
   );
 
-  // Supabase URL - automatically selects local or remote based on environment
+  // 3. Lógica condicional para la URL
   static String get supabaseUrl {
+    if (useLocalSupabase) {
+      return _getLocalSupabaseUrl();
+    }
+    // URL de Producción (La nube)
     return 'https://jmvpjinvvjlhhboieens.supabase.co';
   }
+
   // Get the appropriate localhost URL based on platform
   static String _getLocalSupabaseUrl() {
-    // On web, always use 127.0.0.1
     if (kIsWeb) {
       return 'http://127.0.0.1:54321';
     }
 
-    // On Android emulator, use 10.0.2.2 to access host machine
-    // On other platforms (iOS, desktop), use 127.0.0.1
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2:54321';
+        // OJO: Si vas a probar en tu celular físico con cable, 
+        // cambia 10.0.2.2 por la IP de tu computadora (ej: 192.168.1.X)
+        return 'http://10.0.2.2:54321'; 
       }
     } catch (e) {
       // Fallback if Platform is not available
@@ -39,11 +42,22 @@ class AppConfig {
     return 'http://127.0.0.1:54321';
   }
   
-  static String get supabaseAnonKey => const String.fromEnvironment(
-    'SUPABASE_ANON_KEY', 
-    defaultValue: 
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptdnBqaW52dmpsaGhib2llZW5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzE4MzcsImV4cCI6MjA4NDg0NzgzN30.PEfXECsgOuzxWg1Xz8p7fKS2RGhNjnyrWvf9wm_6kJE',
-  );
+  // 4. Lógica condicional para la Anon Key
+  static String get supabaseAnonKey {
+    if (useLocalSupabase) {
+      // IMPORTANTE: debe ser la anon key en formato JWT (eyJ...) obtenida con `supabase status`.
+      // El formato sb_publishable_* NO es un JWT y el runtime local de Edge Functions lo rechaza.
+      // Si usas el JWT secret por defecto de Supabase CLI, esta es la key correcta:
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjIwODc5MjI1MDB9.CWzZIYMqT3Rp7C_J3lqK-1QwJQPqWJLd2QEjzMIiQ';
+    }
+    
+    // Clave de Producción (La nube)
+    return const String.fromEnvironment(
+      'SUPABASE_ANON_KEY', 
+      defaultValue: 
+      'eyJhbGciOiJFUzI1NiIsImtpZCI6ImI4MTI2OWYxLTIxZDgtNGYyZS1iNzE5LWMyMjQwYTg0MGQ5MCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjIwODc5MjI1MDB9.mGeZ4LBS90ARgSzln7gvLqX255v1VoDWBB5Hd1M7cvMDUd0DVnt_heDYS_rroMszjBSI4UxsykzJfCOhLhGRtg',
+    );
+  }
 
   // Build configuration - this determines which cooperative to use
   static const String cooperativeCode = String.fromEnvironment(

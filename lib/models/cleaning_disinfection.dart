@@ -121,21 +121,21 @@ class CleaningAreas {
   static String getDisplayName(String code) {
     switch (code) {
       case receptionMilling:
-        return 'Recepción, molienda y secado';
+        return 'Área de Recepción, molienda y secado';
       case thermalTreatment:
-        return 'Tratamiento térmico';
+        return 'Área de Tratamiento térmico';
       case homogenizationPackaging:
-        return 'Homogenizado, tamizado y envasado';
+        return 'Área de Homogenizado, tamizado y envasado';
       case warehouses:
-        return 'Almacenes';
+        return 'Área de Almacenes';
       case changingRooms:
-        return 'Vestuarios';
+        return 'Área de Vestuarios';
       case restrooms:
-        return 'Servicios higiénicos';
+        return 'Área de Servicios higiénicos';
       case cleaningEquipment:
-        return 'Implementos de limpieza';
+        return 'Área de Implementos de limpieza';
       case reservoir:
-        return 'Reservorio';
+        return 'Área de Reservorio';
       default:
         return code;
     }
