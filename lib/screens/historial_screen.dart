@@ -2231,6 +2231,23 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       children: _exitsData.map((item) {
         final isAutoconsumo = item['is_autoconsumo'] == true;
 
+        // Clean decimal format + smart pluralization for "saco"
+   final double cantidad = (item['cantidad_mostrada'] is num)
+            ? (item['cantidad_mostrada'] as num).toDouble()
+            : double.tryParse(item['cantidad_mostrada'].toString()) ?? 0.0;
+
+        // Esto quita los decimales innecesarios (ej: 1.0 -> 1, 1.5 -> 1.5)
+        final String cantidadStr = cantidad % 1 == 0 
+            ? cantidad.toInt().toString() 
+            : cantidad.toString();
+
+        final String unidadOriginal = item['unidad'].toString().toLowerCase();
+        String unidadFinal = unidadOriginal;
+
+        // Solo aplicamos pluralización si la unidad es "saco"
+        if (unidadOriginal.contains('saco')) {
+          unidadFinal = (cantidad == 1.0) ? 'saco' : 'sacos';
+        }
         return Container(
           margin: EdgeInsets.only(bottom: context.responsiveSpacing),
           padding: context.responsivePadding,
@@ -2266,7 +2283,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
               SizedBox(height: context.responsiveSpacing / 2),
 
               // Cantidad (kg o sacos según tipo)
-              _buildInfoRow('Cantidad:', '${item['cantidad_mostrada'].toString()} ${item['unidad'].toString()}'),
+              _buildInfoRow('Cantidad:', '$cantidadStr $unidadFinal'),
               SizedBox(height: context.responsiveSpacing / 2),
 
               // Documento

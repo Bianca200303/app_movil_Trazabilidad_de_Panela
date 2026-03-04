@@ -85,6 +85,14 @@ class HomeScreen extends ConsumerWidget {
                           ),
 
                           AppButton(
+                            text: 'Formularios de control',
+                            icon: Icons.assignment_outlined,
+                            type: AppButtonType.option,
+                            onPressed: () => context.go(AppRoutes.controlForms.path),
+                          ),
+
+
+                             AppButton(
                             text: 'Registro de salida',
                             icon: Icons.signpost,
                             type: exitsEnabled ? AppButtonType.optionActive : AppButtonType.option,
@@ -93,12 +101,6 @@ class HomeScreen extends ConsumerWidget {
                                 : null,
                           ),
 
-                          AppButton(
-                            text: 'Formularios de control',
-                            icon: Icons.assignment_outlined,
-                            type: AppButtonType.option,
-                            onPressed: () => context.go(AppRoutes.controlForms.path),
-                          ),
 
                           AppButton(
                             text: 'Historial de registros',

@@ -58,6 +58,9 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   // Current step in the registration process
   int _currentStep = 0;
 
+  // Scroll controller to reset position on step change
+  final ScrollController _scrollController = ScrollController();
+
   // Selected producer and plot for default percentage values
   Producer? _selectedProducer;
   Plot? _selectedPlot;
@@ -84,6 +87,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   @override
   void dispose() {
     _plotController.removeListener(_onPlotChanged);
+    _scrollController.dispose();
     _producerController.dispose();
     _plotController.dispose();
     _harvestDateController.dispose();
@@ -105,6 +109,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,
@@ -229,10 +234,17 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     }
   }
 
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
   void _nextStep() {
     setState(() {
       _currentStep++;
     });
+    _scrollToTop();
   }
 
   void _previousStep() {
@@ -243,6 +255,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         context.go(AppRoutes.home.path);
       }
     });
+    _scrollToTop();
   }
 
   Future<void> _loadCertificates() async {

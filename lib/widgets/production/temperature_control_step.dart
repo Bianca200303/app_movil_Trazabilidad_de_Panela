@@ -26,6 +26,7 @@ class TemperatureControlStep extends StatefulWidget {
 
 class _TemperatureControlStepState extends State<TemperatureControlStep> {
   late List<TextEditingController> _controllers;
+  late List<FocusNode> _focusNodes;
 
   @override
   void initState() {
@@ -35,12 +36,17 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
               text: temp == 0.0 ? '' : temp.toString(),
             ))
         .toList();
+    _focusNodes =
+        List.generate(widget.temperatures.length, (_) => FocusNode());
   }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
+    for (final controller in _controllers) {
       controller.dispose();
+    }
+    for (final node in _focusNodes) {
+      node.dispose();
     }
     super.dispose();
   }
@@ -87,11 +93,13 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
   }
 
   List<Widget> _buildTemperatureFields() {
+    final lastIndex = _controllers.length - 1;
     return _controllers.asMap().entries.map((entry) {
       final index = entry.key;
       final controller = entry.value;
       final isFirst = index == 0;
-      
+      final isLast = index == lastIndex;
+
       return Padding(
         padding: EdgeInsets.only(bottom: context.responsiveSpacing * 0.5),
         child: Row(
@@ -99,6 +107,9 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
             Expanded(
               child: AppTextField(
                 controller: controller,
+                focusNode: _focusNodes[index],
+                textInputAction:
+                    isLast ? TextInputAction.done : TextInputAction.next,
                 label: 'Temperatura ${index + 1}',
                 keyboardType: TextInputType.number,
                 suffixText: '°C',
@@ -122,6 +133,11 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
   void _addTemperature() {
     setState(() {
       _controllers.add(TextEditingController());
+      _focusNodes.add(FocusNode());
+    });
+    // Move cursor to the newly added field after the frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNodes.last.requestFocus();
     });
     _notifyTemperaturesChanged();
   }
@@ -131,6 +147,8 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
       setState(() {
         _controllers[index].dispose();
         _controllers.removeAt(index);
+        _focusNodes[index].dispose();
+        _focusNodes.removeAt(index);
       });
       _notifyTemperaturesChanged();
     }

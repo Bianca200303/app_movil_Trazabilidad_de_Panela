@@ -20,6 +20,15 @@ class MaintenanceControlRegistrationScreen extends StatefulWidget {
 class _MaintenanceControlRegistrationScreenState
     extends State<MaintenanceControlRegistrationScreen> {
   // ============================================================================
+  // EQUIPMENT SUGGESTIONS — add more options here as needed
+  // ============================================================================
+  static const List<String> _kEquipmentSuggestions = [
+    'Trapiche',
+    'Motor',
+    'Hornilla',
+  ];
+
+  // ============================================================================
   // SERVICES
   // ============================================================================
   final _maintenanceService = EquipmentMaintenanceService();
@@ -31,6 +40,7 @@ class _MaintenanceControlRegistrationScreenState
   final _formKey = GlobalKey<FormState>();
 
   final _equipmentNameController = TextEditingController();
+  final _equipmentNameFocusNode = FocusNode();
   final _maintenanceCauseController = TextEditingController();
   final _materialsUsedController = TextEditingController();
   final _durationController = TextEditingController();
@@ -56,6 +66,7 @@ class _MaintenanceControlRegistrationScreenState
   @override
   void dispose() {
     _equipmentNameController.dispose();
+    _equipmentNameFocusNode.dispose();
     _maintenanceCauseController.dispose();
     _materialsUsedController.dispose();
     _durationController.dispose();
@@ -290,14 +301,152 @@ class _MaintenanceControlRegistrationScreenState
                     ),
 
                     // ============================================================
-                    // Equipment Name
+                    // Equipment Name — autocomplete with free text fallback
                     // ============================================================
-                    AppTextField(
-                      label: 'Nombre del equipo',
-                      controller: _equipmentNameController,
-                      validator: (value) =>
-                          _validateRequired(value, 'Nombre del equipo'),
-                      hintText: 'Ej: Trapiche, Motor, Hornilla',
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Nombre del equipo',
+                          style: AppTextStyles.fieldLabel,
+                        ),
+                        const SizedBox(height: AppDimensions.spacingSmall),
+                        RawAutocomplete<String>(
+                          textEditingController: _equipmentNameController,
+                          focusNode: _equipmentNameFocusNode,
+                          optionsBuilder: (TextEditingValue textValue) {
+                            if (textValue.text.isEmpty) {
+                              return _kEquipmentSuggestions;
+                            }
+                            return _kEquipmentSuggestions.where(
+                              (option) => option.toLowerCase().contains(
+                                    textValue.text.toLowerCase(),
+                                  ),
+                            );
+                          },
+                          displayStringForOption: (option) => option,
+                          fieldViewBuilder: (
+                            context,
+                            fieldController,
+                            fieldFocusNode,
+                            onFieldSubmitted,
+                          ) {
+                            return TextFormField(
+                              controller: fieldController,
+                              focusNode: fieldFocusNode,
+                              onFieldSubmitted: (_) => onFieldSubmitted(),
+                              textCapitalization: TextCapitalization.words,
+                              validator: (value) =>
+                                  _validateRequired(value, 'Nombre del equipo'),
+                              style: AppTextStyles.inputText,
+                              decoration: InputDecoration(
+                                hintText: 'Ej: Trapiche, Motor, Hornilla',
+                                hintStyle: AppTextStyles.hintText.copyWith(
+                                  color: AppColors.placeholder,
+                                ),
+                                suffixIcon: Icon(
+                                  Icons.arrow_drop_down,
+                                  color: AppColors.textSecondary,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.inputFill,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: AppDimensions.paddingMedium,
+                                  vertical: AppDimensions.paddingMedium,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMedium),
+                                  borderSide: BorderSide(
+                                    color: AppColors.inputBorder,
+                                    width: AppDimensions.inputBorderWidth,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMedium),
+                                  borderSide: BorderSide(
+                                    color: AppColors.inputBorder,
+                                    width: AppDimensions.inputBorderWidth,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMedium),
+                                  borderSide: BorderSide(
+                                    color: AppColors.inputBorderFocused,
+                                    width: AppDimensions.inputFocusedBorderWidth,
+                                  ),
+                                ),
+                                errorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMedium),
+                                  borderSide: BorderSide(
+                                    color: AppColors.inputBorderError,
+                                    width: AppDimensions.inputBorderWidth,
+                                  ),
+                                ),
+                                focusedErrorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDimensions.radiusMedium),
+                                  borderSide: BorderSide(
+                                    color: AppColors.inputBorderError,
+                                    width: AppDimensions.inputFocusedBorderWidth,
+                                  ),
+                                ),
+                                errorStyle:
+                                    AppTextStyles.bodyTextSecondary.copyWith(
+                                  color: AppColors.error,
+                                ),
+                              ),
+                            );
+                          },
+                          optionsViewBuilder: (
+                            context,
+                            onSelected,
+                            options,
+                          ) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(
+                                    AppDimensions.radiusMedium),
+                                color: AppColors.surface,
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxHeight: 200),
+                                  child: ListView.separated(
+                                    padding: EdgeInsets.zero,
+                                    shrinkWrap: true,
+                                    itemCount: options.length,
+                                    separatorBuilder: (_, __) => Divider(
+                                      height: 1,
+                                      color: AppColors.border,
+                                    ),
+                                    itemBuilder: (context, index) {
+                                      final option =
+                                          options.elementAt(index);
+                                      return ListTile(
+                                        leading: Icon(
+                                          Icons.build_outlined,
+                                          color: AppColors.primary,
+                                          size: AppDimensions.iconSmall,
+                                        ),
+                                        title: Text(
+                                          option,
+                                          style: AppTextStyles.bodyText,
+                                        ),
+                                        onTap: () => onSelected(option),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
 
                     // ============================================================
@@ -337,9 +486,8 @@ class _MaintenanceControlRegistrationScreenState
                       ],
                     ),
 
-                    // ============================================================
                     // Maintenance Cause
-                    // ============================================================
+
                     AppTextField(
                       label: 'Causa del mantenimiento',
                       controller: _maintenanceCauseController,
@@ -349,9 +497,7 @@ class _MaintenanceControlRegistrationScreenState
                       maxLines: 2,
                     ),
 
-                    // ============================================================
                     // Materials Used (Optional)
-                    // ============================================================
                     AppTextField(
                       label: 'Materiales / Repuestos usados (opcional)',
                       controller: _materialsUsedController,

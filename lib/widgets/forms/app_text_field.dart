@@ -23,6 +23,8 @@ class AppTextField extends StatelessWidget {
   final String? suffixText;
   final TextCapitalization textCapitalization;
   final List<TextInputFormatter>? inputFormatters;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
 
   const AppTextField({
     super.key,
@@ -44,6 +46,8 @@ class AppTextField extends StatelessWidget {
     this.suffixText,
     this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
+    this.focusNode,
+    this.textInputAction,
   });
 
   @override
@@ -60,6 +64,8 @@ class AppTextField extends StatelessWidget {
         ],
         TextFormField(
           controller: controller,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
           keyboardType: keyboardType,
           obscureText: obscureText,
           readOnly: readOnly,
