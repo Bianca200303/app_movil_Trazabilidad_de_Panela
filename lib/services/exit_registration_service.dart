@@ -476,7 +476,7 @@ class ExitRegistrationService {
 
           // Display logic: show bags if acopio, kg if autoconsumo
           final displayQuantity = isAutoconsumo ? quantityKg : (bagsCount ?? 0);
-          final displayUnit = isAutoconsumo ? 'kg' : 'bolsas';
+          final displayUnit = isAutoconsumo ? 'kg' : 'Sacos';
 
           expandedList.add({
             'id': '${exit['id']}_${exitItem.hashCode}', // Unique ID per item
@@ -488,7 +488,7 @@ class ExitRegistrationService {
                 : 'N/A',
             'dni_productor': producer?['dni'] ?? 'N/A',
             'cantidad_kg': quantityKg,
-            'bolsas': bagsCount ?? 0,
+            'Sacos': bagsCount ?? 0,
             'cantidad_mostrada': displayQuantity.toStringAsFixed(displayQuantity == displayQuantity.toInt() ? 0 : 2),
             'unidad': displayUnit,
             'tipo_salida': exit['exit_type'],

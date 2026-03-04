@@ -36,10 +36,10 @@ class BagConditionsStep extends StatelessWidget {
           isExpanded: false,
         ),
 
-        const AppTitle(title: 'CONDICIONES DE LAS BOLSAS'),
+        const AppTitle(title: 'CONDICIONES DE LOS SACOS'),
 
         FormSection(
-          subtitle: 'Evalúa el estado de las bolsas de panela',
+          subtitle: 'Evalúa el estado de las Sacos de panela',
           children: [
             SizedBox(height: context.responsiveSpacing),
 

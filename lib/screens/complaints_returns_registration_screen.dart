@@ -390,7 +390,7 @@ class _ComplaintsReturnsRegistrationScreenState
                               segments: [
                                 ButtonSegment(
                                   value: QuantityMode.bags,
-                                  label: Text('Bolsas'),
+                                  label: Text('Sacos'),
                                 ),
                                 ButtonSegment(
                                   value: QuantityMode.kilograms,
@@ -408,7 +408,7 @@ class _ComplaintsReturnsRegistrationScreenState
                       const SizedBox(height: 12),
                       if (_quantityMode == QuantityMode.bags)
                         AppTextField(
-                          label: 'Bolsas',
+                          label: 'Sacos',
                           controller: _quantitySacksController,
                           keyboardType: TextInputType.number,
                           hintText: '0',

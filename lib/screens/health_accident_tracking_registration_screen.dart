@@ -64,6 +64,87 @@ class _HealthAccidentTrackingRegistrationScreenState
     // Set default registration date to today
     _registrationDateController.text =
         DateFormat('dd/MM/yyyy').format(DateTime.now());
+    // Show confirmation dialog immediately after the first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showConfirmationDialog();
+    });
+  }
+
+  void _showConfirmationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXLarge),
+        ),
+        backgroundColor: AppColors.surface,
+        contentPadding: const EdgeInsets.fromLTRB(
+          AppDimensions.paddingLarge,
+          AppDimensions.paddingLarge,
+          AppDimensions.paddingLarge,
+          AppDimensions.paddingMedium,
+        ),
+        title: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.infoLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.health_and_safety_outlined,
+                color: AppColors.primary,
+                size: AppDimensions.iconXLarge,
+              ),
+            ),
+            const SizedBox(height: AppDimensions.spacingMedium),
+            Text(
+              '¿Registrar nuevo caso?',
+              style: AppTextStyles.cardTitle,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        content: Text(
+          'Este formulario solo debe llenarse si algún trabajador se ha reportado enfermo o accidentado. ¿Deseas registrar un caso ahora?',
+          style: AppTextStyles.bodyTextSecondary,
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppDimensions.paddingLarge,
+          AppDimensions.paddingSmall,
+          AppDimensions.paddingLarge,
+          AppDimensions.paddingLarge,
+        ),
+        actions: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppButton(
+                text: 'Sí, registrar caso',
+                type: AppButtonType.primary,
+                icon: Icons.check_circle_outline,
+                isExpanded: true,
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
+              const SizedBox(height: AppDimensions.spacingSmall),
+              AppButton(
+                text: 'No, todos están bien',
+                type: AppButtonType.secondary,
+                isExpanded: true,
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  context.go(AppRoutes.controlForms.path);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override

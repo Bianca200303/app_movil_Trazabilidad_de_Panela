@@ -2265,7 +2265,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
               ),
               SizedBox(height: context.responsiveSpacing / 2),
 
-              // Cantidad (kg o bolsas según tipo)
+              // Cantidad (kg o sacos según tipo)
               _buildInfoRow('Cantidad:', '${item['cantidad_mostrada'].toString()} ${item['unidad'].toString()}'),
               SizedBox(height: context.responsiveSpacing / 2),
 
@@ -2843,7 +2843,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         final returnData = _productReturnsData[index];
         final returnDate = returnData['return_date'] as DateTime?;
         final quantity = returnData['quantity_sacks'] > 0
-            ? '${returnData['quantity_sacks']} bolsas (${returnData['quantity_kg']} kg)'
+            ? '${returnData['quantity_sacks']} Sacos (${returnData['quantity_kg']} kg)'
             : '${returnData['quantity_kg']} kg';
 
         return Padding(

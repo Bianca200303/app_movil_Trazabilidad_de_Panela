@@ -74,7 +74,7 @@ class ProductReturn {
   /// Helper: display quantity (prioritize sacks if available)
   String get quantityDisplay {
     if (quantitySacks > 0) {
-      return '$quantitySacks bolsas (${quantityKg.toStringAsFixed(2)} kg)';
+      return '$quantitySacks Sacos (${quantityKg.toStringAsFixed(2)} kg)';
     } else {
       return '${quantityKg.toStringAsFixed(2)} kg';
     }
@@ -126,5 +126,5 @@ class CreateProductReturnRequest {
 
   @override
   String toString() =>
-      'CreateProductReturnRequest(client: $clientName, quantity: ${quantitySacks > 0 ? '$quantitySacks bolsas' : '$quantityKg kg'})';
+      'CreateProductReturnRequest(client: $clientName, quantity: ${quantitySacks > 0 ? '$quantitySacks Sacos' : '$quantityKg kg'})';
 }
