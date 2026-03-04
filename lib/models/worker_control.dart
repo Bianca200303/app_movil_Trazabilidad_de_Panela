@@ -133,9 +133,38 @@ class WorkerControl {
 
 // Request class for creating new worker control records
 class CreateWorkerControlRequest {
+  // 1. Datos generales (La Cabecera)
   final String productionBatchId;
-  final String workerName;
   final WorkArea workArea;
+  final String? observations;
+  final String cooperativeId;
+
+  // 2. La lista de trabajadores (Los Detalles)
+  final List<WorkerEvaluation> workers;
+
+  const CreateWorkerControlRequest({
+    required this.productionBatchId,
+    required this.workArea,
+    this.observations,
+    required this.cooperativeId,
+    required this.workers,
+  });
+
+  // Nota: Dejé el toJson vacío por ahora porque lo vamos a cambiar
+  // en el Paso 2 cuando toquemos el Service de Supabase.
+  Map<String, dynamic> toHeaderJson() {
+    return {
+      'cooperative_id': cooperativeId,
+      'production_batch_id': productionBatchId,
+      'work_area': workArea.code,
+      if (observations != null && observations!.isNotEmpty)
+        'observations': observations,
+    };
+  }
+}
+
+class WorkerEvaluation {
+  final String workerName;
   final bool uniformComplete;
   final bool noMakeup;
   final bool nailsShortClean;
@@ -145,32 +174,24 @@ class CreateWorkerControlRequest {
   final bool hairCovered;
   final bool noBeard;
   final bool noWounds;
-  final String? observations;
-  final String cooperativeId;
 
-  const CreateWorkerControlRequest({
-    required this.productionBatchId,
+  const WorkerEvaluation({
     required this.workerName,
-    required this.workArea,
-    required this.uniformComplete,
-    required this.noMakeup,
-    required this.nailsShortClean,
-    required this.nailsNoPolish,
-    required this.handsClean,
-    required this.noJewelry,
-    required this.hairCovered,
-    required this.noBeard,
-    required this.noWounds,
-    this.observations,
-    required this.cooperativeId,
+    this.uniformComplete = true,
+    this.noMakeup = true,
+    this.nailsShortClean = true,
+    this.nailsNoPolish = true,
+    this.handsClean = true,
+    this.noJewelry = true,
+    this.hairCovered = true,
+    this.noBeard = true,
+    this.noWounds = true,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson(String workerControlId) {
     return {
-      'cooperative_id': cooperativeId,
-      'production_batch_id': productionBatchId,
+      'worker_control_id': workerControlId,
       'worker_name': workerName,
-      'work_area': workArea.code,
       'uniform_complete': uniformComplete,
       'no_makeup': noMakeup,
       'nails_short_clean': nailsShortClean,
@@ -180,9 +201,33 @@ class CreateWorkerControlRequest {
       'hair_covered': hairCovered,
       'no_beard': noBeard,
       'no_wounds': noWounds,
-      if (observations != null && observations!.isNotEmpty)
-        'observations': observations,
-      // created_by is auto-populated by database trigger
     };
+  }
+
+  // NUEVO: Permite crear una copia del objeto modificando solo campos específicos
+  WorkerEvaluation copyWith({
+    String? workerName,
+    bool? uniformComplete,
+    bool? noMakeup,
+    bool? nailsShortClean,
+    bool? nailsNoPolish,
+    bool? handsClean,
+    bool? noJewelry,
+    bool? hairCovered,
+    bool? noBeard,
+    bool? noWounds,
+  }) {
+    return WorkerEvaluation(
+      workerName: workerName ?? this.workerName,
+      uniformComplete: uniformComplete ?? this.uniformComplete,
+      noMakeup: noMakeup ?? this.noMakeup,
+      nailsShortClean: nailsShortClean ?? this.nailsShortClean,
+      nailsNoPolish: nailsNoPolish ?? this.nailsNoPolish,
+      handsClean: handsClean ?? this.handsClean,
+      noJewelry: noJewelry ?? this.noJewelry,
+      hairCovered: hairCovered ?? this.hairCovered,
+      noBeard: noBeard ?? this.noBeard,
+      noWounds: noWounds ?? this.noWounds,
+    );
   }
 }

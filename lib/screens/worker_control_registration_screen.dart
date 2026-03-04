@@ -1,6 +1,6 @@
 // =====================================================
 // Worker Control Registration Screen
-// 2-Step Wizard: Production Batch Selection → Worker Details
+// Main orchestration file for the registration wizard.
 // =====================================================
 
 import 'package:flutter/material.dart';
@@ -11,8 +11,9 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
-import 'package:panela_sys/widgets/widgets.dart';
 import 'package:panela_sys/services/product_return_service.dart';
+import 'package:panela_sys/widgets/widgets.dart';
+import 'package:panela_sys/widgets/worker_evaluation_card.dart'; // Importación del nuevo widget
 
 class WorkerControlRegistrationScreen extends StatefulWidget {
   const WorkerControlRegistrationScreen({super.key});
@@ -24,24 +25,25 @@ class WorkerControlRegistrationScreen extends StatefulWidget {
 
 class _WorkerControlRegistrationScreenState
     extends State<WorkerControlRegistrationScreen> {
-  // Services
   final _workerControlService = WorkerControlService();
   final _productReturnService = ProductReturnService();
 
-  // Wizard state
   int _currentStep = 0;
+  bool _isSaving = false;
 
-  // Step 0: Production batch selection
+  // State Step 0
   DateTime _selectedDate = DateTime.now();
   String? _selectedBatchId;
-  Map<String, dynamic>? _selectedBatch;
   List<Map<String, dynamic>> _availableBatches = [];
   bool _isLoadingBatches = false;
 
-
-  // Step 1: Worker details
-  final _workerNameController = TextEditingController();
+  // State Step 1
   WorkArea? _selectedWorkArea;
+  final _observationsController = TextEditingController();
+  List<WorkerEvaluation> _addedWorkers = [];
+
+  // Temporal worker state
+  final _workerNameController = TextEditingController();
   bool _uniformComplete = true;
   bool _noMakeup = true;
   bool _nailsShortClean = true;
@@ -51,9 +53,6 @@ class _WorkerControlRegistrationScreenState
   bool _hairCovered = true;
   bool _noBeard = true;
   bool _noWounds = true;
-  final _observationsController = TextEditingController();
-
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -69,137 +68,122 @@ class _WorkerControlRegistrationScreenState
   }
 
   // =====================================================
-  // Data Loading
+  // Worker List Management
   // =====================================================
 
-  Future<void> _loadBatches() async {
-    setState(() => _isLoadingBatches = true);
-
-    try {
-      final batches = await _productReturnService.getBatchesByDate(_selectedDate);
-
-      setState(() {
-        _availableBatches = batches;
-        _isLoadingBatches = false;
-        // Reset batch selection when date changes
-        _selectedBatchId = null;
-        _selectedBatch = null;
-      });
-    } catch (e) {
-      if (mounted) {
-        AppSnackBar.show(
-          context,
-          message: 'Error al cargar lotes: $e',
-          type: SnackBarType.error,
-        );
-        setState(() => _isLoadingBatches = false);
-      }
-    }
-  }
-
-  // =====================================================
-  // Navigation
-  // =====================================================
-
-  void _nextStep() {
-    if (_currentStep == 0 && !_validateStep0()) {
-      return;
-    }
-
-    setState(() {
-      if (_currentStep < 1) {
-        _currentStep++;
-      }
-    });
-  }
-
-  void _previousStep() {
-    if (_currentStep == 0) {
-      _showExitConfirmation();
-    } else {
-      setState(() {
-        _currentStep--;
-      });
-    }
-  }
-
-  bool _validateStep0() {
-    if (_selectedBatchId == null) {
+  bool _addWorker() {
+    if (_workerNameController.text.trim().isEmpty) {
       AppSnackBar.show(
         context,
-        message: 'Selecciona un lote de producción',
+        message: 'Ingresa el nombre del trabajador primero',
         type: SnackBarType.error,
       );
       return false;
     }
 
+    setState(() {
+      _addedWorkers.add(
+        WorkerEvaluation(
+          workerName: _workerNameController.text.trim(),
+          uniformComplete: _uniformComplete,
+          noMakeup: _noMakeup,
+          nailsShortClean: _nailsShortClean,
+          nailsNoPolish: _nailsNoPolish,
+          handsClean: _handsClean,
+          noJewelry: _noJewelry,
+          hairCovered: _hairCovered,
+          noBeard: _noBeard,
+          noWounds: _noWounds,
+        ),
+      );
+      _resetTemporalWorkerState();
+    });
     return true;
   }
 
-  void _showExitConfirmation() {
-    showDialog(
+  void _updateWorker(int index, WorkerEvaluation updatedWorker) {
+    setState(() {
+      _addedWorkers[index] = updatedWorker;
+    });
+  }
+
+  void _removeWorker(int index) {
+    setState(() {
+      _addedWorkers.removeAt(index);
+    });
+  }
+
+  void _resetTemporalWorkerState() {
+    _workerNameController.clear();
+    _uniformComplete = true;
+    _noMakeup = true;
+    _nailsShortClean = true;
+    _nailsNoPolish = true;
+    _handsClean = true;
+    _noJewelry = true;
+    _hairCovered = true;
+    _noBeard = true;
+    _noWounds = true;
+  }
+
+  // =====================================================
+  // Validation and Submission logic
+  // =====================================================
+
+  /// Red de seguridad UX 2: Verifica si hay datos sin guardar
+  Future<bool> _handlePendingWorkerData() async {
+    if (_workerNameController.text.trim().isEmpty)
+      return true; // No hay pendientes
+
+    final bool? shouldAdd = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Cancelar registro'),
-        content: const Text(
-          '¿Estás seguro de que deseas cancelar? Se perderán todos los datos ingresados.',
+        title: const Text('Trabajador sin añadir'),
+        content: Text(
+          'Tienes a "${_workerNameController.text.trim()}" a medio registrar. ¿Deseas añadirlo a la lista antes de guardar?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Continuar editando'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'Descartar y Guardar',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go(AppRoutes.controlForms.path);
-            },
-            child: const Text('Sí, cancelar'),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Añadir y Guardar'),
           ),
         ],
       ),
     );
+
+    if (shouldAdd == null) return false; // El usuario canceló la operación
+    if (shouldAdd) return _addWorker();
+
+    _resetTemporalWorkerState(); // Descartar los datos temporales
+    return true;
   }
-
-  // =====================================================
-  // Date Picker
-  // =====================================================
-
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-      _loadBatches();
-    }
-  }
-
-  // =====================================================
-  // Submit
-  // =====================================================
 
   Future<void> _submitForm() async {
-    // Validate Step 1
-    if (_workerNameController.text.trim().isEmpty) {
+    if (_selectedWorkArea == null) {
       AppSnackBar.show(
         context,
-        message: 'Ingresa el nombre del trabajador',
+        message: 'Selecciona el área de trabajo',
         type: SnackBarType.error,
       );
       return;
     }
 
-    if (_selectedWorkArea == null) {
+    // Ejecuta la red de seguridad
+    final canProceed = await _handlePendingWorkerData();
+    if (!canProceed) return;
+
+    if (_addedWorkers.isEmpty) {
       AppSnackBar.show(
         context,
-        message: 'Selecciona el área de trabajo',
+        message: 'Debes añadir al menos un trabajador a la lista',
         type: SnackBarType.error,
       );
       return;
@@ -210,21 +194,12 @@ class _WorkerControlRegistrationScreenState
     try {
       final request = CreateWorkerControlRequest(
         productionBatchId: _selectedBatchId!,
-        workerName: _workerNameController.text.trim(),
         workArea: _selectedWorkArea!,
-        uniformComplete: _uniformComplete,
-        noMakeup: _noMakeup,
-        nailsShortClean: _nailsShortClean,
-        nailsNoPolish: _nailsNoPolish,
-        handsClean: _handsClean,
-        noJewelry: _noJewelry,
-        hairCovered: _hairCovered,
-        noBeard: _noBeard,
-        noWounds: _noWounds,
         observations: _observationsController.text.trim().isEmpty
             ? null
             : _observationsController.text.trim(),
         cooperativeId: AppConfig.current.id,
+        workers: _addedWorkers,
       );
 
       await _workerControlService.createWorkerControl(request);
@@ -238,22 +213,81 @@ class _WorkerControlRegistrationScreenState
         context.go(AppRoutes.controlForms.path);
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         AppSnackBar.show(
           context,
           message: 'Error al guardar: $e',
           type: SnackBarType.error,
         );
-      }
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   // =====================================================
-  // UI Rendering
+  // Data Loading and Navigation (Standard logic)
+  // =====================================================
+
+  Future<void> _loadBatches() async {
+    setState(() => _isLoadingBatches = true);
+    try {
+      final batches = await _productReturnService.getBatchesByDate(
+        _selectedDate,
+      );
+      setState(() {
+        _availableBatches = batches;
+        _isLoadingBatches = false;
+        _selectedBatchId = null;
+      });
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Error al cargar lotes: $e',
+          type: SnackBarType.error,
+        );
+        setState(() => _isLoadingBatches = false);
+      }
+    }
+  }
+
+  void _nextStep() {
+    if (_currentStep == 0 && _selectedBatchId == null) {
+      AppSnackBar.show(
+        context,
+        message: 'Selecciona un lote de producción',
+        type: SnackBarType.error,
+      );
+      return;
+    }
+    setState(() {
+      if (_currentStep < 1) _currentStep++;
+    });
+  }
+
+  void _previousStep() {
+    if (_currentStep == 0) {
+      context.go(AppRoutes.controlForms.path);
+    } else {
+      setState(() => _currentStep--);
+    }
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() => _selectedDate = picked);
+      _loadBatches();
+    }
+  }
+
+  // =====================================================
+  // UI Building
   // =====================================================
 
   @override
@@ -268,51 +302,23 @@ class _WorkerControlRegistrationScreenState
             bottom: context.responsivePadding.bottom,
           ),
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: context.responsiveCardWidth,
-            ),
-            child: _buildCurrentStep(),
+            constraints: BoxConstraints(maxWidth: context.responsiveCardWidth),
+            child: _currentStep == 0 ? _buildStep0() : _buildStep1(),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCurrentStep() {
-    if (_currentStep == 0) {
-      return _buildStep0();
-    } else {
-      return _buildStep1();
-    }
-  }
-
-  // =====================================================
-  // Step 0: Production Batch Selection
-  // =====================================================
-
   Widget _buildStep0() {
     return AppCard(
       padding: context.responsivePadding,
       child: FormGroup(
         children: [
-          // Back button
-          AppBackButton(
-            onPressed: () => context.go(AppRoutes.controlForms.path),
-            isExpanded: true,
-          ),
+          AppBackButton(onPressed: _previousStep, isExpanded: true),
           SizedBox(height: context.responsiveSpacing),
-
           const AppTitle(title: 'Seleccionar Lote de Producción'),
-          const SizedBox(height: 8),
-          Text(
-            'Elige la fecha y el lote de producción para registrar los controles',
-            style: AppTextStyles.bodyText.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
           const SizedBox(height: 24),
-
-          // Date picker
           AppTextField(
             label: 'Fecha de producción',
             controller: TextEditingController(
@@ -322,64 +328,34 @@ class _WorkerControlRegistrationScreenState
             onTap: _selectDate,
             suffixIcon: const Icon(Icons.calendar_today),
           ),
-
-          // Production batch dropdown
           if (_isLoadingBatches)
             const Padding(
               padding: EdgeInsets.only(top: 16),
-              child: SizedBox(
-                height: 48,
-                child: Center(child: CircularProgressIndicator()),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             )
           else if (_availableBatches.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'No hay lotes de producción para esta fecha',
-                  style: AppTextStyles.bodyText.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+              child: Text(
+                'No hay lotes para esta fecha',
+                style: AppTextStyles.bodyText,
               ),
             )
           else
             AppDropdown<String>(
               label: 'Lote de Producción',
               value: _selectedBatchId,
-              options: _availableBatches
-                  .map(
-                    (batch) {
-                      final producer = batch['producers'] as Map<String, dynamic>;
-                      final producerName = '${producer['first_name']} ${producer['last_name']}';
-                      final label = '$producerName (${batch['panela_kg']} kg)';
-                      return DropdownOption(
-                        value: batch['id'] as String,
-                        label: label,
-                      );
-                    },
-                  )
-                  .toList(),
-              onChanged: (batchId) {
-                setState(() {
-                  _selectedBatchId = batchId;
-                  _selectedBatch = batchId != null
-                      ? _availableBatches.firstWhere((b) => b['id'] == batchId)
-                      : null;
-                });
-              },
+              options: _availableBatches.map((batch) {
+                final producer = batch['producers'] as Map<String, dynamic>;
+                return DropdownOption(
+                  value: batch['id'] as String,
+                  label:
+                      '${producer['first_name']} ${producer['last_name']} (${batch['panela_kg']} kg)',
+                );
+              }).toList(),
+              onChanged: (id) => setState(() => _selectedBatchId = id),
             ),
-
           const SizedBox(height: 24),
-
-          // Button
           AppButton(
             text: 'Continuar',
             type: AppButtonType.primary,
@@ -391,206 +367,172 @@ class _WorkerControlRegistrationScreenState
     );
   }
 
-  // =====================================================
-  // Step 1: Worker Details
-  // =====================================================
-
   Widget _buildStep1() {
     return AppCard(
       padding: context.responsivePadding,
       child: FormGroup(
         children: [
-          // Back button
-          AppBackButton(
-            onPressed: _previousStep,
-            isExpanded: true,
-          ),
+          AppBackButton(onPressed: _previousStep, isExpanded: true),
           SizedBox(height: context.responsiveSpacing),
 
-          const AppTitle(title: 'Detalles del Trabajador'),
-          const SizedBox(height: 8),
-          Text(
-            'Registra la información del trabajador y sus cumplimientos de higiene',
-            style: AppTextStyles.bodyText.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
+          const AppTitle(title: 'Detalles del Grupo'),
+          const SizedBox(height: 16),
 
-          // Worker name
-          AppTextField(
-            label: 'Nombre del Trabajador',
-            controller: _workerNameController,
-            hintText: 'Ej: Juan García',
-          ),
-
-          // Work area dropdown
           AppDropdown<WorkArea>(
             label: 'Área de Trabajo',
             value: _selectedWorkArea,
             options: WorkArea.values
-                .map(
-                  (area) => DropdownOption(
-                    value: area,
-                    label: area.displayName,
-                  ),
-                )
+                .map((a) => DropdownOption(value: a, label: a.displayName))
                 .toList(),
-            onChanged: (area) {
-              setState(() {
-                _selectedWorkArea = area;
-              });
-            },
+            onChanged: (area) => setState(() => _selectedWorkArea = area),
           ),
 
-          // Checkboxes header
-          const SizedBox(height: 24),
-          Text(
-            'Cumplimiento de Higiene y Seguridad:',
-            style: AppTextStyles.fieldLabel,
-          ),
-          const SizedBox(height: 12),
+          const Divider(height: 48),
 
-          // Checkbox: Uniform
-          CheckboxListTile(
-            title: const Text('Uso de uniforme completo'),
-            value: _uniformComplete,
-            onChanged: (checked) {
-              setState(() {
-                _uniformComplete = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
+          // Renderización de la lista de trabajadores con las nuevas tarjetas desplegables
+          if (_addedWorkers.isNotEmpty) ...[
+            Text(
+              'Trabajadores añadidos (${_addedWorkers.length}):',
+              style: AppTextStyles.fieldLabel,
+            ),
+            const SizedBox(height: 8),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _addedWorkers.length,
+              itemBuilder: (context, index) {
+                return WorkerEvaluationCard(
+                  worker: _addedWorkers[index],
+                  onUpdate: (updatedWorker) =>
+                      _updateWorker(index, updatedWorker),
+                  onDelete: () => _removeWorker(index),
+                );
+              },
+            ),
+            const Divider(height: 48),
+          ],
+
+          // Formulario de ingreso encapsulado visualmente
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _addedWorkers.isEmpty
+                      ? 'Añadir primer trabajador:'
+                      : 'Añadir otro trabajador:',
+                  style: AppTextStyles.sectionTitle,
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  label: 'Nombre del Trabajador',
+                  controller: _workerNameController,
+                  hintText: 'Ej: Juan García',
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Cumplimiento de Higiene y Seguridad:',
+                  style: AppTextStyles.fieldLabel,
+                ),
+                const SizedBox(height: 8),
+
+                CheckboxListTile(
+                  title: const Text('Uso de uniforme completo'),
+                  value: _uniformComplete,
+                  onChanged: (c) =>
+                      setState(() => _uniformComplete = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Rostro sin maquillaje'),
+                  value: _noMakeup,
+                  onChanged: (c) => setState(() => _noMakeup = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Uñas cortas limpias'),
+                  value: _nailsShortClean,
+                  onChanged: (c) =>
+                      setState(() => _nailsShortClean = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Uñas no esmaltadas'),
+                  value: _nailsNoPolish,
+                  onChanged: (c) => setState(() => _nailsNoPolish = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Manos limpias'),
+                  value: _handsClean,
+                  onChanged: (c) => setState(() => _handsClean = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Sin joyas ni perfume'),
+                  value: _noJewelry,
+                  onChanged: (c) => setState(() => _noJewelry = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Cabello corto o recogido'),
+                  value: _hairCovered,
+                  onChanged: (c) => setState(() => _hairCovered = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Sin barba'),
+                  value: _noBeard,
+                  onChanged: (c) => setState(() => _noBeard = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  title: const Text('Ausencia de heridas y cortes'),
+                  value: _noWounds,
+                  onChanged: (c) => setState(() => _noWounds = c ?? true),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _addWorker,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('AGREGAR ESTA PERSONA'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // Checkbox: Makeup
-          CheckboxListTile(
-            title: const Text('Rostro sin maquillaje'),
-            value: _noMakeup,
-            onChanged: (checked) {
-              setState(() {
-                _noMakeup = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
+          const Divider(height: 48),
 
-          // Checkbox: Nails short and clean
-          CheckboxListTile(
-            title: const Text('Uñas cortas limpias'),
-            value: _nailsShortClean,
-            onChanged: (checked) {
-              setState(() {
-                _nailsShortClean = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: Nails no polish
-          CheckboxListTile(
-            title: const Text('Uñas no esmaltadas'),
-            value: _nailsNoPolish,
-            onChanged: (checked) {
-              setState(() {
-                _nailsNoPolish = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: Hands clean
-          CheckboxListTile(
-            title: const Text('Manos limpias'),
-            value: _handsClean,
-            onChanged: (checked) {
-              setState(() {
-                _handsClean = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: No jewelry
-          CheckboxListTile(
-            title: const Text('Sin joyas, accesorios ni perfume'),
-            value: _noJewelry,
-            onChanged: (checked) {
-              setState(() {
-                _noJewelry = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: Hair covered
-          CheckboxListTile(
-            title: const Text('Cabello corto o recogido'),
-            value: _hairCovered,
-            onChanged: (checked) {
-              setState(() {
-                _hairCovered = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: No beard
-          CheckboxListTile(
-            title: const Text('Sin barba'),
-            value: _noBeard,
-            onChanged: (checked) {
-              setState(() {
-                _noBeard = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Checkbox: No wounds
-          CheckboxListTile(
-            title: const Text('Ausencia de heridas y cortes'),
-            value: _noWounds,
-            onChanged: (checked) {
-              setState(() {
-                _noWounds = checked ?? true;
-              });
-            },
-            dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-          ),
-
-          // Observations
-          const SizedBox(height: 24),
           AppTextField(
-            label: 'Observaciones (opcional)',
+            label: 'Observaciones generales del turno (opcional)',
             controller: _observationsController,
-            maxLines: 4,
-            hintText: 'Ej: Incumplimiento observado...',
+            maxLines: 3,
           ),
 
           const SizedBox(height: 24),
-
-          // Submit button
           AppButton(
-            text: _isSaving ? 'Guardando...' : 'Guardar',
+            text: _isSaving ? 'Guardando...' : 'GUARDAR REGISTRO FINAL',
             type: AppButtonType.primary,
             onPressed: _isSaving ? null : _submitForm,
             isExpanded: true,
