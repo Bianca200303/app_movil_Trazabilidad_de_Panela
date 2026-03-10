@@ -157,7 +157,7 @@ class CooperativeConfigs {
     name: 'Cooperativa Agraria Ecológica y Solidaria Piura',
     batchCodePrefix: 'CAES',
     features: CooperativeFeatures(
-      requirePlotNames: false, // Nombres opcionales para CAES
+      requirePlotNames: true, // Nombres opcionales para CAES
       useAppagropCode: false,  // Código APPAGROP oculto
       enableStowageTransportInspection: true, // Control forms enabled
       // New control forms
@@ -166,9 +166,9 @@ class CooperativeConfigs {
       enableChlorineControl: true, // Enabled
       enablePestControl: true, // Enabled
       enableHealthAccidentTracking: true, // Enabled
-      enableComplaintsReturns: false,
+      enableComplaintsReturns: true,
       enableWorkerControl: true,
-      enableMaintenanceControl: false,
+      enableMaintenanceControl: true,
     ),
   );
 }
