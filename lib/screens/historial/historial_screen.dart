@@ -566,17 +566,19 @@ Future<void> _loadWorkerControlsData() async {
       final formattedData = controls.map((control) {
         return {
           'id': control.id,
-          'worker_name': control.displayNames, // Usamos el nuevo getter inteligente
           'work_area': control.workArea.displayName,
           'work_area_code': control.workArea.code,
           'production_batch_id': control.productionBatchId,
           'compliance_count': control.complianceCount,
-          'total_criteria': control.totalCriteria, // NUEVO: Pasamos el total a la vista
+          'total_criteria': control.totalCriteria,
           'compliance_percentage': control.compliancePercentage,
           'is_fully_compliant': control.isFullyCompliant,
           'observations': control.observations,
           'created_at': control.createdAt,
           'formatted_date': AppDateUtils.formatDDMMYYYY(control.createdAt),
+          'workers': control.workersList,
+          // Fallback para registros antiguos sin items
+          'worker_name': control.displayNames,
         };
       }).toList();
       setState(() {

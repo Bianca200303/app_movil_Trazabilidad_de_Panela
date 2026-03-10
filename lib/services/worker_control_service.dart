@@ -53,7 +53,7 @@ class WorkerControlService {
     try {
       final response = await _supabase
           .from('worker_controls')
-          .select()
+          .select('*, worker_control_items(*)')
           .eq('production_batch_id', productionBatchId)
           .eq('cooperative_id', cooperativeId)
           .order('created_at', ascending: false);
@@ -73,7 +73,7 @@ class WorkerControlService {
     try {
       final response = await _supabase
           .from('worker_controls')
-          .select()
+          .select('*, worker_control_items(*)')
           .eq('cooperative_id', cooperativeId)
           .order('created_at', ascending: false);
 
@@ -90,7 +90,7 @@ class WorkerControlService {
     try {
       final response = await _supabase
           .from('worker_controls')
-          .select()
+          .select('*, worker_control_items(*)')
           .eq('id', id)
           .single();
 
