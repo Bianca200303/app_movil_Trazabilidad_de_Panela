@@ -1,8 +1,3 @@
-// =====================================================
-// Worker Control Registration Screen
-// Main orchestration file for the registration wizard.
-// =====================================================
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +8,7 @@ import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
-import 'package:panela_sys/widgets/worker_evaluation_card.dart'; // Importación del nuevo widget
+import 'package:panela_sys/widgets/worker_evaluation_card.dart';
 
 class WorkerControlRegistrationScreen extends StatefulWidget {
   const WorkerControlRegistrationScreen({super.key});

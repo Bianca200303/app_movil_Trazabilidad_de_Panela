@@ -5,7 +5,7 @@ import 'package:panela_sys/screens/home_screen.dart';
 import 'package:panela_sys/screens/producer_registration_screen.dart';
 import 'package:panela_sys/screens/production_registration_screen.dart';
 import 'package:panela_sys/screens/kardex_exit_registration_screen.dart';
-import 'package:panela_sys/screens/historial_screen.dart';
+import 'package:panela_sys/screens/historial/historial_screen.dart';
 import 'package:panela_sys/screens/control_forms_menu_screen.dart';
 import 'package:panela_sys/screens/stowage_transport_inspection_registration_screen.dart';
 import 'package:panela_sys/screens/environment_inspection_registration_screen.dart';
