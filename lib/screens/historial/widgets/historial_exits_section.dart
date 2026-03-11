@@ -8,10 +8,7 @@ import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.d
 /// Sección de salidas registradas en el historial.
 /// Cada item muestra código de salida, fecha, productor, comprobante, cantidad y documento.
 class HistorialExitsSection extends StatelessWidget {
-  const HistorialExitsSection({
-    required this.exitsData,
-    super.key,
-  });
+  const HistorialExitsSection({required this.exitsData, super.key});
 
   final List<Map<String, dynamic>> exitsData;
 
@@ -39,6 +36,15 @@ class HistorialExitsSection extends StatelessWidget {
           unidadFinal = (cantidad == 1.0) ? 'saco' : 'sacos';
         }
 
+        // --- NUEVA LÓGICA DE CONVERSIÓN VISUAL ---
+        // Si es autoconsumo, ya está en kg. Si son sacos, multiplicamos por 50.
+        final double equivalenteKg = isAutoconsumo ? cantidad : (cantidad * 50);
+
+        // Texto que mostraremos abajo
+        final String textoEquivalencia = isAutoconsumo
+            ? 'Equivale a: $cantidadStr kg'
+            : 'Equivale a: ${equivalenteKg.toStringAsFixed(1)} kg';
+
         return Container(
           margin: EdgeInsets.only(bottom: context.responsiveSpacing),
           padding: context.responsivePadding,
@@ -54,20 +60,36 @@ class HistorialExitsSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              HistorialInfoRow(label: 'Código Salida:', value: item['codigo_salida'].toString()),
+              HistorialInfoRow(
+                label: 'Código Salida:',
+                value: item['codigo_salida'].toString(),
+              ),
               SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(label: 'Fecha:', value: item['fecha_salida'].toString()),
+              HistorialInfoRow(
+                label: 'Fecha:',
+                value: item['fecha_salida'].toString(),
+              ),
               SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(label: 'Productor:', value: item['productor'].toString()),
+              HistorialInfoRow(
+                label: 'Productor:',
+                value: item['productor'].toString(),
+              ),
               SizedBox(height: context.responsiveSpacing / 2),
               HistorialInfoRow(
                 label: 'Comprobante:',
-                value: (item['item_document_number'] ?? 'No especificado').toString(),
+                value: (item['item_document_number'] ?? 'No especificado')
+                    .toString(),
               ),
               SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(label: 'Cantidad:', value: '$cantidadStr $unidadFinal'),
+              HistorialInfoRow(
+                label: 'Cantidad:',
+                value: '$cantidadStr $unidadFinal',
+              ),
               SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(label: 'Documento:', value: item['documento'].toString()),
+              HistorialInfoRow(
+                label: 'Documento:',
+                value: item['documento'].toString(),
+              ),
 
               // Badge AUTOCONSUMO
               if (isAutoconsumo) ...[
@@ -89,6 +111,30 @@ class HistorialExitsSection extends StatelessWidget {
                   ],
                 ),
               ],
+
+              // --- FOOTER CON LA EQUIVALENCIA ---
+              SizedBox(height: context.responsiveSpacing / 2),
+              const Divider(color: AppColors.inputBorder),
+              SizedBox(height: context.responsiveSpacing / 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.scale_outlined,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      textoEquivalencia,
+                      style: AppTextStyles.captionText.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -127,7 +173,9 @@ class HistorialMobileDataView extends StatelessWidget {
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
             border: Border.all(
-              color: isPending ? const Color(0xFFFF9800) : AppColors.inputBorder,
+              color: isPending
+                  ? const Color(0xFFFF9800)
+                  : AppColors.inputBorder,
               width: isPending ? 2 : AppDimensions.inputBorderWidth,
             ),
           ),
@@ -139,7 +187,11 @@ class HistorialMobileDataView extends StatelessWidget {
               if (isPending) ...[
                 Row(
                   children: [
-                    const Icon(Icons.sync_problem, size: 16, color: Color(0xFFFF9800)),
+                    const Icon(
+                      Icons.sync_problem,
+                      size: 16,
+                      color: Color(0xFFFF9800),
+                    ),
                     SizedBox(width: context.responsiveSpacing / 4),
                     Text(
                       'Por Sincronizar',
