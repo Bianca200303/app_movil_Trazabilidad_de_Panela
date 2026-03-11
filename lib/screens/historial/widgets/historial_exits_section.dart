@@ -146,17 +146,30 @@ class HistorialExitsSection extends StatelessWidget {
 /// Vista de datos genérica en formato tarjeta para productores y producción.
 /// Muestra cada item con sus campos en filas etiqueta-valor.
 /// Resalta con borde naranja los registros pendientes de sincronización.
+/// Si [onEdit] está definido, muestra un ícono de edición en cada tarjeta.
+/// Si [footerBuilder] está definido, renderiza contenido adicional al pie de
+/// cada tarjeta (por ejemplo, la lista de parcelas de un productor).
 class HistorialMobileDataView extends StatelessWidget {
   const HistorialMobileDataView({
     required this.data,
     required this.headers,
     required this.keys,
+    this.onEdit,
+    this.footerBuilder,
     super.key,
   });
 
   final List<Map<String, dynamic>> data;
   final List<String> headers;
   final List<String> keys;
+
+  /// Callback invocado al presionar el ícono de edición.
+  /// Recibe el mapa completo del item seleccionado.
+  final void Function(Map<String, dynamic> item)? onEdit;
+
+  /// Widget adicional renderizado al pie de cada tarjeta.
+  /// Recibe el mapa completo del item.
+  final Widget Function(Map<String, dynamic> item)? footerBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -183,23 +196,43 @@ class HistorialMobileDataView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Badge "Por Sincronizar"
-              if (isPending) ...[
+              // Badge "Por Sincronizar" + botón de edición
+              if (isPending || onEdit != null) ...[
                 Row(
                   children: [
-                    const Icon(
-                      Icons.sync_problem,
-                      size: 16,
-                      color: Color(0xFFFF9800),
-                    ),
-                    SizedBox(width: context.responsiveSpacing / 4),
-                    Text(
-                      'Por Sincronizar',
-                      style: AppTextStyles.captionText.copyWith(
-                        color: const Color(0xFFFF9800),
-                        fontWeight: FontWeight.w600,
+                    if (isPending) ...[
+                      const Icon(
+                        Icons.sync_problem,
+                        size: 16,
+                        color: Color(0xFFFF9800),
                       ),
-                    ),
+                      SizedBox(width: context.responsiveSpacing / 4),
+                      Text(
+                        'Por Sincronizar',
+                        style: AppTextStyles.captionText.copyWith(
+                          color: const Color(0xFFFF9800),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    if (onEdit != null)
+                      GestureDetector(
+                        onTap: () => onEdit!(item),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(
+                                AppDimensions.radiusSmall),
+                          ),
+                          child: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 SizedBox(height: context.responsiveSpacing / 2),
@@ -218,6 +251,9 @@ class HistorialMobileDataView extends StatelessWidget {
                   ),
                 );
               }),
+
+              // Footer adicional (ej. lista de parcelas)
+              if (footerBuilder != null) footerBuilder!(item),
             ],
           ),
         );

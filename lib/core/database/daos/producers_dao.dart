@@ -229,6 +229,35 @@ class ProducersDao extends DatabaseAccessor<AppDatabase>
     DebugLogger.debug('ProducersDao', 'cacheFromRemote', 'Cache updated successfully');
   }
 
+  /// Update a local producer's fields
+  ///
+  /// Used for editing pending producers (not yet synced) or updating
+  /// the local cache after a successful Supabase update.
+  Future<void> updateLocal({
+    required int localId,
+    required String firstName,
+    required String lastName,
+    required String coopModuleId,
+    required bool isMember,
+    String? appagropCode,
+  }) async {
+    DebugLogger.info('ProducersDao', 'updateLocal',
+        'Actualizando productor local: localId=$localId');
+
+    await (update(producers)..where((p) => p.id.equals(localId))).write(
+      ProducersCompanion(
+        firstName: Value(firstName),
+        lastName: Value(lastName),
+        coopModuleId: Value(coopModuleId),
+        isMember: Value(isMember),
+        appagropCode: Value(appagropCode),
+      ),
+    );
+
+    DebugLogger.info('ProducersDao', 'updateLocal',
+        'Productor local actualizado exitosamente');
+  }
+
   /// Delete all synced producers (for cache cleanup)
   ///
   /// This preserves local pending producers while clearing cached remote data.

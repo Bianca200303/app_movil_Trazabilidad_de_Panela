@@ -604,6 +604,75 @@ class PlotService {
     );
   }
 
+  /// Get plots for editing a producer
+  ///
+  /// If producerId is numeric → fetches from local DB (pending producer).
+  /// If producerId is a UUID → fetches from Supabase (synced producer).
+  Future<List<model.Plot>> getPlotsForEdit(String producerId) async {
+    final localId = int.tryParse(producerId);
+
+    if (localId != null && _db != null) {
+      DebugLogger.info('PlotService', 'getPlotsForEdit',
+          'Fetching plots from local DB for pending producer: $localId');
+
+      final localPlots = await _db.plotsDao.getByProducerLocalId(localId);
+      return localPlots
+          .map((p) => model.Plot(
+                id: p.id.toString(),
+                name: p.name,
+                code: p.code,
+                producerId: producerId,
+                isActive: true,
+                createdAt: p.createdAt,
+                updatedAt: p.createdAt,
+              ))
+          .toList();
+    }
+
+    DebugLogger.info('PlotService', 'getPlotsForEdit',
+        'Fetching plots from Supabase for synced producer: $producerId');
+    return await getPlotsByProducerId(producerId);
+  }
+
+  /// Adds a single plot to a producer during edit.
+  ///
+  /// - Pending producer (numeric id): saves locally, offline-capable.
+  /// - Synced producer (UUID): requires internet. Tries offline-first via
+  ///   [createMultiplePlots]; falls back to direct Supabase insert if the
+  ///   producer is not found in local cache.
+  Future<void> addPlotForEdit(String producerId, String name) async {
+    final isLocalId = int.tryParse(producerId) != null;
+
+    if (isLocalId) {
+      // Pending producer — fully offline-capable
+      await createMultiplePlots(producerId, [PlotData(name: name)]);
+      return;
+    }
+
+    // Synced producer — we require internet (checked at dialog open)
+    try {
+      await createMultiplePlots(producerId, [PlotData(name: name)]);
+    } catch (e) {
+      DebugLogger.warning('PlotService', 'addPlotForEdit',
+          'createMultiplePlots failed ($e), falling back to direct insert');
+      // Fallback: create directly in Supabase (producer not in local cache)
+      await createPlot(CreatePlotRequest(name: name, producerId: producerId));
+    }
+  }
+
+  /// Updates a local pending plot's name (not yet synced to Supabase)
+  Future<void> updateLocalPendingPlot(int localId, String name) async {
+    if (_db == null) throw Exception('Base de datos no disponible');
+
+    DebugLogger.info('PlotService', 'updateLocalPendingPlot',
+        'Actualizando parcela pendiente: localId=$localId, name=$name');
+
+    await _db.plotsDao.updateLocal(localId: localId, name: name);
+
+    DebugLogger.info('PlotService', 'updateLocalPendingPlot',
+        'Parcela pendiente actualizada localmente');
+  }
+
   /// Refresh plots cache from Supabase (public wrapper)
   ///
   /// This method is called by FormDataCacheService during login.

@@ -399,13 +399,29 @@ class ProducerService {
       // Get module name from cache
       final module = await _db.coopModulesDao.getById(producer.coopModuleId);
 
+      // Load plots from local DB
+      final localPlots =
+          await _db.plotsDao.getByProducerLocalId(producer.id);
+      final parcelas = localPlots
+          .map((p) => {
+                'id': p.id.toString(),
+                'name': p.name,
+                'code': p.code,
+              })
+          .toList();
+
       results.add({
         'id': producer.id.toString(),
         'nombre': '${producer.firstName} ${producer.lastName}',
+        'firstName': producer.firstName,
+        'lastName': producer.lastName,
         'dni': producer.dni,
         'modulo': module?.name ?? 'Desconocido',
+        'coopModuleId': producer.coopModuleId,
         'condicion': producer.isMember ? 'Socio' : 'No Socio',
+        'appagropCode': producer.appagropCode,
         'fecha_registro': producer.createdAt,
+        'parcelas': parcelas,
         'syncStatus': producer.syncStatus, // Include sync status
       });
     }
@@ -463,24 +479,40 @@ class ProducerService {
             first_name,
             last_name,
             dni,
+            coop_module_id,
+            appagrop_code,
             is_member,
             is_active,
             created_at,
-            coop_modules!inner(
-              name
-            )
+            coop_modules!inner(name),
+            plots(id, name, code, is_active)
           ''')
           .eq('is_active', true)
           .order('first_name');
 
       final results = (response as List).map((item) {
+        final rawPlots = item['plots'] as List? ?? [];
+        final parcelas = rawPlots
+            .where((p) => p['is_active'] == true)
+            .map((p) => {
+                  'id': p['id'].toString(),
+                  'name': (p['name'] as String?) ?? '',
+                  'code': p['code'] as String,
+                })
+            .toList();
+
         return {
           'id': item['id'],
           'nombre': '${item['first_name']} ${item['last_name']}',
+          'firstName': item['first_name'],
+          'lastName': item['last_name'],
           'dni': item['dni'],
           'modulo': item['coop_modules']['name'],
+          'coopModuleId': item['coop_module_id'],
           'condicion': item['is_member'] ? 'Socio' : 'No Socio',
+          'appagropCode': item['appagrop_code'],
           'fecha_registro': DateTime.parse(item['created_at']).toLocal(),
+          'parcelas': parcelas,
           // No syncStatus field for remote-only items (defaults to synced)
         };
       }).toList();
@@ -641,6 +673,30 @@ class ProducerService {
       createdAt: local.createdAt,
       updatedAt: local.createdAt,
     );
+  }
+
+  /// Updates a local pending producer (not yet synced to Supabase)
+  ///
+  /// Only modifies the local database record. The changes will be
+  /// included when the producer is eventually synced to Supabase.
+  Future<void> updateLocalPendingProducer(
+      int localId, CreateProducerRequest request) async {
+    if (_db == null) throw Exception('Base de datos no disponible');
+
+    DebugLogger.info('ProducerService', 'updateLocalPendingProducer',
+        'Actualizando productor pendiente: localId=$localId');
+
+    await _db.producersDao.updateLocal(
+      localId: localId,
+      firstName: request.firstName,
+      lastName: request.lastName,
+      coopModuleId: request.coopModuleId,
+      isMember: request.isMember,
+      appagropCode: request.appagropCode,
+    );
+
+    DebugLogger.info('ProducerService', 'updateLocalPendingProducer',
+        'Productor pendiente actualizado localmente');
   }
 
   /// Refresh producers cache from Supabase (public wrapper)

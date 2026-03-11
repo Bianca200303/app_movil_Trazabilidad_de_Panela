@@ -285,6 +285,25 @@ class PlotsDao extends DatabaseAccessor<AppDatabase> with _$PlotsDaoMixin {
     DebugLogger.debug('PlotsDao', 'cacheFromRemote', 'Cache updated successfully');
   }
 
+  /// Update a local plot's name
+  ///
+  /// Used for editing pending plots (not yet synced) or updating
+  /// the local cache after a successful Supabase update.
+  Future<void> updateLocal({
+    required int localId,
+    required String name,
+  }) async {
+    DebugLogger.info('PlotsDao', 'updateLocal',
+        'Actualizando parcela local: localId=$localId, name=$name');
+
+    await (update(plots)..where((p) => p.id.equals(localId))).write(
+      PlotsCompanion(name: Value(name)),
+    );
+
+    DebugLogger.info('PlotsDao', 'updateLocal',
+        'Parcela local actualizada exitosamente');
+  }
+
   /// Delete all synced plots (for cache cleanup)
   ///
   /// This preserves local pending plots while clearing cached remote data.

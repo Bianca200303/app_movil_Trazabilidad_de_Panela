@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
@@ -28,6 +29,7 @@ import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/sync_progress_dialog.dart';
 
 // Widgets locales del historial
+import 'widgets/producer_edit_dialog.dart';
 import 'widgets/historial_main_menu.dart';
 import 'widgets/historial_control_submenu.dart';
 import 'widgets/historial_exits_section.dart';
@@ -715,6 +717,87 @@ Future<void> _loadWorkerControlsData() async {
     }
   }
 
+  // ── Parcelas en cards de productores ────────────────────────────────────────
+
+  Widget _buildProducerParcelas(Map<String, dynamic> item) {
+    final parcelas = (item['parcelas'] as List<dynamic>?) ?? [];
+    if (parcelas.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(height: context.responsiveSpacing / 2),
+        const Divider(height: 1),
+        SizedBox(height: context.responsiveSpacing / 2),
+        Row(
+          children: [
+            const Icon(Icons.landscape, size: 14, color: AppColors.primary),
+            SizedBox(width: context.responsiveSpacing / 4),
+            Text(
+              'Parcelas (${parcelas.length})',
+              style: AppTextStyles.smallText.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: context.responsiveSpacing / 4),
+        ...parcelas.map((p) {
+          final name = (p['name'] as String?) ?? '';
+          final code = (p['code'] as String?) ?? '';
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: context.responsiveSpacing / 4,
+              left: 4,
+            ),
+            child: Row(
+              children: [
+                const Text('•  ',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+                Text(
+                  code,
+                  style: AppTextStyles.smallText.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (name.isNotEmpty) ...[
+                  const Text('  ·  ',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: AppTextStyles.smallText.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // ── Edición de productores ───────────────────────────────────────────────────
+
+  void _onEditProducer(Map<String, dynamic> producerData) {
+    showDialog(
+      context: context,
+      builder: (context) => ProducerEditDialog(
+        producerData: producerData,
+        onSaved: _loadProducersData,
+      ),
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
@@ -778,6 +861,8 @@ Future<void> _loadWorkerControlsData() async {
           data: _producersData,
           headers: ['Nombre', 'DNI', 'Módulo', 'Condición'],
           keys: ['nombre', 'dni', 'modulo', 'condicion'],
+          onEdit: _onEditProducer,
+          footerBuilder: _buildProducerParcelas,
         );
 
       // ── Producción ───────────────────────────────────────────────────────────

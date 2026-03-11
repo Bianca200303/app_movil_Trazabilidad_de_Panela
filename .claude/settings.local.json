@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"C:\\\\Users\\\\bianc\\\\Desktop\\\\panela_sys\\\\panela_sys\\\\flutter\" && flutter analyze lib/screens/historial/widgets/producer_edit_dialog.dart lib/screens/historial/historial_screen.dart lib/screens/historial/widgets/historial_exits_section.dart lib/services/producer_service.dart lib/services/plot_service.dart lib/core/database/daos/producers_dao.dart lib/core/database/daos/plots_dao.dart 2>&1 | head -80)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/historial/ lib/services/producer_service.dart lib/services/plot_service.dart lib/core/database/daos/ 2>&1)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/historial/widgets/producer_edit_dialog.dart 2>&1)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/historial/historial_screen.dart lib/screens/historial/widgets/historial_exits_section.dart 2>&1)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/core/database/daos/producers_dao.dart lib/core/database/daos/plots_dao.dart lib/services/producer_service.dart lib/services/plot_service.dart 2>&1)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | tail -20)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\")",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\" | head -20)"
+    ]
+  }
+}
