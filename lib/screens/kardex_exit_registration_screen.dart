@@ -93,7 +93,13 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
         _quantityControllers = stockData.map((stock) {
           final availableKg = (stock['available_kg'] as num).toDouble();
           final bags = (availableKg / 50).floor();
-          return TextEditingController(text: bags.toString());
+
+       final controller = TextEditingController(text: bags.toString());
+          // ESTO ES LO NUEVO: Escucha cada vez que se teclea un número
+          controller.addListener(() {
+            if (mounted) setState(() {}); 
+          });
+          return controller;
         }).toList();
         _itemDocumentControllers = stockData.map((_) {
           return TextEditingController();
@@ -106,6 +112,37 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
         _errorMessage = e.toString();
       });
     }
+  }
+
+  // Calcula el total de kilos que están saliendo
+  double _calculateTotalSalidaKg() {
+    double totalKg = 0;
+    for (int i = 0; i < _selectedStock.length; i++) {
+      if (_selectedStock[i]) {
+        final text = _quantityControllers[i].text.trim();
+        final quantity = double.tryParse(text) ?? 0;
+        
+        if (_isAutoconsumo) {
+          totalKg += quantity; // Si es autoconsumo, ya está en kilos
+        } else {
+          totalKg += (quantity * 50); // Si es acopio, multiplicamos los sacos por 50kg
+        }
+      }
+    }
+    return totalKg;
+  }
+
+  // Calcula el total de sacos (solo útil si NO es autoconsumo)
+  int _calculateTotalSalidaSacos() {
+    int totalSacos = 0;
+    for (int i = 0; i < _selectedStock.length; i++) {
+      if (_selectedStock[i] && !_isAutoconsumo) {
+        final text = _quantityControllers[i].text.trim();
+        final quantity = int.tryParse(text) ?? 0;
+        totalSacos += quantity;
+      }
+    }
+    return totalSacos;
   }
 
   @override
@@ -429,6 +466,48 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            Container(
+              padding: EdgeInsets.all(AppDimensions.paddingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1), // Un color de fondo distinto para resaltar
+                border: Border.all(color: AppColors.primary),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'RESUMEN DE SALIDA',
+                      style: AppTextStyles.sectionLabel.copyWith(color: AppColors.primary),
+                    ),
+                    SizedBox(height: AppDimensions.spacingSmall),
+                    if (_isAutoconsumo) ...[
+                      Text(
+                        'Total a enviar: ${_calculateTotalSalidaKg().toStringAsFixed(1)} kg',
+                        style: AppTextStyles.bodyTextLarge.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        'Total a enviar: ${_calculateTotalSalidaSacos()} sacos',
+                        style: AppTextStyles.bodyTextLarge.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      Text(
+                        'Equivalente a: ${_calculateTotalSalidaKg().toStringAsFixed(1)} kg',
+                        style: AppTextStyles.bodyTextSecondary,
+                      ),
+                    ],
                   ],
                 ),
               ),

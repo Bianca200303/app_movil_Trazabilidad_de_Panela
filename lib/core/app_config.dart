@@ -6,7 +6,6 @@ class AppConfig {
   // Current cooperative configuration
   static CooperativeConfig get current => _getCurrentConfig();
 
-  // 2. MAGIA AQUÍ: El defaultValue ahora es kDebugMode
   // Si haces 'flutter run', kDebugMode es true -> usa local.
   // Si haces 'flutter build apk --release', kDebugMode es false -> usa la nube.
   static bool get useLocalSupabase => const bool.fromEnvironment(
@@ -20,7 +19,7 @@ class AppConfig {
       return _getLocalSupabaseUrl();
     }
     // URL de Producción (La nube)
-    return 'https://jmvpjinvvjlhhboieens.supabase.co';
+    return 'https://kyszyyxplwhhwtxmqizs.supabase.co';
   }
 
   // Get the appropriate localhost URL based on platform
@@ -55,7 +54,7 @@ class AppConfig {
     return const String.fromEnvironment(
       'SUPABASE_ANON_KEY', 
       defaultValue: 
-      'eyJhbGciOiJFUzI1NiIsImtpZCI6ImI4MTI2OWYxLTIxZDgtNGYyZS1iNzE5LWMyMjQwYTg0MGQ5MCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjIwODc5MjI1MDB9.mGeZ4LBS90ARgSzln7gvLqX255v1VoDWBB5Hd1M7cvMDUd0DVnt_heDYS_rroMszjBSI4UxsykzJfCOhLhGRtg',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg',
     );
   }
 

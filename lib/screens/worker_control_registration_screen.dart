@@ -23,6 +23,9 @@ class _WorkerControlRegistrationScreenState
   final _workerControlService = WorkerControlService();
   final _productReturnService = ProductReturnService();
 
+  final _scrollController = ScrollController();
+  final _workerFormKey = GlobalKey();
+
   int _currentStep = 0;
   bool _isSaving = false;
 
@@ -57,6 +60,7 @@ class _WorkerControlRegistrationScreenState
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _workerNameController.dispose();
     _observationsController.dispose();
     super.dispose();
@@ -93,6 +97,19 @@ class _WorkerControlRegistrationScreenState
       );
       _resetTemporalWorkerState();
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _workerFormKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          alignment: 0.1,
+        );
+      }
+    });
+
     return true;
   }
 
@@ -292,6 +309,7 @@ class _WorkerControlRegistrationScreenState
       topLabelText: 'Control de Personal Operario',
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,
@@ -409,6 +427,7 @@ class _WorkerControlRegistrationScreenState
 
           // Formulario de ingreso encapsulado visualmente
           Container(
+            key: _workerFormKey,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surface,

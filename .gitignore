@@ -62,5 +62,5 @@ app.*.map.json
 #primero cmd, entrar con admin
 #net stop winnat
 #npx supabase stop
-#npx supbase start
+#npx supabase start
 #net start winnat

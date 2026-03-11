@@ -122,6 +122,7 @@ class _WorkerControlCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Fila 1: estado + ícono
                 Row(
                   children: [
                     Icon(
@@ -129,19 +130,24 @@ class _WorkerControlCard extends StatelessWidget {
                           ? Icons.check_circle
                           : Icons.warning_amber_rounded,
                       color: badgeColor,
-                      size: 20,
+                      size: 18,
                     ),
-                    SizedBox(width: context.responsiveSpacing / 2),
-                    Expanded(
-                      child: Text(
-                        isFullyCompliant ? 'CUMPLE TOTALMENTE' : 'INCUMPLIMIENTOS',
-                        style: AppTextStyles.fieldLabel.copyWith(
-                          color: badgeColor,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isFullyCompliant ? 'CUMPLE TOTALMENTE' : 'INCUMPLIMIENTOS',
+                      style: AppTextStyles.fieldLabel.copyWith(
+                        color: badgeColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    // Porcentaje general
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Fila 2: fecha (izq) + chip porcentaje (der)
+                Row(
+                  children: [
+                    Text(formattedDate, style: AppTextStyles.captionText),
+                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
@@ -156,8 +162,6 @@ class _WorkerControlCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    SizedBox(width: context.responsiveSpacing / 2),
-                    Text(formattedDate, style: AppTextStyles.captionText),
                   ],
                 ),
                 SizedBox(height: context.responsiveSpacing / 2),
