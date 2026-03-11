@@ -746,7 +746,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
       final exitRequest = CreateExitRegistrationRequest(
         documentNumber: _documentController.text.trim().isEmpty ? null : _documentController.text.trim(),
         exitDate: selectedDate,
-        destination: 'NORANDINO', // Default destination
+        destination: AppConfig.current.code,
         cooperativeId: AppConfig.current.id,
         createdBy: userDNI,
       );
