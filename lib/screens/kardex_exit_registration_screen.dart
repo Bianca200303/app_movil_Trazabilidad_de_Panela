@@ -31,6 +31,7 @@ class KardexExitRegistrationScreen extends StatefulWidget {
 class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScreen> {
   // Current step in the registration process (start at 1, no exit type selection)
   int _currentStep = 1;
+  final _scrollController = ScrollController();
   
   // Services
   final InventoryService _inventoryService = InventoryService();
@@ -75,6 +76,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
     }
     _documentController.dispose();
     _exitDateController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -150,6 +152,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,
@@ -284,6 +287,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                 setState(() {
                   _currentStep = 2;
                 });
+                _scrollController.jumpTo(0);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Seleccione al menos un lote')),
@@ -321,19 +325,15 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
             children: [
               Text(
                 'Lote: ${batch['batch_code']}',
-                style: AppTextStyles.bodyTextSecondary,
+                style: AppTextStyles.bodyText,
               ),
               Text(
-                'Kilos disponibles: ${availableKg.toStringAsFixed(1)} kg',
-                style: AppTextStyles.bodyTextSecondary,
-              ),
-              Text(
-                'Sacos disponibles: $availableBags sacos',
-                style: AppTextStyles.bodyTextSecondary,
+                'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+                style: AppTextStyles.bodyText,
               ),
               Text(
                 'Fecha de proceso: ${_formatDate(batch['process_date'])}',
-                style: AppTextStyles.bodyTextSecondary,
+                style: AppTextStyles.bodyText,
               ),
             ],
           ),
@@ -387,7 +387,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                 child: Text(
                   'Acopio',
                   style: AppTextStyles.bodyText.copyWith(
-                    color: _isAutoconsumo ? Colors.grey.shade600 : Colors.black,
+                    color: Colors.black,
                     fontWeight: _isAutoconsumo ? FontWeight.normal : FontWeight.w600,
                   ),
                 ),
@@ -410,7 +410,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                   'Autoconsumo',
                   textAlign: TextAlign.right,
                   style: AppTextStyles.bodyText.copyWith(
-                    color: _isAutoconsumo ? Colors.black : Colors.grey.shade600,
+                    color: Colors.black,
                     fontWeight: _isAutoconsumo ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
@@ -505,7 +505,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                       ),
                       Text(
                         'Equivalente a: ${_calculateTotalSalidaKg().toStringAsFixed(1)} kg',
-                        style: AppTextStyles.bodyTextSecondary,
+                        style: AppTextStyles.bodyText,
                       ),
                     ],
                   ],
@@ -518,6 +518,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
                 setState(() {
                   _currentStep = 3;
                 });
+                _scrollController.jumpTo(0);
               }
             }),
           ],
@@ -622,31 +623,24 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
           ),
           Text(
             'Lote: ${batch['batch_code']}',
-            style: AppTextStyles.bodyTextSecondary,
+            style: AppTextStyles.bodyText,
           ),
           SizedBox(height: AppDimensions.spacingSmall),
-          if (_isAutoconsumo) ...[
-            Text(
-              'Tipo: Autoconsumo (kilogramos)',
-              style: AppTextStyles.bodyTextSecondary.copyWith(color: AppColors.warning),
+          Text(
+            _isAutoconsumo
+                ? 'Tipo: Autoconsumo (kilogramos)'
+                : 'Tipo: Acopio por sacos (1 saco = 50kg)',
+            style: AppTextStyles.bodyText.copyWith(
+              color: _isAutoconsumo ? AppColors.warning : AppColors.success,
             ),
-            Text(
-              'Kilos disponibles: ${availableKg.toStringAsFixed(1)} kg',
-              style: AppTextStyles.bodyTextSecondary,
-            ),
-          ] else ...[
-            Text(
-              'Tipo: Acopio por sacos (1 saco = 50kg)',
-              style: AppTextStyles.bodyTextSecondary.copyWith(color: AppColors.success),
-            ),
-            Text(
-              'Sacos disponibles: $availableBags sacos',
-              style: AppTextStyles.bodyTextSecondary,
-            ),
-          ],
+          ),
+          Text(
+            'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+            style: AppTextStyles.bodyText,
+          ),
           Text(
             'Fecha de proceso: ${_formatDate(batch['process_date'])}',
-            style: AppTextStyles.bodyTextSecondary,
+            style: AppTextStyles.bodyText,
           ),
           SizedBox(height: AppDimensions.spacingMedium),
           AppTextField(
@@ -692,18 +686,12 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
             ),
             SizedBox(height: context.responsiveSpacing),
             AppTextField(
-              label: 'Número de documento',
+              label: 'Número de documento (opcional)',
               controller: _documentController,
-              hintText: 'Ingrese el número de documento',
+              hintText: 'Ej: RCP-001, FACT-123',
             ),
             SizedBox(height: AppDimensions.spacingLarge),
             _buildContinueButton(() {
-              if (_documentController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ingrese el número de documento')),
-                );
-                return;
-              }
               _completeRegistration();
             }),
           ],
@@ -717,6 +705,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
       setState(() {
         _currentStep--;
       });
+      _scrollController.jumpTo(0);
     } else {
       context.go(AppRoutes.home.path);
     }

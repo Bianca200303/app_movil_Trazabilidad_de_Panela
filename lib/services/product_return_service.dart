@@ -33,6 +33,23 @@ class ProductReturnService {
 
   // ==================== READ ====================
 
+  /// Get all distinct dates that have production batches (for calendar highlighting)
+  Future<Set<DateTime>> getProductionDates() async {
+    try {
+      final response = await _supabase
+          .from('production_batches')
+          .select('process_date')
+          .eq('cooperative_id', AppConfig.current.id);
+
+      return (response as List)
+          .map((row) => DateTime.parse(row['process_date'] as String))
+          .map((d) => DateTime(d.year, d.month, d.day))
+          .toSet();
+    } catch (e) {
+      return {};
+    }
+  }
+
   /// Get production batches by process_date
   /// Returns list with batch info + producer info for dropdown display
   /// This is used to populate the batch dropdown when user selects a production date

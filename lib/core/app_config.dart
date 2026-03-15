@@ -32,7 +32,7 @@ class AppConfig {
       if (Platform.isAndroid) {
         // OJO: Si vas a probar en tu celular físico con cable, 
         // cambia 10.0.2.2 por la IP de tu computadora (ej: 192.168.1.X)
-        return 'http://10.0.2.2:54321'; 
+        return 'https://kyszyyxplwhhwtxmqizs.supabase.co'; 
       }
     } catch (e) {
       // Fallback if Platform is not available
@@ -47,7 +47,7 @@ class AppConfig {
       // IMPORTANTE: debe ser la anon key en formato JWT (eyJ...) obtenida con `supabase status`.
       // El formato sb_publishable_* NO es un JWT y el runtime local de Edge Functions lo rechaza.
       // Si usas el JWT secret por defecto de Supabase CLI, esta es la key correcta:
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjIwODc5MjI1MDB9.CWzZIYMqT3Rp7C_J3lqK-1QwJQPqWJLd2QEjzMIiQ';
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg';
     }
     
     // Clave de Producción (La nube)

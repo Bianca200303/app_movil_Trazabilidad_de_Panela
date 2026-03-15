@@ -31,7 +31,10 @@ class WorkerEvaluationCard extends StatelessWidget {
           worker.workerName,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: const Text('Toca para ver o editar detalles'),
+        subtitle: const Text(
+          'Toca para ver o editar detalles',
+          style: TextStyle(color: Colors.black87, fontSize: 12),
+        ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),
           onPressed: onDelete,

@@ -25,12 +25,15 @@ class _WorkerControlRegistrationScreenState
 
   final _scrollController = ScrollController();
   final _workerFormKey = GlobalKey();
+  final _workersListKey = GlobalKey();
 
   int _currentStep = 0;
   bool _isSaving = false;
 
   // State Step 0
   DateTime _selectedDate = DateTime.now();
+  DateTime _calendarMonth = DateTime.now();
+  Set<DateTime> _productionDates = {};
   String? _selectedBatchId;
   List<Map<String, dynamic>> _availableBatches = [];
   bool _isLoadingBatches = false;
@@ -55,6 +58,7 @@ class _WorkerControlRegistrationScreenState
   @override
   void initState() {
     super.initState();
+    _loadProductionDates();
     _loadBatches();
   }
 
@@ -99,13 +103,13 @@ class _WorkerControlRegistrationScreenState
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _workerFormKey.currentContext;
+      final ctx = _workersListKey.currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
-          alignment: 0.1,
+          alignment: 0.0,
         );
       }
     });
@@ -240,6 +244,11 @@ class _WorkerControlRegistrationScreenState
   // Data Loading and Navigation (Standard logic)
   // =====================================================
 
+  Future<void> _loadProductionDates() async {
+    final dates = await _productReturnService.getProductionDates();
+    if (mounted) setState(() => _productionDates = dates);
+  }
+
   Future<void> _loadBatches() async {
     setState(() => _isLoadingBatches = true);
     try {
@@ -285,17 +294,210 @@ class _WorkerControlRegistrationScreenState
     }
   }
 
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+  Widget _buildBatchSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Lote de Producción', style: AppTextStyles.fieldLabel),
+        const SizedBox(height: 8),
+        ..._availableBatches.map((batch) {
+          final producer = batch['producers'] as Map<String, dynamic>;
+          final isSelected = _selectedBatchId == batch['id'];
+          final panelaKg = (batch['panela_kg'] as num?)?.toDouble() ?? 0.0;
+          final confitilloKg =
+              (batch['confitillo_kg'] as num?)?.toDouble() ?? 0.0;
+
+          return GestureDetector(
+            onTap: () =>
+                setState(() => _selectedBatchId = batch['id'] as String),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : AppColors.inputFill,
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                  width: isSelected ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${producer['first_name']} ${producer['last_name']}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
+                          '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.black87),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
-    if (picked != null && picked != _selectedDate) {
-      setState(() => _selectedDate = picked);
-      _loadBatches();
-    }
+  }
+
+  Widget _buildInlineCalendar() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDay = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
+    final daysInMonth =
+        DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0).day;
+    final startWeekday = firstDay.weekday; // 1=Lun, 7=Dom
+    final canGoNext = _calendarMonth.year < now.year ||
+        (_calendarMonth.year == now.year && _calendarMonth.month < now.month);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Encabezado mes
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left),
+              onPressed: () => setState(() {
+                _calendarMonth =
+                    DateTime(_calendarMonth.year, _calendarMonth.month - 1);
+              }),
+            ),
+            Text(
+              DateFormat('MMMM yyyy', 'es').format(_calendarMonth),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right),
+              onPressed: canGoNext
+                  ? () => setState(() {
+                        _calendarMonth = DateTime(
+                            _calendarMonth.year, _calendarMonth.month + 1);
+                      })
+                  : null,
+            ),
+          ],
+        ),
+        // Nombres de días
+        Row(
+          children: ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d) {
+            return Expanded(
+              child: Center(
+                child: Text(d,
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade600)),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 4),
+        // Cuadrícula de días
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 1.1,
+          ),
+          itemCount: (startWeekday - 1) + daysInMonth,
+          itemBuilder: (context, index) {
+            if (index < startWeekday - 1) return const SizedBox();
+
+            final day = index - (startWeekday - 1) + 1;
+            final date =
+                DateTime(_calendarMonth.year, _calendarMonth.month, day);
+            final isFuture = date.isAfter(today);
+            final isSelected = date.year == _selectedDate.year &&
+                date.month == _selectedDate.month &&
+                date.day == _selectedDate.day;
+            final hasProduction = _productionDates.contains(date);
+
+            Color? bgColor;
+            Color textColor =
+                isFuture ? Colors.grey.shade400 : Colors.black87;
+
+            if (isSelected) {
+              bgColor = AppColors.primary;
+              textColor = Colors.white;
+            } else if (hasProduction) {
+              bgColor = AppColors.primary.withValues(alpha: 0.18);
+              textColor = AppColors.primary;
+            }
+
+            return GestureDetector(
+              onTap: isFuture
+                  ? null
+                  : () {
+                      setState(() {
+                        _selectedDate = date;
+                        _selectedBatchId = null;
+                      });
+                      _loadBatches();
+                    },
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '$day',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: isSelected || hasProduction
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        // Leyenda
+        Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 1),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text('Días con producción',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ],
+        ),
+      ],
+    );
   }
 
   // =====================================================
@@ -332,15 +534,7 @@ class _WorkerControlRegistrationScreenState
           SizedBox(height: context.responsiveSpacing),
           const AppTitle(title: 'Seleccionar Lote de Producción'),
           const SizedBox(height: 24),
-          AppTextField(
-            label: 'Fecha de producción',
-            controller: TextEditingController(
-              text: DateFormat('dd/MM/yyyy').format(_selectedDate),
-            ),
-            readOnly: true,
-            onTap: _selectDate,
-            suffixIcon: const Icon(Icons.calendar_today),
-          ),
+          _buildInlineCalendar(),
           if (_isLoadingBatches)
             const Padding(
               padding: EdgeInsets.only(top: 16),
@@ -355,19 +549,7 @@ class _WorkerControlRegistrationScreenState
               ),
             )
           else
-            AppDropdown<String>(
-              label: 'Lote de Producción',
-              value: _selectedBatchId,
-              options: _availableBatches.map((batch) {
-                final producer = batch['producers'] as Map<String, dynamic>;
-                return DropdownOption(
-                  value: batch['id'] as String,
-                  label:
-                      '${producer['first_name']} ${producer['last_name']} (${batch['panela_kg']} kg)',
-                );
-              }).toList(),
-              onChanged: (id) => setState(() => _selectedBatchId = id),
-            ),
+            _buildBatchSelector(),
           const SizedBox(height: 24),
           AppButton(
             text: 'Continuar',
@@ -405,6 +587,7 @@ class _WorkerControlRegistrationScreenState
           // Renderización de la lista de trabajadores con las nuevas tarjetas desplegables
           if (_addedWorkers.isNotEmpty) ...[
             Text(
+              key: _workersListKey,
               'Trabajadores añadidos (${_addedWorkers.length}):',
               style: AppTextStyles.fieldLabel,
             ),

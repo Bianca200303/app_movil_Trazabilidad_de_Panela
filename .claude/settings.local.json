@@ -8,7 +8,10 @@
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/core/database/daos/producers_dao.dart lib/core/database/daos/plots_dao.dart lib/services/producer_service.dart lib/services/plot_service.dart 2>&1)",
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | tail -20)",
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\")",
-      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\" | head -20)"
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\" | head -20)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/kardex_exit_registration_screen.dart 2>&1)",
+      "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/producer_registration_screen.dart 2>&1)",
+      "Bash(cd:*)"
     ]
   }
 }

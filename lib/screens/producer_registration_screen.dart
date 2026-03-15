@@ -203,9 +203,57 @@ class _ProducerRegistrationScreenState
     setState(() {
       _plots.remove(plot);
     });
-    
+
     // Recalculate preview codes for remaining plots
     _recalculatePreviewCodes();
+  }
+
+  Future<void> _editPlot(int index) async {
+    final plot = _plots[index];
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => _PlotNameEditDialog(plot: plot),
+    );
+
+    if (newName == null || !mounted) return; // Cancelled
+
+    // Validate: required name
+    if (AppConfig.current.features.requirePlotNames && newName.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El nombre de la parcela es requerido'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Validate: duplicate name (excluding current plot)
+    if (newName.isNotEmpty) {
+      final duplicate = _plots.asMap().entries.any(
+        (e) =>
+            e.key != index &&
+            e.value.name.toLowerCase() == newName.toLowerCase(),
+      );
+      if (duplicate) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ya existe una parcela con ese nombre'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    setState(() {
+      _plots[index] = PlotData(name: newName, code: plot.code);
+    });
   }
 
   void _recalculatePreviewCodes() {
@@ -327,7 +375,7 @@ class _ProducerRegistrationScreenState
     return null;
   }
 
-  Widget _buildPlotChip(PlotData plot) {
+  Widget _buildPlotChip(PlotData plot, int index) {
     return Container(
       width: context.isSmallScreen ? double.infinity : null,
       padding: EdgeInsets.symmetric(
@@ -339,7 +387,8 @@ class _ProducerRegistrationScreenState
         borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
       ),
       child: Row(
-        mainAxisSize: context.isSmallScreen ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisSize:
+            context.isSmallScreen ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Expanded(
             flex: context.isSmallScreen ? 1 : 0,
@@ -352,7 +401,9 @@ class _ProducerRegistrationScreenState
                   style: AppTextStyles.bodyText.copyWith(
                     color: AppColors.textWhite,
                     fontWeight: FontWeight.w600,
-                    fontStyle: plot.name.isEmpty ? FontStyle.italic : FontStyle.normal,
+                    fontStyle: plot.name.isEmpty
+                        ? FontStyle.italic
+                        : FontStyle.normal,
                   ),
                 ),
                 Text(
@@ -364,7 +415,21 @@ class _ProducerRegistrationScreenState
               ],
             ),
           ),
-          SizedBox(width: context.responsiveSpacing),
+          SizedBox(width: context.responsiveSpacing / 2),
+          // Edit button
+          GestureDetector(
+            onTap: () => _editPlot(index),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                Icons.edit_outlined,
+                size: context.isSmallScreen ? 20 : 16,
+                color: AppColors.textWhite,
+              ),
+            ),
+          ),
+          SizedBox(width: context.responsiveSpacing / 2),
+          // Remove button
           GestureDetector(
             onTap: () => _removePlot(plot),
             child: Container(
@@ -618,20 +683,20 @@ class _ProducerRegistrationScreenState
                           SizedBox(height: context.responsiveSpacing),
                           context.isSmallScreen
                               ? Column(
-                                  children: _plots.map((plot) {
+                                  children: _plots.asMap().entries.map((e) {
                                     return Padding(
                                       padding: EdgeInsets.only(
                                         bottom: context.responsiveSpacing,
                                       ),
-                                      child: _buildPlotChip(plot),
+                                      child: _buildPlotChip(e.value, e.key),
                                     );
                                   }).toList(),
                                 )
                               : Wrap(
                                   spacing: context.responsiveSpacing,
                                   runSpacing: context.responsiveSpacing,
-                                  children: _plots.map((plot) {
-                                    return _buildPlotChip(plot);
+                                  children: _plots.asMap().entries.map((e) {
+                                    return _buildPlotChip(e.value, e.key);
                                   }).toList(),
                                 ),
                         ],
@@ -654,6 +719,72 @@ class _ProducerRegistrationScreenState
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dialog para editar el nombre de una parcela.
+///
+/// Gestiona su propio [TextEditingController] en [initState]/[dispose]
+/// para evitar el error de dependencias al cerrar el dialog.
+class _PlotNameEditDialog extends StatefulWidget {
+  const _PlotNameEditDialog({required this.plot});
+
+  final PlotData plot;
+
+  @override
+  State<_PlotNameEditDialog> createState() => _PlotNameEditDialogState();
+}
+
+class _PlotNameEditDialogState extends State<_PlotNameEditDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.plot.name);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar parcela'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Código aprox: ${widget.plot.code}',
+            style: AppTextStyles.smallText.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Nombre de parcela',
+            hintText: AppConfig.current.features.requirePlotNames
+                ? 'Nombre de parcela (requerido)'
+                : 'Nombre de parcela (opcional)',
+            controller: _controller,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CANCELAR'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('GUARDAR'),
+        ),
+      ],
     );
   }
 }
