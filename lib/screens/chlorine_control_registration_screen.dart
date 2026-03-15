@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/chlorine_residual_control.dart';
@@ -8,6 +9,7 @@ import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChlorineControlRegistrationScreen extends StatefulWidget {
   const ChlorineControlRegistrationScreen({super.key});
@@ -22,6 +24,7 @@ class _ChlorineControlRegistrationScreenState
   // Services
   final _moduleService = CoopModulesService();
   final _chlorineService = ChlorineResidualControlService();
+  final _supabase = Supabase.instance.client;
 
   // Form state
   final _formKey = GlobalKey<FormState>();
@@ -29,6 +32,11 @@ class _ChlorineControlRegistrationScreenState
   List<CoopModule> _availableModules = [];
   bool _isLoadingModules = false;
   bool _isSaving = false;
+
+  // Producers for responsible person autocomplete
+  List<String> _producerNames = [];
+  bool _isLoadingProducers = false;
+  final _responsibleFocusNode = FocusNode();
 
   // Date and time
   DateTime _controlDate = DateTime.now();
@@ -45,6 +53,7 @@ class _ChlorineControlRegistrationScreenState
   void initState() {
     super.initState();
     _loadModules();
+    _loadProducers();
   }
 
   @override
@@ -54,12 +63,33 @@ class _ChlorineControlRegistrationScreenState
     _correctiveActionsController.dispose();
     _observationsController.dispose();
     _responsiblePersonController.dispose();
+    _responsibleFocusNode.dispose();
     super.dispose();
   }
 
   // =====================================================
   // Data Loading
   // =====================================================
+
+  Future<void> _loadProducers() async {
+    setState(() => _isLoadingProducers = true);
+    try {
+      final response = await _supabase
+          .from('producers')
+          .select('first_name, last_name')
+          .eq('cooperative_id', AppConfig.current.id)
+          .eq('is_active', true)
+          .order('first_name');
+      setState(() {
+        _producerNames = (response as List)
+            .map((p) => '${p['first_name']} ${p['last_name']}')
+            .toList();
+        _isLoadingProducers = false;
+      });
+    } catch (_) {
+      setState(() => _isLoadingProducers = false);
+    }
+  }
 
   Future<void> _loadModules() async {
     setState(() {
@@ -338,7 +368,9 @@ class _ChlorineControlRegistrationScreenState
                     SizedBox(height: context.responsiveSpacing),
 
                     // Title
-                    const AppTitle(title: 'Datos del control'),
+                    const AppTitle(
+                      title: 'Control de cloro libre residual',
+                    ),
 
                     // Module dropdown
                     AppDropdown<String>(
@@ -442,14 +474,58 @@ class _ChlorineControlRegistrationScreenState
                       hintText: 'Notas adicionales...',
                     ),
 
-                    // Responsible person
-                    AppTextField(
-                      label: 'Productor que realizó la medida',
-                      controller: _responsiblePersonController,
-                      validator: (value) =>
-                          _validateRequired(value, 'Productor'),
-                      hintText: 'Nombre completo',
-                    ),
+                    // Responsible person — autocomplete
+                    if (_isLoadingProducers)
+                      const Center(child: CircularProgressIndicator())
+                    else
+                      RawAutocomplete<String>(
+                        textEditingController: _responsiblePersonController,
+                        focusNode: _responsibleFocusNode,
+                        optionsBuilder: (TextEditingValue value) {
+                          if (value.text.isEmpty) return _producerNames;
+                          final query = value.text.toLowerCase();
+                          return _producerNames.where(
+                            (name) => name.toLowerCase().contains(query),
+                          );
+                        },
+                        displayStringForOption: (option) => option,
+                        fieldViewBuilder:
+                            (context, controller, focusNode, onSubmitted) {
+                          return AppTextField(
+                            label: 'Productor que realizó la medida',
+                            controller: controller,
+                            focusNode: focusNode,
+                            validator: (value) =>
+                                _validateRequired(value, 'Productor'),
+                            hintText: 'Buscar o escribir nombre...',
+                          );
+                        },
+                        optionsViewBuilder: (context, onSelected, options) {
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              borderRadius: BorderRadius.circular(8),
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxHeight: 220),
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: options.length,
+                                  itemBuilder: (context, index) {
+                                    final name = options.elementAt(index);
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(name),
+                                      onTap: () => onSelected(name),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
 
                     SizedBox(height: context.responsiveSpacing),
 

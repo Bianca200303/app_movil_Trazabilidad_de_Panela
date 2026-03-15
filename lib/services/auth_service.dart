@@ -1,8 +1,15 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
+import 'package:panela_sys/models/current_user.dart';
 import 'package:panela_sys/services/form_data_cache_service.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
+
+class SignInResult {
+  final AuthResponse authResponse;
+  final CurrentUser currentUser;
+  SignInResult({required this.authResponse, required this.currentUser});
+}
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -12,7 +19,7 @@ class AuthService {
       : _cacheService = cacheService;
 
   // Login with DNI
-  Future<AuthResponse> signInWithDNI({
+  Future<SignInResult> signInWithDNI({
     required String dni,
     required String password,
   }) async {
@@ -50,7 +57,15 @@ class AuthService {
         data['refresh_token'],
       );
 
-      return authResponse;
+      // Build CurrentUser from response
+      final currentUser = CurrentUser(
+        dni: data['user_id'] as String? ?? dni,
+        firstName: data['first_name'] as String? ?? '',
+        lastName: data['last_name'] as String? ?? '',
+        role: UserRole.fromString(data['role'] as String? ?? 'productor'),
+      );
+
+      return SignInResult(authResponse: authResponse, currentUser: currentUser);
     } catch (e) {
       if (e is AuthException) {
         rethrow;
@@ -111,12 +126,13 @@ class AuthService {
     }
   }
 
-// Register new user
-  Future<AuthResponse> registerUser({
+  // Register new user (only callable by admin_sistema)
+  Future<void> registerUser({
     required String dni,
     required String firstName,
     required String lastName,
     required String password,
+    required String role,
   }) async {
     print('🚀 [FLUTTER] INICIO: Intentando registrar usuario...');
     print('👤 [FLUTTER] Datos: $dni, $firstName, $lastName');
@@ -149,6 +165,7 @@ class AuthService {
           'lastName': lastName,
           'password': password,
           'cooperativeId': coopId,
+          'role': role,
         },
       );
 
@@ -165,14 +182,7 @@ class AuthService {
         throw AuthException(data['error']);
       }
 
-      // Set session with returned tokens
-      print('🔐 [FLUTTER] Guardando sesión...');
-      final authResponse = await _supabase.auth.setSession(
-        data['refresh_token'],
-      );
-
       print('✅ [FLUTTER] ¡ÉXITO TOTAL!');
-      return authResponse;
 
     } catch (e, stackTrace) {
       // AQUÍ VEREMOS EL ERROR REAL

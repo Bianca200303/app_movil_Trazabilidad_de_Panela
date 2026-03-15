@@ -41,8 +41,6 @@ class ExitAndDateStep extends StatelessWidget {
           isExpanded: false,
         ),
 
-        const AppTitle(title: 'INSPECCIÓN DE TRANSPORTE'),
-
         FormSection(
           subtitle: 'Selecciona primero la fecha de inspección',
           children: [

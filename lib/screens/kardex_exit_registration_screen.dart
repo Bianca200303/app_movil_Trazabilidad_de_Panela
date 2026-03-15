@@ -304,6 +304,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
     final stock = _availableStock[index];
     final batch = stock['production_batch'];
     final producer = batch['producer'];
+    final moduleName = producer['coop_modules']?['name'] as String?;
     final availableKg = (stock['available_kg'] as num).toDouble();
     final availableBags = (availableKg / 50).floor();
 
@@ -323,6 +324,11 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (moduleName != null)
+                Text(
+                  'Módulo: $moduleName',
+                  style: AppTextStyles.bodyText,
+                ),
               Text(
                 'Lote: ${batch['batch_code']}',
                 style: AppTextStyles.bodyText,
@@ -602,6 +608,7 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
     final stock = _availableStock[index];
     final batch = stock['production_batch'];
     final producer = batch['producer'];
+    final moduleName = producer['coop_modules']?['name'] as String?;
     final availableKg = (stock['available_kg'] as num).toDouble();
     final availableBags = (availableKg / 50).floor();
     final controller = _quantityControllers[index];
@@ -621,6 +628,11 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
             '${producer['first_name']} ${producer['last_name']}',
             style: AppTextStyles.fieldLabel,
           ),
+          if (moduleName != null)
+            Text(
+              'Módulo: $moduleName',
+              style: AppTextStyles.bodyText,
+            ),
           Text(
             'Lote: ${batch['batch_code']}',
             style: AppTextStyles.bodyText,

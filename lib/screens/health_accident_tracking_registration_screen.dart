@@ -385,7 +385,16 @@ class _HealthAccidentTrackingRegistrationScreenState
             ),
             child: AppCard(
               padding: context.responsivePadding,
-              child: _buildCurrentStep(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AppTitle(
+                    title: 'Seguimiento de enfermedades y accidentes',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCurrentStep(),
+                ],
+              ),
             ),
           ),
         ),

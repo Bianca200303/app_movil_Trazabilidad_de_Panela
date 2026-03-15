@@ -62,14 +62,22 @@ class _PestControlRegistrationScreenState
   // Saving state
   bool _isSaving = false;
 
+  // Scroll
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _baitProductController.text = 'Panela';
+    _baitUnitController.text = 'gr';
+    _insectProductController.text = 'Trampa de Luz';
+    _insectUnitController.text = 'lámina';
     _loadModules();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _baitProductController.dispose();
     _baitQuantityController.dispose();
     _baitUnitController.dispose();
@@ -121,6 +129,7 @@ class _PestControlRegistrationScreenState
         _currentStep++;
       }
     });
+    _scrollController.jumpTo(0);
   }
 
   void _previousStep() {
@@ -128,6 +137,7 @@ class _PestControlRegistrationScreenState
       _showExitConfirmation();
     } else {
       setState(() => _currentStep--);
+      _scrollController.jumpTo(0);
     }
   }
 
@@ -440,7 +450,9 @@ class _PestControlRegistrationScreenState
           isExpanded: true,
         ),
         SizedBox(height: context.responsiveSpacing),
-        const AppTitle(title: 'Datos del control'),
+        const AppTitle(
+          title: 'Control de plagas',
+        ),
         if (_isLoadingModules)
           const Center(child: CircularProgressIndicator())
         else
@@ -608,6 +620,7 @@ class _PestControlRegistrationScreenState
       topLabelText: 'Control de Plagas',
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,

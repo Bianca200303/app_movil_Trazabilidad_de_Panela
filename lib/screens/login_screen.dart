@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/auth_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -66,10 +67,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       // 1. Authenticate user
-      await _authService.signInWithDNI(
+      final result = await _authService.signInWithDNI(
         dni: _identifierController.text.trim(),
         password: _passwordController.text,
       );
+
+      // 2. Save current user to provider
+      if (mounted) {
+        ref.read(currentUserProvider.notifier).state = result.currentUser;
+      }
 
       // 2. Refresh form data cache for offline usage
       if (mounted) {
@@ -178,59 +184,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onPressed: _signIn,
                         isLoading: _isLoading,
                       ),
-                      
-                      context.shouldStackButtons
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(height: context.responsiveSpacing / 2),
-                                TextButton(
-                                  onPressed: _isLoading ? null : () {
-                                    context.go(AppRoutes.register.path);
-                                  },
-                                  child: Text(
-                                    'Crear cuenta',
-                                    style: AppTextStyles.linkText,
-                                  ),
-                                ),
-                                // TextButton(
-                                //   onPressed: () {
-                                //     // Navegar a pantalla de recuperación de contraseña
-                                //   },
-                                //   child: Text(
-                                //     '¿Olvidaste contraseña?',
-                                //     style: AppTextStyles.linkText,
-                                //   ),
-                                // ),
-                              ],
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                TextButton(
-                                  onPressed: _isLoading ? null : () {
-                                    context.go(AppRoutes.register.path);
-                                  },
-                                  child: Text(
-                                    'Crear cuenta',
-                                    style: AppTextStyles.linkText,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                // Expanded(
-                                //   child: TextButton(
-                                //     onPressed: () {
-                                //       // Navegar a pantalla de recuperación de contraseña
-                                //     },
-                                //     child: Text(
-                                //       '¿Olvidaste contraseña?',
-                                //       style: AppTextStyles.linkText,
-                                //       textAlign: TextAlign.center,
-                                //     ),
-                                //   ),
-                                // ),
-                              ],
-                            ),
                     ],
                   ),
                 ),

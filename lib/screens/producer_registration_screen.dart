@@ -4,7 +4,6 @@ import 'package:panela_sys/screens/success_registration_screen.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
-import 'package:panela_sys/widgets/forms/app_dropdown.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/forms/radio_group.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
@@ -19,7 +18,11 @@ import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
+import 'package:panela_sys/services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
+import 'package:panela_sys/providers/producer_prefill_provider.dart';
+import 'package:panela_sys/widgets/common/app_snackbar.dart';
 
 class ProducerRegistrationScreen extends ConsumerStatefulWidget {
   const ProducerRegistrationScreen({super.key});
@@ -35,11 +38,14 @@ class _ProducerRegistrationScreenState
   final TextEditingController _surnamesController = TextEditingController();
   final TextEditingController _dniController = TextEditingController();
   final TextEditingController _appagropCodeController = TextEditingController();
+  final TextEditingController _moduleSearchController = TextEditingController();
+  final FocusNode _moduleFocusNode = FocusNode();
 
   // Services will be injected with AppDatabase from providers
   late final ProducerService _producerService;
   late final PlotService _plotService;
   late final CoopModulesService _modulesService;
+  final AuthService _authService = AuthService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _plotNameController = TextEditingController();
 
@@ -65,13 +71,24 @@ class _ProducerRegistrationScreenState
 
     _loadModules();
 
+    // Pre-fill data if coming from user management
+    final preFill = ref.read(producerPreFillProvider);
+    if (preFill != null) {
+      _dniController.text = preFill.dni;
+      _namesController.text = preFill.firstName;
+      _surnamesController.text = preFill.lastName;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(producerPreFillProvider.notifier).state = null;
+      });
+    }
+
     // Listen to DNI changes to load plot code preview
     _dniController.addListener(_onDniChanged);
   }
 
   Future<void> _loadModules() async {
     try {
-      final modules = await _modulesService.getModules();
+      final modules = await _modulesService.fetchFromSupabase();
       setState(() {
         _modules = modules;
         _isLoadingModules = false;
@@ -86,6 +103,36 @@ class _ProducerRegistrationScreenState
             content: Text('Error al cargar módulos: $e'),
             backgroundColor: Colors.red,
           ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createModuleInline(String name) async {
+    try {
+      final module = await _modulesService.createModule(name: name);
+      if (mounted) {
+        setState(() {
+          _modules = [..._modules, module]..sort((a, b) => a.name.compareTo(b.name));
+          _selectedModuleId = module.id;
+          _moduleSearchController.text = module.name;
+          if (AppConfig.current.features.useAppagropCode &&
+              _appagropCodeController.text.trim().isEmpty) {
+            _appagropCodeController.text = module.name;
+          }
+        });
+        AppSnackBar.show(
+          context,
+          message: 'Módulo "${module.name}" creado',
+          type: SnackBarType.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: SnackBarType.error,
         );
       }
     }
@@ -327,6 +374,31 @@ class _ProducerRegistrationScreenState
       final plotsForCreation = _plots.map((plot) => PlotData(name: plot.name)).toList();
       await _plotService.createMultiplePlots(producer.id, plotsForCreation);
 
+      // Create user account for the producer (password = DNI)
+      try {
+        await _authService.registerUser(
+          dni: _dniController.text.trim(),
+          firstName: _namesController.text.trim(),
+          lastName: _surnamesController.text.trim(),
+          password: _dniController.text.trim(),
+          role: 'productor',
+        );
+      } catch (_) {
+        // User already exists — update their role to 'productor' via Edge Function
+        try {
+          await Supabase.instance.client.functions.invoke(
+            'update-user-role',
+            body: {
+              'userId': _dniController.text.trim(),
+              'newRole': 'productor',
+              'cooperativeId': AppConfig.current.id,
+            },
+          );
+        } catch (_) {
+          // Non-critical — producer record was created successfully
+        }
+      }
+
       if (mounted) {
         Navigator.push(
           context,
@@ -453,6 +525,8 @@ class _ProducerRegistrationScreenState
     _dniController.dispose();
     _appagropCodeController.dispose();
     _plotNameController.dispose();
+    _moduleSearchController.dispose();
+    _moduleFocusNode.dispose();
     super.dispose();
   }
 
@@ -511,34 +585,102 @@ class _ProducerRegistrationScreenState
                     ),
                   
                   // Module field
-                  AppDropdown<String>(
-                    label: 'Módulo',
-                    hintText: 'Selecciona un módulo',
-                    value: _selectedModuleId,
-                    isLoading: _isLoadingModules,
-                    options: _modules.map((module) {
-                      return DropdownOption<String>(
-                        value: module.id,
-                        label: module.name,
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedModuleId = value;
-
-                        // Auto-complete APPAGROP code if empty and feature is enabled
-                        if (AppConfig.current.features.useAppagropCode &&
-                            _appagropCodeController.text.trim().isEmpty &&
-                            value != null) {
-                          final selectedModule = _modules.firstWhere(
-                            (module) => module.id == value,
-                            orElse: () => _modules.first,
-                          );
-                          _appagropCodeController.text = selectedModule.name;
-                        }
-                      });
-                    },
-                  ),
+                  if (_isLoadingModules)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Módulo', style: AppTextStyles.fieldLabel),
+                        const SizedBox(height: 6),
+                        RawAutocomplete<CoopModule>(
+                          textEditingController: _moduleSearchController,
+                          focusNode: _moduleFocusNode,
+                          displayStringForOption: (m) => m.name,
+                          optionsBuilder: (textValue) {
+                            final query = textValue.text.toLowerCase().trim();
+                            if (query.isEmpty) return _modules;
+                            final filtered = _modules
+                                .where((m) => m.name.toLowerCase().contains(query))
+                                .toList();
+                            final hasExact = filtered.any(
+                              (m) => m.name.toLowerCase() == query,
+                            );
+                            if (!hasExact && query.isNotEmpty) {
+                              filtered.add(CoopModule(id: '__create__', name: textValue.text.trim()));
+                            }
+                            return filtered;
+                          },
+                          onSelected: (module) {
+                            if (module.id == '__create__') {
+                              _moduleSearchController.clear();
+                              _createModuleInline(module.name);
+                            } else {
+                              setState(() {
+                                _selectedModuleId = module.id;
+                                _moduleSearchController.text = module.name;
+                                if (AppConfig.current.features.useAppagropCode &&
+                                    _appagropCodeController.text.trim().isEmpty) {
+                                  _appagropCodeController.text = module.name;
+                                }
+                              });
+                            }
+                          },
+                          fieldViewBuilder: (ctx, controller, focusNode, onSubmitted) {
+                            return AppTextField(
+                              label: null,
+                              hintText: 'Buscar o crear módulo...',
+                              controller: controller,
+                              focusNode: focusNode,
+                            );
+                          },
+                          optionsViewBuilder: (ctx, onSelected, options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 220),
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: options.length,
+                                    itemBuilder: (context, index) {
+                                      final module = options.elementAt(index);
+                                      final isCreate = module.id == '__create__';
+                                      return ListTile(
+                                        leading: Icon(
+                                          isCreate ? Icons.add_circle_outline : Icons.circle,
+                                          size: isCreate ? 20 : 8,
+                                          color: AppColors.primary,
+                                        ),
+                                        title: Text(
+                                          isCreate
+                                              ? 'Crear módulo "${module.name}"'
+                                              : module.name,
+                                          style: AppTextStyles.bodyText.copyWith(
+                                            color: isCreate ? AppColors.primary : null,
+                                            fontWeight: isCreate ? FontWeight.w600 : null,
+                                          ),
+                                        ),
+                                        onTap: () => onSelected(module),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        if (_selectedModuleId != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '✓ ${_modules.firstWhere((m) => m.id == _selectedModuleId, orElse: () => CoopModule(id: '', name: '')).name}',
+                            style: AppTextStyles.smallText.copyWith(color: AppColors.primary),
+                          ),
+                        ],
+                      ],
+                    ),
 
                   // APPAGROP code field (only for cooperatives that use it)
                   if (AppConfig.current.features.useAppagropCode)

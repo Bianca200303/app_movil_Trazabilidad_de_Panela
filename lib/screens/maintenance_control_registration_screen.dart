@@ -266,7 +266,9 @@ class _MaintenanceControlRegistrationScreenState
                 key: _formKey,
                 child: FormGroup(
                   children: [
-                    const AppTitle(title: 'Registrar Mantenimiento'),
+                    const AppTitle(
+                      title: 'Mantenimiento hornilla/maquinaria/equipos',
+                    ),
 
                     // ============================================================
                     // Module Dropdown

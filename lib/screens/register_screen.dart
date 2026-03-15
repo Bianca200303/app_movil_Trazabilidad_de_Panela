@@ -95,6 +95,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         password: _passwordController.text,
+        role: 'productor',
       );
 
       if (mounted) {

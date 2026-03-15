@@ -451,7 +451,8 @@ class ExitRegistrationService {
                 producers!inner(
                   first_name,
                   last_name,
-                  dni
+                  dni,
+                  coop_modules(name)
                 )
               )
             )
@@ -470,6 +471,7 @@ class ExitRegistrationService {
 
         for (final exitItem in exitItems) {
           final producer = exitItem['production_batch']?['producers'];
+          final moduleName = producer?['coop_modules']?['name'] as String?;
           final isAutoconsumo = exitItem['is_autoconsumo'] as bool;
           final quantityKg = (exitItem['quantity_kg'] as num).toDouble();
           final bagsCount = exitItem['bags_count'] as int?;
@@ -486,6 +488,7 @@ class ExitRegistrationService {
             'productor': producer != null
                 ? '${producer['first_name']} ${producer['last_name']}'
                 : 'N/A',
+            'modulo': moduleName ?? 'N/A',
             'dni_productor': producer?['dni'] ?? 'N/A',
             'cantidad_kg': quantityKg,
             'Sacos': bagsCount ?? 0,

@@ -43,26 +43,6 @@ class SelectableExitCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header: Código de salida
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Código de Salida:',
-                  style: AppTextStyles.fieldLabel,
-                ),
-                Flexible(
-                  child: Text(
-                    exitCode,
-                    style: AppTextStyles.bodyText.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
-            ),
-
             // Guía de remisión (si existe)
             if (documentNumber != null && documentNumber.isNotEmpty) ...[
               SizedBox(height: context.responsiveSpacing / 2),

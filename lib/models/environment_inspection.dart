@@ -65,21 +65,21 @@ class EnvironmentInspectionAreas {
   static String getDisplayName(String code) {
     switch (code) {
       case receptionMilling:
-        return 'RECEPCIÓN MATERIA PRIMA – MOLIENDA – SECADO DE BAGAZO';
+        return 'ÁREA DE RECEPCIÓN MATERIA PRIMA – MOLIENDA – SECADO DE BAGAZO';
       case thermalTreatment:
-        return 'TRATAMIENTO TÉRMICO';
+        return 'ÁREA DE TRATAMIENTO TÉRMICO';
       case sievingPacking:
-        return 'ZONA DE TAMIZADO Y ENVASADO';
+        return 'ÁREA DE TAMIZADO Y ENVASADO';
       case warehouses:
-        return 'ALMACENES';
+        return 'ÁREA DE ALMACENES';
       case dressingRooms:
-        return 'VESTUARIOS';
+        return 'ÁREA DE VESTUARIOS';
       case restrooms:
-        return 'SERVICIOS HIGIÉNICOS';
+        return 'ÁREA DE SERVICIOS HIGIÉNICOS';
       case cleaningImplements:
-        return 'IMPLEMENTOS DE LIMPIEZA';
+        return 'ÁREA DE IMPLEMENTOS DE LIMPIEZA';
       case reservoir:
-        return 'RESERVORIO';
+        return 'ÁREA DE RESERVORIO';
       default:
         return code;
     }

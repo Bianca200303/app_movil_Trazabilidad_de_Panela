@@ -265,10 +265,8 @@ class _ComplaintsReturnsRegistrationScreenState
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
-                  Text(
-                    'Registrar devolución',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  const AppTitle(
+                    title: 'Quejas y devoluciones',
                   ),
                   const SizedBox(height: 24),
 

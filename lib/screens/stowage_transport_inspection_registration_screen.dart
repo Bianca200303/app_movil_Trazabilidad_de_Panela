@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:panela_sys/widgets/common/app_title.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/app_config.dart';
@@ -278,7 +279,16 @@ class _StowageTransportInspectionRegistrationScreenState
             ),
             child: AppCard(
               padding: context.responsivePadding,
-              child: _buildCurrentStep(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AppTitle(
+                    title: 'Inspección de estiba y transporte',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCurrentStep(),
+                ],
+              ),
             ),
           ),
         ),

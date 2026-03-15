@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
@@ -28,7 +29,7 @@ class AppBackButton extends StatelessWidget {
     return SizedBox(
       width: isExpanded ? double.infinity : null,
       child: ElevatedButton.icon(
-        onPressed: onPressed ?? () => Navigator.pop(context),
+        onPressed: onPressed ?? () => context.pop(),
         style: ElevatedButton.styleFrom(
           backgroundColor: actualBackgroundColor,
           foregroundColor: actualForegroundColor,

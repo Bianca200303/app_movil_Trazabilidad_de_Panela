@@ -3,18 +3,13 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/pest_control.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
+import 'package:panela_sys/widgets/forms/app_dropdown.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/pest_control/bait_station_list_item.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 
 /// Step widget for bait control (Step 1 of wizard)
-///
-/// Manages:
-/// - Product information (name, quantity, unit)
-/// - Dynamic list of bait stations
-/// - General observations for all stations
-/// - Navigation buttons
 class BaitControlStep extends StatefulWidget {
   final TextEditingController productController;
   final TextEditingController quantityController;
@@ -42,7 +37,37 @@ class BaitControlStep extends StatefulWidget {
 }
 
 class _BaitControlStepState extends State<BaitControlStep> {
-  /// Build dynamic list of bait stations
+  static const _kCustom = '__custom__';
+
+  late String _selectedProduct;
+  bool _customProduct = false;
+
+  late String _selectedUnit;
+  bool _customUnit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Product
+    final productText = widget.productController.text;
+    if (productText == 'Panela' || productText.isEmpty) {
+      _selectedProduct = 'Panela';
+      widget.productController.text = 'Panela';
+    } else {
+      _selectedProduct = _kCustom;
+      _customProduct = true;
+    }
+    // Unit
+    final unitText = widget.unitController.text;
+    if (unitText == 'gr' || unitText == 'kg') {
+      _selectedUnit = unitText;
+    } else {
+      _selectedUnit = unitText.isEmpty ? 'gr' : _kCustom;
+      if (_selectedUnit == _kCustom) _customUnit = true;
+      if (unitText.isEmpty) widget.unitController.text = 'gr';
+    }
+  }
+
   List<Widget> _buildBaitStationsList() {
     return widget.baitStations.asMap().entries.map((entry) {
       final index = entry.key;
@@ -59,24 +84,16 @@ class _BaitControlStepState extends State<BaitControlStep> {
     }).toList();
   }
 
-  /// Add a new bait station
   void _addStation() {
     final nextNumber = widget.baitStations.length + 1;
     final newStation = BaitStation(stationNumber: nextNumber, ate: false);
-
-    setState(() {
-      widget.baitStations.add(newStation);
-    });
-
+    setState(() => widget.baitStations.add(newStation));
     widget.onBaitStationsChanged(widget.baitStations);
   }
 
-  /// Remove a bait station at index
   void _removeStation(int index) {
     setState(() {
       widget.baitStations.removeAt(index);
-
-      // Renumber stations to maintain sequential order
       for (int i = 0; i < widget.baitStations.length; i++) {
         widget.baitStations[i] = BaitStation(
           stationNumber: i + 1,
@@ -84,11 +101,9 @@ class _BaitControlStepState extends State<BaitControlStep> {
         );
       }
     });
-
     widget.onBaitStationsChanged(widget.baitStations);
   }
 
-  /// Update station ate status
   void _updateStation(int index, bool ate) {
     setState(() {
       widget.baitStations[index] = BaitStation(
@@ -96,7 +111,6 @@ class _BaitControlStepState extends State<BaitControlStep> {
         ate: ate,
       );
     });
-
     widget.onBaitStationsChanged(widget.baitStations);
   }
 
@@ -104,52 +118,131 @@ class _BaitControlStepState extends State<BaitControlStep> {
   Widget build(BuildContext context) {
     return FormSection(
       children: [
-        // Back button
-        AppBackButton(
-          onPressed: widget.onBack,
-          isExpanded: true,
-        ),
+        AppBackButton(onPressed: widget.onBack, isExpanded: true),
 
         SizedBox(height: context.responsiveSpacing),
 
-        // Title
         const AppTitle(title: 'Control de Cebos'),
 
         SizedBox(height: context.responsiveSpacing),
 
-        // Product information
-        AppTextField(
-          label: 'Producto empleado',
-          controller: widget.productController,
-          hintText: 'Ej: Panela',
-        ),
+        // ── Producto empleado ──
+        if (!_customProduct)
+          AppDropdown<String>(
+            label: 'Producto empleado',
+            value: _selectedProduct,
+            options: [
+              DropdownOption(value: 'Panela', label: 'Panela'),
+              DropdownOption(value: _kCustom, label: 'Escribir otro...'),
+            ],
+            onChanged: (val) {
+              if (val == _kCustom) {
+                setState(() {
+                  _customProduct = true;
+                  widget.productController.clear();
+                });
+              } else if (val != null) {
+                setState(() {
+                  _selectedProduct = val;
+                  widget.productController.text = val;
+                });
+              }
+            },
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: 'Producto empleado',
+                  controller: widget.productController,
+                  hintText: 'Escribe el producto...',
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.list_outlined),
+                tooltip: 'Volver a opciones',
+                onPressed: () {
+                  setState(() {
+                    _customProduct = false;
+                    _selectedProduct = 'Panela';
+                    widget.productController.text = 'Panela';
+                  });
+                },
+              ),
+            ],
+          ),
 
+        // ── Cantidad + Unidad ──
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               flex: 2,
               child: AppTextField(
                 label: 'Cantidad',
                 controller: widget.quantityController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 hintText: 'Ej: 04',
               ),
             ),
             SizedBox(width: context.responsiveSpacing / 2),
             Expanded(
-              flex: 1,
-              child: AppTextField(
-                label: 'Unidad',
-                controller: widget.unitController,
-                hintText: 'Ej: gr',
-              ),
+              flex: 2,
+              child: _customUnit
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            label: 'Unidad',
+                            controller: widget.unitController,
+                            hintText: 'Ej: unidades',
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.list_outlined),
+                          tooltip: 'Volver a opciones',
+                          onPressed: () {
+                            setState(() {
+                              _customUnit = false;
+                              _selectedUnit = 'gr';
+                              widget.unitController.text = 'gr';
+                            });
+                          },
+                        ),
+                      ],
+                    )
+                  : AppDropdown<String>(
+                      label: 'Unidad',
+                      value: _selectedUnit,
+                      options: [
+                        DropdownOption(value: 'gr', label: 'gr'),
+                        DropdownOption(value: 'kg', label: 'kg'),
+                        DropdownOption(value: _kCustom, label: 'Otro...'),
+                      ],
+                      onChanged: (val) {
+                        if (val == _kCustom) {
+                          setState(() {
+                            _customUnit = true;
+                            widget.unitController.clear();
+                          });
+                        } else if (val != null) {
+                          setState(() {
+                            _selectedUnit = val;
+                            widget.unitController.text = val;
+                          });
+                        }
+                      },
+                    ),
             ),
           ],
         ),
 
         SizedBox(height: context.responsiveSpacing),
 
-        // Bait stations section title
         Text(
           'Estaciones de cebo',
           style: Theme.of(context).textTheme.titleMedium,
@@ -157,12 +250,10 @@ class _BaitControlStepState extends State<BaitControlStep> {
 
         SizedBox(height: context.responsiveSpacing / 2),
 
-        // List of bait stations
         ..._buildBaitStationsList(),
 
         SizedBox(height: context.responsiveSpacing / 2),
 
-        // Add station button
         OutlinedButton.icon(
           onPressed: _addStation,
           icon: const Icon(Icons.add),
@@ -171,7 +262,6 @@ class _BaitControlStepState extends State<BaitControlStep> {
 
         SizedBox(height: context.responsiveSpacing),
 
-        // General observations
         AppTextField(
           label: 'Observaciones generales (opcional)',
           controller: widget.observationsController,
@@ -181,7 +271,6 @@ class _BaitControlStepState extends State<BaitControlStep> {
 
         SizedBox(height: context.responsiveSpacing * 1.5),
 
-        // Continue button
         AppButton(
           text: 'Continuar',
           type: AppButtonType.primary,

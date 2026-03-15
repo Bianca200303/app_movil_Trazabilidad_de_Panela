@@ -347,7 +347,9 @@ class _CleaningDisinfectionRegistrationScreenState
           ),
           SizedBox(height: context.responsiveSpacing),
 
-          const AppTitle(title: 'Configuración de limpieza'),
+          const AppTitle(
+            title: 'Limpieza y desinfección',
+          ),
           const SizedBox(height: 8),
           Text(
             'Configura los detalles generales de la limpieza realizada',

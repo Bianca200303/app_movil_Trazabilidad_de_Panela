@@ -5,6 +5,7 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/offline/offline_config.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/services/auth_service.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,7 +19,7 @@ class HomeScreen extends ConsumerWidget {
       
       // Force navigation after logout with pushReplacement to clear history
       if (context.mounted) {
-        context.pushReplacement(AppRoutes.login.path);
+        context.go(AppRoutes.login.path);
       }
     } catch (e) {
       if (context.mounted) {
@@ -33,17 +34,18 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch connectivity state
     final connectivityAsync = ref.watch(connectivityProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdminSistema = currentUser?.isAdminSistema ?? false;
 
     return connectivityAsync.when(
-      data: (isOnline) => _buildHomeContent(context, isOnline),
-      loading: () => _buildHomeContent(context, true), // Assume online while loading
-      error: (_, __) => _buildHomeContent(context, false), // Assume offline on error
+      data: (isOnline) => _buildHomeContent(context, isOnline, isAdminSistema),
+      loading: () => _buildHomeContent(context, true, isAdminSistema),
+      error: (_, __) => _buildHomeContent(context, false, isAdminSistema),
     );
   }
 
-  Widget _buildHomeContent(BuildContext context, bool isOnline) {
+  Widget _buildHomeContent(BuildContext context, bool isOnline, bool isAdminSistema) {
     // Determine button enabled states based on connectivity + offline support
     final producersEnabled = isOnline || OfflineConfig.instance.features.producers;
     final productionEnabled = isOnline || OfflineConfig.instance.features.production;
@@ -108,6 +110,21 @@ class HomeScreen extends ConsumerWidget {
                             type: AppButtonType.option,
                             onPressed: () => context.go(AppRoutes.historial.path),
                           ),
+
+                          if (isAdminSistema) ...[
+                            AppButton(
+                              text: 'Gestión de usuarios',
+                              icon: Icons.manage_accounts_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.userManagement.path),
+                            ),
+                            AppButton(
+                              text: 'Gestión de módulos',
+                              icon: Icons.view_module_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.moduleManagement.path),
+                            ),
+                          ],
                         ],
                       ),
                     ),

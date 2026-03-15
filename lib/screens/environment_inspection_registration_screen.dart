@@ -351,7 +351,16 @@ class _EnvironmentInspectionRegistrationScreenState
                   ),
                   child: AppCard(
                     padding: context.responsivePadding,
-                    child: _buildCurrentStep(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const AppTitle(
+                          title: 'Inspección de ambientes, equipo y personal',
+                        ),
+                        const SizedBox(height: 16),
+                        _buildCurrentStep(),
+                      ],
+                    ),
                   ),
                 ),
               ),

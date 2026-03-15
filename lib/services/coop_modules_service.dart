@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
 import 'package:panela_sys/core/offline/network_detector.dart';
@@ -163,6 +164,70 @@ class CoopModulesService {
       DebugLogger.warning('CoopModulesService', '_refreshCacheInBackground',
           'Background refresh failed: $e');
       // Silently fail - this is background operation
+    }
+  }
+
+  /// Creates a new module for the current cooperative
+  Future<CoopModule> createModule({required String name}) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) throw Exception('El nombre del módulo no puede estar vacío');
+
+    try {
+      final response = await _supabase
+          .from('coop_modules')
+          .insert({
+            'name': trimmed,
+            'cooperative_id': AppConfig.current.id,
+          })
+          .select('id, name')
+          .single();
+
+        final module = CoopModule.fromJson(response);
+
+      // Update local cache
+      if (_db != null) {
+        await _db.coopModulesDao.upsert(
+          CoopModulesCompanion.insert(id: module.id, name: module.name),
+        );
+      }
+
+      return module;
+    } on PostgrestException catch (e) {
+      // Unique constraint violation (code 23505)
+      if (e.code == '23505') {
+        throw Exception('El módulo ya se encuentra registrado');
+      }
+      rethrow;
+    }
+  }
+
+  /// Updates the name of an existing module
+  Future<CoopModule> updateModule({required String id, required String name}) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) throw Exception('El nombre del módulo no puede estar vacío');
+
+    try {
+      final response = await _supabase
+          .from('coop_modules')
+          .update({'name': trimmed})
+          .eq('id', id)
+          .select('id, name')
+          .single();
+
+      final module = CoopModule.fromJson(response);
+
+      if (_db != null) {
+        await _db.coopModulesDao.upsert(
+          CoopModulesCompanion.insert(id: module.id, name: module.name),
+        );
+      }
+
+      return module;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception('El módulo ya se encuentra registrado');
+      }
+      rethrow;
     }
   }
 

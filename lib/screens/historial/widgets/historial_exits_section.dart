@@ -61,11 +61,6 @@ class HistorialExitsSection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               HistorialInfoRow(
-                label: 'Código Salida:',
-                value: item['codigo_salida'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
                 label: 'Fecha:',
                 value: item['fecha_salida'].toString(),
               ),
@@ -73,6 +68,11 @@ class HistorialExitsSection extends StatelessWidget {
               HistorialInfoRow(
                 label: 'Productor:',
                 value: item['productor'].toString(),
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Módulo:',
+                value: item['modulo'].toString(),
               ),
               SizedBox(height: context.responsiveSpacing / 2),
               HistorialInfoRow(

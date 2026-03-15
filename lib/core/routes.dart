@@ -16,6 +16,8 @@ import 'package:panela_sys/screens/health_accident_tracking_registration_screen.
 import 'package:panela_sys/screens/complaints_returns_registration_screen.dart';
 import 'package:panela_sys/screens/worker_control_registration_screen.dart';
 import 'package:panela_sys/screens/maintenance_control_registration_screen.dart';
+import 'package:panela_sys/screens/user_management_screen.dart';
+import 'package:panela_sys/screens/module_management_screen.dart';
 
 class AppRoute {
   final String path;
@@ -151,6 +153,18 @@ class AppRoutes {
     isUnderConstruction: false,
   );
 
+  static const userManagement = AppRoute(
+    path: '/user-management',
+    displayName: 'Gestión de usuarios',
+    screen: UserManagementScreen(),
+  );
+
+  static const moduleManagement = AppRoute(
+    path: '/module-management',
+    displayName: 'Gestión de módulos',
+    screen: ModuleManagementScreen(),
+  );
+
   // Private constructor to prevent instantiation
   AppRoutes._();
   
@@ -173,6 +187,8 @@ class AppRoutes {
     complaintsReturnsRegistration,
     workerControlRegistration,
     maintenanceControlRegistration,
+    userManagement,
+    moduleManagement,
   ];
   
   // Get public routes (no authentication required)

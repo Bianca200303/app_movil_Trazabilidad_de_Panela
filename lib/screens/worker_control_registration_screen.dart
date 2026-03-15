@@ -508,7 +508,7 @@ class _WorkerControlRegistrationScreenState
   Widget build(BuildContext context) {
     return AppScaffold(
       hasTopLabel: true,
-      topLabelText: 'Control de Personal Operario',
+      topLabelText: 'Control de personal operario',
       child: Center(
         child: SingleChildScrollView(
           controller: _scrollController,
@@ -532,7 +532,9 @@ class _WorkerControlRegistrationScreenState
         children: [
           AppBackButton(onPressed: _previousStep, isExpanded: true),
           SizedBox(height: context.responsiveSpacing),
-          const AppTitle(title: 'Seleccionar Lote de Producción'),
+          const AppTitle(title: 'Control de personal operario'),
+          const SizedBox(height: 8),
+          const SectionTitle(title: 'Seleccionar Lote de Producción'),
           const SizedBox(height: 24),
           _buildInlineCalendar(),
           if (_isLoadingBatches)
