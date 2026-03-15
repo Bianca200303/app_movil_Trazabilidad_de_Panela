@@ -42,12 +42,15 @@ class CurrentUser {
   final String firstName;
   final String lastName;
   final UserRole role;
+  /// Module IDs assigned to this user (only relevant for adminModulo).
+  final List<String> moduleIds;
 
   const CurrentUser({
     required this.dni,
     required this.firstName,
     required this.lastName,
     required this.role,
+    this.moduleIds = const [],
   });
 
   String get fullName => '$firstName $lastName';

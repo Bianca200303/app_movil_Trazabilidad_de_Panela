@@ -22,6 +22,7 @@ import 'package:panela_sys/services/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/producer_prefill_provider.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_snackbar.dart';
 
 class ProducerRegistrationScreen extends ConsumerStatefulWidget {
@@ -89,9 +90,19 @@ class _ProducerRegistrationScreenState
   Future<void> _loadModules() async {
     try {
       final modules = await _modulesService.fetchFromSupabase();
+      final currentUser = ref.read(currentUserProvider);
+      // For adminModulo, filter modules to only their assigned ones
+      final filteredModules = (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty)
+          ? modules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : modules;
       setState(() {
-        _modules = modules;
+        _modules = filteredModules;
         _isLoadingModules = false;
+        // If admin has exactly one module, pre-select and lock it
+        if (currentUser?.isAdminModulo == true && filteredModules.length == 1) {
+          _selectedModuleId = filteredModules.first.id;
+          _moduleSearchController.text = filteredModules.first.name;
+        }
       });
     } catch (e) {
       setState(() {
@@ -532,6 +543,9 @@ class _ProducerRegistrationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdminModulo = currentUser?.isAdminModulo ?? false;
+    final hasLockedModule = isAdminModulo && (currentUser?.moduleIds.length == 1);
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
@@ -587,6 +601,34 @@ class _ProducerRegistrationScreenState
                   // Module field
                   if (_isLoadingModules)
                     const Center(child: CircularProgressIndicator())
+                  else if (hasLockedModule && _selectedModuleId != null)
+                    // AdminModulo: show locked module, no change allowed
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Módulo', style: AppTextStyles.fieldLabel),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                              const SizedBox(width: 8),
+                              Text(
+                                _modules.firstWhere((m) => m.id == _selectedModuleId, orElse: () => CoopModule(id: '', name: _selectedModuleId!)).name,
+                                style: AppTextStyles.bodyText,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
                   else
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

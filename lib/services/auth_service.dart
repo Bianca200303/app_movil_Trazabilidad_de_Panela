@@ -58,11 +58,16 @@ class AuthService {
       );
 
       // Build CurrentUser from response
+      final rawModuleIds = data['coop_module_ids'];
+      final moduleIds = rawModuleIds is List
+          ? rawModuleIds.cast<String>()
+          : <String>[];
       final currentUser = CurrentUser(
         dni: data['user_id'] as String? ?? dni,
         firstName: data['first_name'] as String? ?? '',
         lastName: data['last_name'] as String? ?? '',
         role: UserRole.fromString(data['role'] as String? ?? 'productor'),
+        moduleIds: moduleIds,
       );
 
       return SignInResult(authResponse: authResponse, currentUser: currentUser);
@@ -126,13 +131,14 @@ class AuthService {
     }
   }
 
-  // Register new user (only callable by admin_sistema)
+  // Register new user (only callable by admin_sistema or admin_modulo)
   Future<void> registerUser({
     required String dni,
     required String firstName,
     required String lastName,
     required String password,
     required String role,
+    List<String> moduleIds = const [],
   }) async {
     print('🚀 [FLUTTER] INICIO: Intentando registrar usuario...');
     print('👤 [FLUTTER] Datos: $dni, $firstName, $lastName');
@@ -157,16 +163,19 @@ class AuthService {
       print('🔑 [REGISTER] ¿Es JWT? (debe empezar con "eyJ"): ${_tokenEnviado.startsWith("eyJ")}');
       // ────────────────────────────────────────────────────────────────────
 
+      final body = {
+        'dni': dni,
+        'firstName': firstName,
+        'lastName': lastName,
+        'password': password,
+        'cooperativeId': coopId,
+        'role': role,
+        if (moduleIds.isNotEmpty) 'coopModuleIds': moduleIds,
+      };
+
       final response = await _supabase.functions.invoke(
         'register-user',
-        body: {
-          'dni': dni,
-          'firstName': firstName,
-          'lastName': lastName,
-          'password': password,
-          'cooperativeId': coopId,
-          'role': role,
-        },
+        body: body,
       );
 
       print('📨 [FLUTTER] Respuesta recibida. Status: ${response.status}');

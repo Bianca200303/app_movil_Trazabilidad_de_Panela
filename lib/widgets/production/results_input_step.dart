@@ -19,6 +19,8 @@ class ResultsInputStep extends StatelessWidget {
   final Plot? selectedPlot;
   final VoidCallback onContinue;
   final VoidCallback onBack;
+  final double density;
+  final TextEditingController? densityController;
 
   const ResultsInputStep({
     super.key,
@@ -31,6 +33,8 @@ class ResultsInputStep extends StatelessWidget {
     this.selectedPlot,
     required this.onContinue,
     required this.onBack,
+    this.density = ProductionCalculator.sugarCaneDensity,
+    this.densityController,
   });
 
   String _getDefaultHintText(String fieldType) {
@@ -177,12 +181,20 @@ class ResultsInputStep extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                '• Densidad de caña: ${ProductionCalculator.sugarCaneDensityDisplay}',
-                style: AppTextStyles.bodyTextSecondary.copyWith(
-                  color: Colors.blue.shade700,
+              if (densityController != null) ...[
+                AppTextField(
+                  controller: densityController,
+                  label: '• Densidad de caña (kg/L)',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
-              ),
+              ] else ...[
+                Text(
+                  '• Densidad de caña: ${density.toStringAsFixed(2)} kg/L',
+                  style: AppTextStyles.bodyTextSecondary.copyWith(
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

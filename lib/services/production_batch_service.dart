@@ -32,6 +32,7 @@ class CreateProductionBatchRequest {
   final String? regulatorQuantityUnit;
   final double? brix;
   final String? correctiveAction;
+  final double density;
 
   CreateProductionBatchRequest({
     this.batchCode,
@@ -53,6 +54,7 @@ class CreateProductionBatchRequest {
     this.regulatorQuantityUnit,
     this.brix,
     this.correctiveAction,
+    this.density = ProductionCalculator.sugarCaneDensity,
   });
 }
 
@@ -107,7 +109,7 @@ class ProductionBatchService {
 
       // 3. Calculate fields using ProductionCalculator
       final juiceWeightKg =
-          ProductionCalculator.calculateJuiceWeight(request.juiceLiters);
+          ProductionCalculator.calculateJuiceWeight(request.juiceLiters, density: request.density);
       final caneKg = ProductionCalculator.calculateCaneInput(
           juiceWeightKg, request.extractionPercentage);
       final efficiency = ProductionCalculator.calculateYield(
@@ -132,6 +134,7 @@ class ProductionBatchService {
           porcentajeExtraccion: drift.Value(request.extractionPercentage),
           cachazaPercentage: drift.Value(request.cachazaPercentage),
           efficiencyPercentage: efficiency,
+          caneDensity: drift.Value(request.density),
           producerLocalId: producerLocalId,
           plotLocalId: drift.Value(plotLocalId),
           cooperativeId: AppConfig.current.id,
@@ -193,6 +196,7 @@ class ProductionBatchService {
             regulatorQuantityUnit: request.regulatorQuantityUnit,
             brix: request.brix,
             correctiveAction: request.correctiveAction,
+            density: request.density,
           );
 
           final remoteBatch = await createOnline(remoteRequest);
@@ -263,7 +267,7 @@ class ProductionBatchService {
 
       // Calculate cane quantity and efficiency
       final juiceWeightKg =
-          ProductionCalculator.calculateJuiceWeight(request.juiceLiters);
+          ProductionCalculator.calculateJuiceWeight(request.juiceLiters, density: request.density);
       final caneKg = ProductionCalculator.calculateCaneInput(
           juiceWeightKg, request.extractionPercentage);
       final efficiency = ProductionCalculator.calculateYield(
@@ -281,6 +285,7 @@ class ProductionBatchService {
         'porcentaje_extraccion': request.extractionPercentage,
         'cachaza_percentage': request.cachazaPercentage,
         'efficiency_percentage': efficiency,
+        'cane_density': request.density,
         'producer_id': request.producerId,
         'cooperative_id': cooperativeId,
       };

@@ -62,7 +62,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// Migration strategy for handling schema version changes
   ///
@@ -72,6 +72,7 @@ class AppDatabase extends _$AppDatabase {
   /// Version history:
   /// - v1-v4: Initial development versions
   /// - v5: Add regulator unit tracking (regulator_quantity_value, regulator_quantity_unit)
+  /// - v6: Add cane_density to production_batches for per-batch density tracking
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
@@ -83,10 +84,11 @@ class AppDatabase extends _$AppDatabase {
 
           // Migration from v4 to v5: Add regulator unit columns
           if (from == 4) {
-            // Add new columns to batch_ph_controls table
-            // These columns are nullable to preserve existing data
             await m.addColumn(batchPhControls, batchPhControls.regulatorQuantityValue);
             await m.addColumn(batchPhControls, batchPhControls.regulatorQuantityUnit);
+          }
+          if (from <= 5) {
+            await m.addColumn(productionBatches, productionBatches.caneDensity);
           }
         },
       );

@@ -40,6 +40,7 @@ class RegistrationSummaryStep extends StatefulWidget {
   final Map<String, bool> selectedCertificates;
   final List<double> temperatures;
   final VoidCallback onBack;
+  final double density;
 
   const RegistrationSummaryStep({
     super.key,
@@ -61,6 +62,7 @@ class RegistrationSummaryStep extends StatefulWidget {
     required this.selectedCertificates,
     required this.temperatures,
     required this.onBack,
+    this.density = ProductionCalculator.sugarCaneDensity,
   });
 
   @override
@@ -194,6 +196,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
       confitilloKg: confitilloKg,
       extractionPercentage: extractionPercentage,
       cachazaPercentage: cachazaPercentage,
+      density: widget.density,
     );
   }
 
@@ -360,6 +363,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         regulatorQuantityUnit: widget.regulatorUnitController.text,
         brix: null,
         correctiveAction: null,
+        density: widget.density,
       );
 
       await _productionBatchService.createProductionBatch(request);

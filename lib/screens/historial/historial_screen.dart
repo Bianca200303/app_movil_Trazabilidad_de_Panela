@@ -12,6 +12,7 @@ import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/models/stowage_transport_inspection.dart';
 import 'package:panela_sys/models/health_incident.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/environment_inspection_service.dart';
@@ -215,7 +216,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       _producersError = null;
     });
     try {
-      final data = await _producerService.getProducersForHistorial();
+      final currentUser = ref.read(currentUserProvider);
+      var data = await _producerService.getProducersForHistorial();
+      // Filter by assigned module for adminModulo
+      if (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty) {
+        data = data.where((item) => currentUser.moduleIds.contains(item['coopModuleId'])).toList();
+      }
       setState(() {
         _producersData = data;
         _isLoadingProducers = false;
@@ -228,6 +234,34 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     }
   }
 
+  /// Returns the set of producer DNIs that should be visible for the current user.
+  /// - adminModulo: only DNIs from their assigned module.
+  /// - productor: only their own DNI.
+  /// - adminSistema: null (no restriction).
+  Future<Set<String>?> _getAllowedProducerDnis() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return null;
+
+    if (currentUser.isProductor) {
+      return {currentUser.dni};
+    }
+
+    if (currentUser.isAdminModulo && currentUser.moduleIds.isNotEmpty) {
+      // Get all producers from historial and filter by assigned modules
+      try {
+        final all = await _producerService.getProducersForHistorial();
+        return all
+            .where((p) => currentUser.moduleIds.contains(p['coopModuleId']))
+            .map((p) => p['dni'] as String)
+            .toSet();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null; // No restriction for adminSistema
+  }
+
   Future<void> _loadProductionData() async {
     if (_isLoadingProduction) return;
     setState(() {
@@ -235,8 +269,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       _productionError = null;
     });
     try {
-      final data =
+      final allowedDnis = await _getAllowedProducerDnis();
+      var data =
           await _productionBatchService.getProductionBatchesForHistorial();
+      if (allowedDnis != null) {
+        data = data.where((item) => allowedDnis.contains(item['dni_productor'])).toList();
+      }
       final formattedData = data.map((item) {
         final processDate = item['fecha_proceso'] as DateTime;
         return {
@@ -263,8 +301,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       _exitsError = null;
     });
     try {
-      final data =
+      final allowedDnis = await _getAllowedProducerDnis();
+      var data =
           await _exitRegistrationService.getExitRegistrationsForHistorial();
+      if (allowedDnis != null) {
+        data = data.where((item) => allowedDnis.contains(item['dni_productor'])).toList();
+      }
       final formattedData = data.map((item) {
         final exitDate = item['fecha_salida'] as DateTime;
         return {
@@ -840,7 +882,11 @@ Future<void> _loadWorkerControlsData() async {
 
   /// Nivel 1: menú principal con las 4 opciones.
   Widget _buildMainMenu() {
-    return HistorialMainMenu(onOptionSelected: _onOptionSelected);
+    final currentUser = ref.read(currentUserProvider);
+    return HistorialMainMenu(
+      onOptionSelected: _onOptionSelected,
+      isProductor: currentUser?.isProductor ?? false,
+    );
   }
 
   /// Enrutador de nivel 2 y 3 según la opción seleccionada.

@@ -11,7 +11,9 @@
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos 2>&1 | grep -E \"^  error\" | head -20)",
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/kardex_exit_registration_screen.dart 2>&1)",
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/producer_registration_screen.dart 2>&1)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)"
     ]
   }
 }

@@ -1788,6 +1788,18 @@ class $ProductionBatchesTable extends ProductionBatches
         type: DriftSqlType.double,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _caneDensityMeta = const VerificationMeta(
+    'caneDensity',
+  );
+  @override
+  late final GeneratedColumn<double> caneDensity = GeneratedColumn<double>(
+    'cane_density',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.05),
+  );
   static const VerificationMeta _producerLocalIdMeta = const VerificationMeta(
     'producerLocalId',
   );
@@ -1880,6 +1892,7 @@ class $ProductionBatchesTable extends ProductionBatches
     porcentajeExtraccion,
     cachazaPercentage,
     efficiencyPercentage,
+    caneDensity,
     producerLocalId,
     plotLocalId,
     cooperativeId,
@@ -2000,6 +2013,15 @@ class $ProductionBatchesTable extends ProductionBatches
     } else if (isInserting) {
       context.missing(_efficiencyPercentageMeta);
     }
+    if (data.containsKey('cane_density')) {
+      context.handle(
+        _caneDensityMeta,
+        caneDensity.isAcceptableOrUnknown(
+          data['cane_density']!,
+          _caneDensityMeta,
+        ),
+      );
+    }
     if (data.containsKey('producer_local_id')) {
       context.handle(
         _producerLocalIdMeta,
@@ -2108,6 +2130,10 @@ class $ProductionBatchesTable extends ProductionBatches
         DriftSqlType.double,
         data['${effectivePrefix}efficiency_percentage'],
       )!,
+      caneDensity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cane_density'],
+      )!,
       producerLocalId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}producer_local_id'],
@@ -2159,6 +2185,7 @@ class ProductionBatchLocal extends DataClass
   final double? porcentajeExtraccion;
   final double? cachazaPercentage;
   final double efficiencyPercentage;
+  final double caneDensity;
   final int producerLocalId;
   final int? plotLocalId;
   final String cooperativeId;
@@ -2186,6 +2213,7 @@ class ProductionBatchLocal extends DataClass
     this.porcentajeExtraccion,
     this.cachazaPercentage,
     required this.efficiencyPercentage,
+    required this.caneDensity,
     required this.producerLocalId,
     this.plotLocalId,
     required this.cooperativeId,
@@ -2212,6 +2240,7 @@ class ProductionBatchLocal extends DataClass
       map['cachaza_percentage'] = Variable<double>(cachazaPercentage);
     }
     map['efficiency_percentage'] = Variable<double>(efficiencyPercentage);
+    map['cane_density'] = Variable<double>(caneDensity);
     map['producer_local_id'] = Variable<int>(producerLocalId);
     if (!nullToAbsent || plotLocalId != null) {
       map['plot_local_id'] = Variable<int>(plotLocalId);
@@ -2245,6 +2274,7 @@ class ProductionBatchLocal extends DataClass
           ? const Value.absent()
           : Value(cachazaPercentage),
       efficiencyPercentage: Value(efficiencyPercentage),
+      caneDensity: Value(caneDensity),
       producerLocalId: Value(producerLocalId),
       plotLocalId: plotLocalId == null && nullToAbsent
           ? const Value.absent()
@@ -2284,6 +2314,7 @@ class ProductionBatchLocal extends DataClass
       efficiencyPercentage: serializer.fromJson<double>(
         json['efficiencyPercentage'],
       ),
+      caneDensity: serializer.fromJson<double>(json['caneDensity']),
       producerLocalId: serializer.fromJson<int>(json['producerLocalId']),
       plotLocalId: serializer.fromJson<int?>(json['plotLocalId']),
       cooperativeId: serializer.fromJson<String>(json['cooperativeId']),
@@ -2308,6 +2339,7 @@ class ProductionBatchLocal extends DataClass
       'porcentajeExtraccion': serializer.toJson<double?>(porcentajeExtraccion),
       'cachazaPercentage': serializer.toJson<double?>(cachazaPercentage),
       'efficiencyPercentage': serializer.toJson<double>(efficiencyPercentage),
+      'caneDensity': serializer.toJson<double>(caneDensity),
       'producerLocalId': serializer.toJson<int>(producerLocalId),
       'plotLocalId': serializer.toJson<int?>(plotLocalId),
       'cooperativeId': serializer.toJson<String>(cooperativeId),
@@ -2330,6 +2362,7 @@ class ProductionBatchLocal extends DataClass
     Value<double?> porcentajeExtraccion = const Value.absent(),
     Value<double?> cachazaPercentage = const Value.absent(),
     double? efficiencyPercentage,
+    double? caneDensity,
     int? producerLocalId,
     Value<int?> plotLocalId = const Value.absent(),
     String? cooperativeId,
@@ -2353,6 +2386,7 @@ class ProductionBatchLocal extends DataClass
         ? cachazaPercentage.value
         : this.cachazaPercentage,
     efficiencyPercentage: efficiencyPercentage ?? this.efficiencyPercentage,
+    caneDensity: caneDensity ?? this.caneDensity,
     producerLocalId: producerLocalId ?? this.producerLocalId,
     plotLocalId: plotLocalId.present ? plotLocalId.value : this.plotLocalId,
     cooperativeId: cooperativeId ?? this.cooperativeId,
@@ -2388,6 +2422,9 @@ class ProductionBatchLocal extends DataClass
       efficiencyPercentage: data.efficiencyPercentage.present
           ? data.efficiencyPercentage.value
           : this.efficiencyPercentage,
+      caneDensity: data.caneDensity.present
+          ? data.caneDensity.value
+          : this.caneDensity,
       producerLocalId: data.producerLocalId.present
           ? data.producerLocalId.value
           : this.producerLocalId,
@@ -2420,6 +2457,7 @@ class ProductionBatchLocal extends DataClass
           ..write('porcentajeExtraccion: $porcentajeExtraccion, ')
           ..write('cachazaPercentage: $cachazaPercentage, ')
           ..write('efficiencyPercentage: $efficiencyPercentage, ')
+          ..write('caneDensity: $caneDensity, ')
           ..write('producerLocalId: $producerLocalId, ')
           ..write('plotLocalId: $plotLocalId, ')
           ..write('cooperativeId: $cooperativeId, ')
@@ -2444,6 +2482,7 @@ class ProductionBatchLocal extends DataClass
     porcentajeExtraccion,
     cachazaPercentage,
     efficiencyPercentage,
+    caneDensity,
     producerLocalId,
     plotLocalId,
     cooperativeId,
@@ -2467,6 +2506,7 @@ class ProductionBatchLocal extends DataClass
           other.porcentajeExtraccion == this.porcentajeExtraccion &&
           other.cachazaPercentage == this.cachazaPercentage &&
           other.efficiencyPercentage == this.efficiencyPercentage &&
+          other.caneDensity == this.caneDensity &&
           other.producerLocalId == this.producerLocalId &&
           other.plotLocalId == this.plotLocalId &&
           other.cooperativeId == this.cooperativeId &&
@@ -2488,6 +2528,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
   final Value<double?> porcentajeExtraccion;
   final Value<double?> cachazaPercentage;
   final Value<double> efficiencyPercentage;
+  final Value<double> caneDensity;
   final Value<int> producerLocalId;
   final Value<int?> plotLocalId;
   final Value<String> cooperativeId;
@@ -2507,6 +2548,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.porcentajeExtraccion = const Value.absent(),
     this.cachazaPercentage = const Value.absent(),
     this.efficiencyPercentage = const Value.absent(),
+    this.caneDensity = const Value.absent(),
     this.producerLocalId = const Value.absent(),
     this.plotLocalId = const Value.absent(),
     this.cooperativeId = const Value.absent(),
@@ -2527,6 +2569,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.porcentajeExtraccion = const Value.absent(),
     this.cachazaPercentage = const Value.absent(),
     required double efficiencyPercentage,
+    this.caneDensity = const Value.absent(),
     required int producerLocalId,
     this.plotLocalId = const Value.absent(),
     required String cooperativeId,
@@ -2556,6 +2599,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Expression<double>? porcentajeExtraccion,
     Expression<double>? cachazaPercentage,
     Expression<double>? efficiencyPercentage,
+    Expression<double>? caneDensity,
     Expression<int>? producerLocalId,
     Expression<int>? plotLocalId,
     Expression<String>? cooperativeId,
@@ -2578,6 +2622,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       if (cachazaPercentage != null) 'cachaza_percentage': cachazaPercentage,
       if (efficiencyPercentage != null)
         'efficiency_percentage': efficiencyPercentage,
+      if (caneDensity != null) 'cane_density': caneDensity,
       if (producerLocalId != null) 'producer_local_id': producerLocalId,
       if (plotLocalId != null) 'plot_local_id': plotLocalId,
       if (cooperativeId != null) 'cooperative_id': cooperativeId,
@@ -2600,6 +2645,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Value<double?>? porcentajeExtraccion,
     Value<double?>? cachazaPercentage,
     Value<double>? efficiencyPercentage,
+    Value<double>? caneDensity,
     Value<int>? producerLocalId,
     Value<int?>? plotLocalId,
     Value<String>? cooperativeId,
@@ -2620,6 +2666,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       porcentajeExtraccion: porcentajeExtraccion ?? this.porcentajeExtraccion,
       cachazaPercentage: cachazaPercentage ?? this.cachazaPercentage,
       efficiencyPercentage: efficiencyPercentage ?? this.efficiencyPercentage,
+      caneDensity: caneDensity ?? this.caneDensity,
       producerLocalId: producerLocalId ?? this.producerLocalId,
       plotLocalId: plotLocalId ?? this.plotLocalId,
       cooperativeId: cooperativeId ?? this.cooperativeId,
@@ -2670,6 +2717,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
         efficiencyPercentage.value,
       );
     }
+    if (caneDensity.present) {
+      map['cane_density'] = Variable<double>(caneDensity.value);
+    }
     if (producerLocalId.present) {
       map['producer_local_id'] = Variable<int>(producerLocalId.value);
     }
@@ -2708,6 +2758,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
           ..write('porcentajeExtraccion: $porcentajeExtraccion, ')
           ..write('cachazaPercentage: $cachazaPercentage, ')
           ..write('efficiencyPercentage: $efficiencyPercentage, ')
+          ..write('caneDensity: $caneDensity, ')
           ..write('producerLocalId: $producerLocalId, ')
           ..write('plotLocalId: $plotLocalId, ')
           ..write('cooperativeId: $cooperativeId, ')
@@ -6010,6 +6061,7 @@ typedef $$ProductionBatchesTableCreateCompanionBuilder =
       Value<double?> porcentajeExtraccion,
       Value<double?> cachazaPercentage,
       required double efficiencyPercentage,
+      Value<double> caneDensity,
       required int producerLocalId,
       Value<int?> plotLocalId,
       required String cooperativeId,
@@ -6031,6 +6083,7 @@ typedef $$ProductionBatchesTableUpdateCompanionBuilder =
       Value<double?> porcentajeExtraccion,
       Value<double?> cachazaPercentage,
       Value<double> efficiencyPercentage,
+      Value<double> caneDensity,
       Value<int> producerLocalId,
       Value<int?> plotLocalId,
       Value<String> cooperativeId,
@@ -6101,6 +6154,11 @@ class $$ProductionBatchesTableFilterComposer
 
   ColumnFilters<double> get efficiencyPercentage => $composableBuilder(
     column: $table.efficiencyPercentage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get caneDensity => $composableBuilder(
+    column: $table.caneDensity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6204,6 +6262,11 @@ class $$ProductionBatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get caneDensity => $composableBuilder(
+    column: $table.caneDensity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get producerLocalId => $composableBuilder(
     column: $table.producerLocalId,
     builder: (column) => ColumnOrderings(column),
@@ -6296,6 +6359,11 @@ class $$ProductionBatchesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get caneDensity => $composableBuilder(
+    column: $table.caneDensity,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get producerLocalId => $composableBuilder(
     column: $table.producerLocalId,
     builder: (column) => column,
@@ -6377,6 +6445,7 @@ class $$ProductionBatchesTableTableManager
                 Value<double?> porcentajeExtraccion = const Value.absent(),
                 Value<double?> cachazaPercentage = const Value.absent(),
                 Value<double> efficiencyPercentage = const Value.absent(),
+                Value<double> caneDensity = const Value.absent(),
                 Value<int> producerLocalId = const Value.absent(),
                 Value<int?> plotLocalId = const Value.absent(),
                 Value<String> cooperativeId = const Value.absent(),
@@ -6396,6 +6465,7 @@ class $$ProductionBatchesTableTableManager
                 porcentajeExtraccion: porcentajeExtraccion,
                 cachazaPercentage: cachazaPercentage,
                 efficiencyPercentage: efficiencyPercentage,
+                caneDensity: caneDensity,
                 producerLocalId: producerLocalId,
                 plotLocalId: plotLocalId,
                 cooperativeId: cooperativeId,
@@ -6417,6 +6487,7 @@ class $$ProductionBatchesTableTableManager
                 Value<double?> porcentajeExtraccion = const Value.absent(),
                 Value<double?> cachazaPercentage = const Value.absent(),
                 required double efficiencyPercentage,
+                Value<double> caneDensity = const Value.absent(),
                 required int producerLocalId,
                 Value<int?> plotLocalId = const Value.absent(),
                 required String cooperativeId,
@@ -6436,6 +6507,7 @@ class $$ProductionBatchesTableTableManager
                 porcentajeExtraccion: porcentajeExtraccion,
                 cachazaPercentage: cachazaPercentage,
                 efficiencyPercentage: efficiencyPercentage,
+                caneDensity: caneDensity,
                 producerLocalId: producerLocalId,
                 plotLocalId: plotLocalId,
                 cooperativeId: cooperativeId,

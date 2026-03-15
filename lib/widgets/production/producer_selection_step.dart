@@ -14,6 +14,7 @@ import 'package:panela_sys/models/plot.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 
 class ProducerSelectionStep extends ConsumerStatefulWidget {
@@ -73,8 +74,14 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     });
 
     try {
-      // Use cache-first method for offline support
-      final producers = await _producerService.getProducersForDropdown();
+      var producers = await _producerService.getProducersForDropdown();
+      // Restrict to assigned modules for adminModulo
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty) {
+        producers = producers
+            .where((p) => currentUser.moduleIds.contains(p.coopModuleId))
+            .toList();
+      }
       setState(() {
         _producers = producers;
         _isLoadingProducers = false;

@@ -37,15 +37,16 @@ class HomeScreen extends ConsumerWidget {
     final connectivityAsync = ref.watch(connectivityProvider);
     final currentUser = ref.watch(currentUserProvider);
     final isAdminSistema = currentUser?.isAdminSistema ?? false;
+    final isProductor = currentUser?.isProductor ?? false;
 
     return connectivityAsync.when(
-      data: (isOnline) => _buildHomeContent(context, isOnline, isAdminSistema),
-      loading: () => _buildHomeContent(context, true, isAdminSistema),
-      error: (_, __) => _buildHomeContent(context, false, isAdminSistema),
+      data: (isOnline) => _buildHomeContent(context, isOnline, isAdminSistema, isProductor),
+      loading: () => _buildHomeContent(context, true, isAdminSistema, isProductor),
+      error: (_, __) => _buildHomeContent(context, false, isAdminSistema, isProductor),
     );
   }
 
-  Widget _buildHomeContent(BuildContext context, bool isOnline, bool isAdminSistema) {
+  Widget _buildHomeContent(BuildContext context, bool isOnline, bool isAdminSistema, bool isProductor) {
     // Determine button enabled states based on connectivity + offline support
     final producersEnabled = isOnline || OfflineConfig.instance.features.producers;
     final productionEnabled = isOnline || OfflineConfig.instance.features.production;
@@ -68,41 +69,41 @@ class HomeScreen extends ConsumerWidget {
                         children: [
                           const AppTitle(title: 'UDEP Captura'),
 
-                          AppButton(
-                            text: 'Registrar productor',
-                            icon: Icons.person,
-                            type: producersEnabled ? AppButtonType.optionActive : AppButtonType.option,
-                            onPressed: producersEnabled
-                                ? () => context.go(AppRoutes.producerRegistration.path)
-                                : null,
-                          ),
+                          if (!isProductor) ...[
+                            AppButton(
+                              text: 'Registrar productor',
+                              icon: Icons.person,
+                              type: producersEnabled ? AppButtonType.optionActive : AppButtonType.option,
+                              onPressed: producersEnabled
+                                  ? () => context.go(AppRoutes.producerRegistration.path)
+                                  : null,
+                            ),
 
-                          AppButton(
-                            text: 'Registrar producción',
-                            icon: Icons.shopping_bag,
-                            type: productionEnabled ? AppButtonType.optionActive : AppButtonType.option,
-                            onPressed: productionEnabled
-                                ? () => context.go(AppRoutes.productionRegistration.path)
-                                : null,
-                          ),
+                            AppButton(
+                              text: 'Registrar producción',
+                              icon: Icons.shopping_bag,
+                              type: productionEnabled ? AppButtonType.optionActive : AppButtonType.option,
+                              onPressed: productionEnabled
+                                  ? () => context.go(AppRoutes.productionRegistration.path)
+                                  : null,
+                            ),
 
-                          AppButton(
-                            text: 'Formularios de control',
-                            icon: Icons.assignment_outlined,
-                            type: AppButtonType.option,
-                            onPressed: () => context.go(AppRoutes.controlForms.path),
-                          ),
+                            AppButton(
+                              text: 'Formularios de control',
+                              icon: Icons.assignment_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.controlForms.path),
+                            ),
 
-
-                             AppButton(
-                            text: 'Registro de salida',
-                            icon: Icons.signpost,
-                            type: exitsEnabled ? AppButtonType.optionActive : AppButtonType.option,
-                            onPressed: exitsEnabled
-                                ? () => context.go(AppRoutes.kardexExit.path)
-                                : null,
-                          ),
-
+                            AppButton(
+                              text: 'Registro de salida',
+                              icon: Icons.signpost,
+                              type: exitsEnabled ? AppButtonType.optionActive : AppButtonType.option,
+                              onPressed: exitsEnabled
+                                  ? () => context.go(AppRoutes.kardexExit.path)
+                                  : null,
+                            ),
+                          ],
 
                           AppButton(
                             text: 'Historial de registros',

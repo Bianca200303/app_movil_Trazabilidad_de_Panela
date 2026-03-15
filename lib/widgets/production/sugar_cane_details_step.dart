@@ -16,6 +16,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
   final TextEditingController cachazaPercentageController;
   final VoidCallback onContinue;
   final VoidCallback onBack;
+  final double density;
 
   const SugarCaneDetailsStep({
     super.key,
@@ -26,6 +27,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
     required this.cachazaPercentageController,
     required this.onContinue,
     required this.onBack,
+    this.density = ProductionCalculator.sugarCaneDensity,
   });
 
   ProductionCalculations? get _calculations {
@@ -49,6 +51,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
       confitilloKg: confitilloKg,
       extractionPercentage: extractionPercentage,
       cachazaPercentage: cachazaPercentage,
+      density: density,
     );
   }
 
@@ -224,7 +227,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
           context,
           'Peso de jugo',
           '${(_calculations?.juiceWeightKg ?? 0.0).toStringAsFixed(2)} kg',
-          'Jugo extraído × Densidad de caña (1.05)',
+          'Jugo extraído × Densidad de caña (${density.toStringAsFixed(2)})',
         ),
         SizedBox(height: context.responsiveSpacing * 0.75),
         _buildCalculatedField(

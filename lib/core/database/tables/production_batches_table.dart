@@ -19,6 +19,7 @@ class ProductionBatches extends Table {
   RealColumn get porcentajeExtraccion => real().nullable()();
   RealColumn get cachazaPercentage => real().nullable()();
   RealColumn get efficiencyPercentage => real()();
+  RealColumn get caneDensity => real().withDefault(const Constant(1.05))();
 
   // Foreign keys (LOCAL IDs - not UUIDs)
   IntColumn get producerLocalId => integer()();

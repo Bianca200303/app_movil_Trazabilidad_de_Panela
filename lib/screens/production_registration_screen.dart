@@ -20,6 +20,9 @@ import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/models/producer.dart';
 import 'package:panela_sys/models/plot.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
+import 'package:panela_sys/providers/cane_density_provider.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
+import 'package:panela_sys/core/production_calculator.dart';
 
 class ProductionRegistrationScreen extends ConsumerStatefulWidget {
   const ProductionRegistrationScreen({super.key});
@@ -30,6 +33,7 @@ class ProductionRegistrationScreen extends ConsumerStatefulWidget {
 
 class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistrationScreen> {
   // Controllers for the different screens in the flow
+  final TextEditingController _densityController = TextEditingController();
   final TextEditingController _producerController = TextEditingController();
   final TextEditingController _plotController = TextEditingController();
   final TextEditingController _harvestDateController = TextEditingController();
@@ -65,6 +69,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   Producer? _selectedProducer;
   Plot? _selectedPlot;
 
+  // Density stored as local state to avoid ref.watch in build
+  double _density = ProductionCalculator.sugarCaneDensity;
+  bool _isAdminSistema = false;
+  ProviderSubscription<double>? _densitySubscription;
+
   @override
   void initState() {
     super.initState();
@@ -73,8 +82,32 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     final db = ref.read(appDatabaseProvider);
     _batchCertService = BatchCertService(db: db);
 
+    // Read initial values without watch (avoids build-scope conflicts)
+    _density = ref.read(caneDensityProvider);
+    _isAdminSistema = ref.read(currentUserProvider)?.isAdminSistema == true;
+
+    // Initialize density controller with current density value
+    _densityController.text = _density.toStringAsFixed(2);
+    _densityController.addListener(() {
+      final v = double.tryParse(_densityController.text.replaceAll(',', '.'));
+      if (v != null && v > 0) {
+        _density = v;
+      }
+    });
+
+    // Listen for density changes using setState (safe from any context)
+    _densitySubscription = ref.listenManual<double>(
+      caneDensityProvider,
+      (_, next) {
+        if (mounted) {
+          setState(() => _density = next);
+          _densityController.text = next.toStringAsFixed(2);
+        }
+      },
+      fireImmediately: false,
+    );
+
     _loadCertificates();
-    // Listen to plot selection to load defaults
     _plotController.addListener(_onPlotChanged);
   }
 
@@ -86,8 +119,10 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
 
   @override
   void dispose() {
+    _densitySubscription?.close();
     _plotController.removeListener(_onPlotChanged);
     _scrollController.dispose();
+    _densityController.dispose();
     _producerController.dispose();
     _plotController.dispose();
     _harvestDateController.dispose();
@@ -120,7 +155,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
             ),
             child: AppCard(
               padding: context.responsivePadding,
-              child: _buildCurrentStep(),
+              child: _buildCurrentStep(_density, _isAdminSistema),
             ),
           ),
         ),
@@ -128,7 +163,8 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     );
   }
 
-  Widget _buildCurrentStep() {
+  Widget _buildCurrentStep(double density, bool isAdminSistema) {
+
     switch (_currentStep) {
       case 0:
         return ProducerSelectionStep(
@@ -167,6 +203,8 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           cachazaPercentageController: _cachazaPercentageController,
           selectedProducer: _selectedProducer,
           selectedPlot: _selectedPlot,
+          density: density,
+          densityController: isAdminSistema ? _densityController : null,
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );
@@ -177,6 +215,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           confitilloQuantityController: _confitilloQuantityController,
           extractionPercentageController: _extractionPercentageController,
           cachazaPercentageController: _cachazaPercentageController,
+          density: density,
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );
@@ -219,6 +258,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           certificates: _certificates,
           selectedCertificates: _selectedCertificates,
           temperatures: _temperatures,
+          density: density,
           onBack: () => _previousStep(),
         );
       default:
@@ -241,6 +281,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   }
 
   void _nextStep() {
+    if (_currentStep == 3 && _isAdminSistema) {
+      final v = double.tryParse(_densityController.text.replaceAll(',', '.'));
+      if (v != null && v > 0) {
+        ref.read(caneDensityProvider.notifier).update(v).catchError((_) {});
+      }
+    }
     setState(() {
       _currentStep++;
     });

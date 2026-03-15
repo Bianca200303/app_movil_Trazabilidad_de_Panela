@@ -10,11 +10,15 @@ import 'package:panela_sys/widgets/common/app_button.dart';
 class HistorialMainMenu extends ConsumerWidget {
   const HistorialMainMenu({
     required this.onOptionSelected,
+    this.isProductor = false,
     super.key,
   });
 
   /// Callback al seleccionar una opción (índice 0-3).
   final void Function(int index) onOptionSelected;
+
+  /// Si true, solo muestra Producción registrada y Salidas registradas.
+  final bool isProductor;
 
   static const _options = [
     {'title': 'Productores registrados', 'icon': Icons.person, 'index': 0},
@@ -35,9 +39,14 @@ class HistorialMainMenu extends ConsumerWidget {
   }
 
   Widget _buildOptions(BuildContext context, {required bool isOnline}) {
+    // Producers can only see production and exits (indices 1 and 2)
+    final visibleOptions = isProductor
+        ? _options.where((o) => (o['index'] as int) == 1 || (o['index'] as int) == 2).toList()
+        : _options;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: _options.map((option) {
+      children: visibleOptions.map((option) {
         final index = option['index'] as int;
         final isEnabled = _isOptionEnabled(index, isOnline);
 

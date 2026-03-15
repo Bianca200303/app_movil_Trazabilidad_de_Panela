@@ -33,8 +33,8 @@ class ProductionCalculator {
   /// final juiceWeightKg = ProductionCalculator.calculateJuiceWeight(100);
   /// // Returns: 105.0 kg
   /// ```
-  static double calculateJuiceWeight(double juiceLiters) {
-    return juiceLiters * sugarCaneDensity;
+  static double calculateJuiceWeight(double juiceLiters, {double density = sugarCaneDensity}) {
+    return juiceLiters * density;
   }
 
   /// Calculates cane input in kilograms from juice weight and extraction percentage
@@ -142,9 +142,10 @@ class ProductionCalculator {
     required double confitilloKg,
     required double extractionPercentage,
     required double cachazaPercentage,
+    double density = sugarCaneDensity,
   }) {
     // Calculate intermediate values
-    final juiceWeightKg = calculateJuiceWeight(juiceLiters);
+    final juiceWeightKg = calculateJuiceWeight(juiceLiters, density: density);
     final caneKg = calculateCaneInput(juiceWeightKg, extractionPercentage);
 
     // Calculate final values
