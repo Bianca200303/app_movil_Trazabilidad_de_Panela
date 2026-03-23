@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
-import 'package:panela_sys/providers/producer_prefill_provider.dart';
+import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/services/auth_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/services/producer_service.dart';
+import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
@@ -28,56 +30,59 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _plotNameController = TextEditingController();
   final AuthService _authService = AuthService();
+  late final ProducerService _producerService;
+  late final PlotService _plotService;
+
   bool _isCreating = false;
   bool _obscurePassword = true;
+  bool _useDniAsPassword = true;
+  String _selectedCreateRole = 'productor';
 
-  // Module selection (for admin_modulo creation)
+  // Module selection for admin_modulo / tecnico_campo
   List<CoopModule> _modules = [];
   Set<String> _selectedModuleIds = {};
   bool _isLoadingModules = false;
 
+  // Producer-specific state (used when role = productor)
+  String? _selectedProductorModuleId;
+  String _producerMemberStatus = 'SOCIO';
+  final List<String> _createPlotNames = [];
+
   // Users list
   List<Map<String, dynamic>> _users = [];
   bool _isLoadingUsers = false;
-  String _selectedCreateRole = 'admin_modulo';
 
-  // Productor role excluded from creation — producers are created via the producer registration form
   final List<DropdownOption<String>> _createRoleOptions = [
+    DropdownOption<String>(label: 'Productor', value: 'productor'),
     DropdownOption<String>(label: 'Admin Módulo', value: 'admin_modulo'),
+    DropdownOption<String>(label: 'Técnico de Campo', value: 'tecnico_campo'),
     DropdownOption<String>(label: 'Admin Sistema', value: 'admin_sistema'),
   ];
 
-  // All roles available for role changes on existing users
   final List<DropdownOption<String>> _allRoleOptions = [
     DropdownOption<String>(label: 'Productor', value: 'productor'),
     DropdownOption<String>(label: 'Admin Módulo', value: 'admin_modulo'),
+    DropdownOption<String>(label: 'Técnico de Campo', value: 'tecnico_campo'),
     DropdownOption<String>(label: 'Admin Sistema', value: 'admin_sistema'),
   ];
 
   static const _roleLabels = {
     'productor': 'Productor',
     'admin_modulo': 'Admin Módulo',
+    'tecnico_campo': 'Técnico de Campo',
     'admin_sistema': 'Admin Sistema',
   };
 
   @override
   void initState() {
     super.initState();
+    final db = ref.read(appDatabaseProvider);
+    _producerService = ProducerService(db: db);
+    _plotService = PlotService(db: db);
     _loadUsers();
     _loadModules();
-  }
-
-  Future<void> _loadModules() async {
-    setState(() => _isLoadingModules = true);
-    try {
-      final modules = await CoopModulesService().getModules();
-      if (mounted) setState(() => _modules = modules);
-    } catch (_) {
-      // Non-critical, modules just won't show in dropdown
-    } finally {
-      if (mounted) setState(() => _isLoadingModules = false);
-    }
   }
 
   @override
@@ -86,7 +91,19 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _passwordController.dispose();
+    _plotNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadModules() async {
+    setState(() => _isLoadingModules = true);
+    try {
+      final modules = await CoopModulesService().getModules();
+      if (mounted) setState(() => _modules = modules);
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isLoadingModules = false);
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -96,9 +113,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           .from('users')
           .select('user_id, first_name, last_name, role')
           .eq('cooperative_id', AppConfig.current.id)
+          .neq('is_support', true)
           .order('first_name', ascending: true);
 
-      // Fetch module assignments for all users (table may not exist yet)
       final modulesByUser = <String, List<String>>{};
       try {
         final assignments = await _supabase
@@ -109,108 +126,380 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           final uid = a['user_id'] as String;
           modulesByUser.putIfAbsent(uid, () => []).add(a['coop_module_id'] as String);
         }
-      } catch (_) {
-        // Table doesn't exist yet — ignore, users will show without module info
-      }
+      } catch (_) {}
 
-      final users = (data as List).map((u) {
-        return {
-          ...u as Map<String, dynamic>,
-          'module_ids': modulesByUser[u['user_id']] ?? <String>[],
-        };
+      final users = (data as List).map((u) => {
+        ...u as Map<String, dynamic>,
+        'module_ids': modulesByUser[u['user_id']] ?? <String>[],
       }).toList();
 
       if (mounted) setState(() => _users = users);
     } catch (e) {
       if (mounted) {
-        AppSnackBar.show(context,
-            message: 'Error al cargar usuarios', type: SnackBarType.error);
+        AppSnackBar.show(context, message: 'Error al cargar usuarios', type: SnackBarType.error);
       }
     } finally {
       if (mounted) setState(() => _isLoadingUsers = false);
     }
   }
 
-  Future<void> _createUser() async {
-    if (!_formKey.currentState!.validate()) return;
-    // Require at least one module for admin_modulo
-    if (_selectedCreateRole == 'admin_modulo' && _selectedModuleIds.isEmpty) {
-      AppSnackBar.show(context,
-          message: 'Seleccione al menos un módulo asignado', type: SnackBarType.error);
+  void _addPlotToCreate() {
+    final name = _plotNameController.text.trim();
+    if (name.isEmpty) {
+      AppSnackBar.show(context, message: 'Ingresa el nombre de la parcela', type: SnackBarType.error);
       return;
     }
+    if (_createPlotNames.any((p) => p.toLowerCase() == name.toLowerCase())) {
+      AppSnackBar.show(context, message: 'Ya existe una parcela con ese nombre', type: SnackBarType.error);
+      return;
+    }
+    setState(() {
+      _createPlotNames.add(name);
+      _plotNameController.clear();
+    });
+  }
+
+  void _resetCreateForm() {
+    _formKey.currentState?.reset();
+    _dniController.clear();
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _passwordController.clear();
+    _plotNameController.clear();
+    setState(() {
+      _selectedCreateRole = 'productor';
+      _selectedModuleIds = {};
+      _selectedProductorModuleId = null;
+      _producerMemberStatus = 'SOCIO';
+      _createPlotNames.clear();
+      _useDniAsPassword = true;
+    });
+  }
+
+  Future<void> _createUser() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final role = _selectedCreateRole;
+    final dni = _dniController.text.trim();
+
+    // Validaciones por rol
+    if (role == 'admin_modulo') {
+      if (_selectedModuleIds.isEmpty) {
+        AppSnackBar.show(context, message: 'Seleccione el módulo asignado', type: SnackBarType.error);
+        return;
+      }
+    }
+    if (role == 'tecnico_campo') {
+      if (_selectedModuleIds.isEmpty) {
+        AppSnackBar.show(context, message: 'Seleccione al menos un módulo', type: SnackBarType.error);
+        return;
+      }
+    }
+    if (role == 'productor') {
+      if (_selectedProductorModuleId == null) {
+        AppSnackBar.show(context, message: 'Seleccione el módulo del productor', type: SnackBarType.error);
+        return;
+      }
+      if (_createPlotNames.isEmpty) {
+        AppSnackBar.show(context, message: 'Agregue al menos una parcela', type: SnackBarType.error);
+        return;
+      }
+    }
+
     setState(() => _isCreating = true);
     try {
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      final password = _useDniAsPassword ? dni : _passwordController.text;
+
       await _authService.registerUser(
-        dni: _dniController.text.trim(),
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        password: _passwordController.text,
-        role: _selectedCreateRole,
-        moduleIds: _selectedCreateRole == 'admin_modulo' ? _selectedModuleIds.toList() : [],
+        dni: dni,
+        firstName: firstName,
+        lastName: lastName,
+        password: password,
+        role: role,
+        moduleIds: (role == 'admin_modulo' || role == 'tecnico_campo')
+            ? _selectedModuleIds.toList()
+            : [],
       );
+
+      if (role == 'productor') {
+        final producer = await _producerService.createProducer(CreateProducerRequest(
+          firstName: firstName,
+          lastName: lastName,
+          dni: dni,
+          coopModuleId: _selectedProductorModuleId!,
+          isMember: _producerMemberStatus == 'SOCIO',
+        ));
+        final plots = _createPlotNames.map((name) => PlotData(name: name)).toList();
+        await _plotService.createMultiplePlots(producer.id, plots);
+      }
+
       if (mounted) {
-        AppSnackBar.show(context,
-            message: 'Usuario creado exitosamente', type: SnackBarType.success);
-        _formKey.currentState!.reset();
-        _dniController.clear();
-        _firstNameController.clear();
-        _lastNameController.clear();
-        _passwordController.clear();
-        setState(() {
-          _selectedCreateRole = 'admin_modulo';
-          _selectedModuleIds.clear();
-        });
+        AppSnackBar.show(context, message: 'Usuario creado exitosamente', type: SnackBarType.success);
+        _resetCreateForm();
         _loadUsers();
       }
     } on AuthException catch (e) {
       if (mounted) AppSnackBar.show(context, message: e.message, type: SnackBarType.error);
     } catch (e) {
-      if (mounted) AppSnackBar.show(context,
-          message: e.toString().replaceFirst('Exception: ', ''), type: SnackBarType.error);
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: SnackBarType.error,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isCreating = false);
     }
   }
 
-  Future<bool> _hasProducerRecord(String userId) async {
-    final result = await _supabase
+  Future<Map<String, dynamic>?> _fetchProducerRecord(String dni) async {
+    return await _supabase
         .from('producers')
-        .select('id')
-        .eq('dni', userId)
+        .select('id, coop_module_id')
+        .eq('dni', dni)
         .eq('cooperative_id', AppConfig.current.id)
         .maybeSingle();
+  }
+
+  Future<bool> _hasProducerRecord(String userId) async {
+    final result = await _fetchProducerRecord(userId);
     return result != null;
+  }
+
+  Future<void> _updateProducerModule(String producerId, String newModuleId) async {
+    try {
+      await _supabase
+          .from('producers')
+          .update({'coop_module_id': newModuleId})
+          .eq('id', producerId);
+      if (mounted) {
+        AppSnackBar.show(context, message: 'Módulo del productor actualizado', type: SnackBarType.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Error al actualizar módulo: ${e.toString().replaceFirst('Exception: ', '')}',
+          type: SnackBarType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _createProducerRecord(
+    Map<String, dynamic> user,
+    String moduleId,
+    String memberStatus,
+    List<String> plotNames,
+  ) async {
+    try {
+      final producer = await _producerService.createProducer(CreateProducerRequest(
+        firstName: user['first_name'] as String,
+        lastName: user['last_name'] as String,
+        dni: user['user_id'] as String,
+        coopModuleId: moduleId,
+        isMember: memberStatus == 'SOCIO',
+      ));
+      final plots = plotNames.map((name) => PlotData(name: name)).toList();
+      await _plotService.createMultiplePlots(producer.id, plots);
+      if (mounted) {
+        AppSnackBar.show(context, message: 'Datos de productor guardados', type: SnackBarType.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.show(
+          context,
+          message: 'Error al guardar datos de productor: ${e.toString().replaceFirst('Exception: ', '')}',
+          type: SnackBarType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _showProducerDataDialog(Map<String, dynamic> user) async {
+    String? selectedModuleId;
+    String memberStatus = 'SOCIO';
+    final plotNames = <String>[];
+    final plotCtrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Datos de productor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${user['first_name']} ${user['last_name']}',
+                  style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+
+                // Módulo
+                Text('Módulo *', style: AppTextStyles.fieldLabel),
+                const SizedBox(height: 6),
+                if (_modules.isEmpty)
+                  Text('No hay módulos disponibles',
+                      style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
+                else
+                  DropdownButtonFormField<String>(
+                    value: selectedModuleId,
+                    hint: const Text('Seleccionar módulo'),
+                    items: _modules
+                        .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
+                        .toList(),
+                    onChanged: (v) => setDialogState(() => selectedModuleId = v),
+                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                  ),
+                const SizedBox(height: 16),
+
+                // Condición
+                Text('Condición', style: AppTextStyles.fieldLabel),
+                Row(
+                  children: ['SOCIO', 'NO SOCIO'].map((opt) => Expanded(
+                    child: RadioListTile<String>(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(opt, style: AppTextStyles.smallText),
+                      value: opt,
+                      groupValue: memberStatus,
+                      activeColor: AppColors.primary,
+                      onChanged: (v) => setDialogState(() => memberStatus = v!),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 16),
+
+                // Parcelas
+                Text('Parcelas *', style: AppTextStyles.fieldLabel),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: plotCtrl,
+                        decoration: const InputDecoration(
+                          hintText: 'Nombre de parcela',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                      onPressed: () {
+                        final name = plotCtrl.text.trim();
+                        if (name.isEmpty) return;
+                        if (plotNames.any((p) => p.toLowerCase() == name.toLowerCase())) return;
+                        setDialogState(() {
+                          plotNames.add(name);
+                          plotCtrl.clear();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                if (plotNames.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...plotNames.map((name) => Row(
+                    children: [
+                      const Icon(Icons.circle, size: 6, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(name, style: AppTextStyles.bodyText)),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () => setDialogState(() => plotNames.remove(name)),
+                      ),
+                    ],
+                  )),
+                ],
+                if (plotNames.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('Agrega al menos una parcela',
+                        style: AppTextStyles.smallText.copyWith(color: AppColors.error)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                plotCtrl.dispose();
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: (selectedModuleId == null || plotNames.isEmpty)
+                  ? null
+                  : () {
+                      plotCtrl.dispose();
+                      Navigator.of(ctx).pop();
+                      _createProducerRecord(user, selectedModuleId!, memberStatus, plotNames);
+                    },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showEditRoleDialog(Map<String, dynamic> user) async {
     String currentRole = user['role'] as String? ?? 'productor';
     String selectedRole = currentRole;
-    final fullName = '${user['first_name']} ${user['last_name']}';
     final currentModuleIds = ((user['module_ids'] as List?) ?? []).cast<String>().toSet();
     Set<String> selectedModuleIds = Set.from(currentModuleIds);
+
+    // Pre-fetch producer record if user is already a productor
+    Map<String, dynamic>? producerRecord;
+    if (currentRole == 'productor') {
+      producerRecord = await _fetchProducerRecord(user['user_id'] as String);
+    }
+    String? selectedProducerModuleId = producerRecord?['coop_module_id'] as String?;
+    final String? originalProducerModuleId = selectedProducerModuleId;
+
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final isAdminModulo = selectedRole == 'admin_modulo';
+          final isTecnicoCampo = selectedRole == 'tecnico_campo';
+          final isProductor = selectedRole == 'productor';
+          final needsModules = isAdminModulo || isTecnicoCampo;
           final roleChanged = selectedRole != currentRole;
-          final modulesChanged = isAdminModulo &&
+          final modulesChanged = needsModules &&
               (!selectedModuleIds.containsAll(currentModuleIds) ||
                !currentModuleIds.containsAll(selectedModuleIds));
-          final hasChanges = roleChanged || modulesChanged;
-          final modulesValid = !isAdminModulo || selectedModuleIds.isNotEmpty;
+          final producerModuleChanged = isProductor &&
+              producerRecord != null &&
+              selectedProducerModuleId != originalProducerModuleId;
+          final hasChanges = roleChanged || modulesChanged || producerModuleChanged;
+          final modulesValid = !needsModules || selectedModuleIds.isNotEmpty;
+          final adminModuloValid = !isAdminModulo || selectedModuleIds.length == 1;
 
           return AlertDialog(
-            title: Text('Editar usuario'),
+            title: const Text('Editar usuario'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(fullName, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600)),
-                  Text('DNI: ${user['user_id']}', style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary)),
+                  Text('${user['first_name']} ${user['last_name']}',
+                      style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600)),
+                  Text('DNI: ${user['user_id']}',
+                      style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary)),
                   const SizedBox(height: 16),
                   Text('Rol', style: AppTextStyles.fieldLabel),
                   const SizedBox(height: 4),
@@ -231,33 +520,73 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                           ),
                         ),
                       )),
-                  if (isAdminModulo) ...[
+
+                  // Módulos para admin_modulo / tecnico_campo
+                  if (needsModules) ...[
                     const SizedBox(height: 16),
-                    Text('Módulos asignados', style: AppTextStyles.fieldLabel),
+                    Text(
+                      isAdminModulo ? 'Módulo asignado (solo 1)' : 'Módulos asignados',
+                      style: AppTextStyles.fieldLabel,
+                    ),
                     const SizedBox(height: 6),
                     if (_modules.isEmpty)
                       Text('No hay módulos disponibles',
                           style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
                     else
-                      ..._modules.map((m) => CheckboxListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(m.name, style: AppTextStyles.bodyText),
-                            value: selectedModuleIds.contains(m.id),
-                            activeColor: AppColors.primary,
-                            onChanged: (checked) => setDialogState(() {
-                              if (checked == true) {
-                                selectedModuleIds.add(m.id);
-                              } else {
-                                selectedModuleIds.remove(m.id);
-                              }
-                            }),
-                          )),
+                      ..._modules.map((m) => isAdminModulo
+                          ? RadioListTile<String>(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(m.name, style: AppTextStyles.bodyText),
+                              value: m.id,
+                              groupValue: selectedModuleIds.isEmpty ? null : selectedModuleIds.first,
+                              activeColor: AppColors.primary,
+                              onChanged: (v) => setDialogState(() => selectedModuleIds = {v!}),
+                            )
+                          : CheckboxListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(m.name, style: AppTextStyles.bodyText),
+                              value: selectedModuleIds.contains(m.id),
+                              activeColor: AppColors.primary,
+                              onChanged: (checked) => setDialogState(() {
+                                if (checked == true) {
+                                  selectedModuleIds.add(m.id);
+                                } else {
+                                  selectedModuleIds.remove(m.id);
+                                }
+                              }),
+                            )),
                     if (selectedModuleIds.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text('Seleccione al menos un módulo',
                             style: AppTextStyles.smallText.copyWith(color: AppColors.error)),
+                      ),
+                    if (isAdminModulo && selectedModuleIds.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('El administrador de módulo solo puede tener 1 módulo',
+                            style: AppTextStyles.smallText.copyWith(color: AppColors.error)),
+                      ),
+                  ],
+
+                  // Módulo para productor (si ya tiene registro)
+                  if (isProductor && producerRecord != null) ...[
+                    const SizedBox(height: 16),
+                    Text('Módulo', style: AppTextStyles.fieldLabel),
+                    const SizedBox(height: 6),
+                    if (_modules.isEmpty)
+                      Text('No hay módulos disponibles',
+                          style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
+                    else
+                      DropdownButton<String>(
+                        isExpanded: true,
+                        value: selectedProducerModuleId,
+                        items: _modules
+                            .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
+                            .toList(),
+                        onChanged: (v) => setDialogState(() => selectedProducerModuleId = v),
                       ),
                   ],
                 ],
@@ -269,72 +598,36 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 child: const Text('Cancelar'),
               ),
               TextButton(
-                onPressed: (!hasChanges || !modulesValid)
+                onPressed: (!hasChanges || !modulesValid || !adminModuloValid)
                     ? null
                     : () async {
                         final userId = user['user_id'] as String;
                         final nav = Navigator.of(ctx);
+
                         if (selectedRole == 'productor') {
-                          final hasRecord = await _hasProducerRecord(userId);
-                          if (!hasRecord) {
-                            nav.pop();
-                            if (mounted) {
-                              await showDialog<void>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Registro incompleto'),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.person_add_alt_1,
-                                          size: 48, color: AppColors.primary),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'Para asignar el rol de Productor, '
-                                        'primero debes registrar los datos de '
-                                        '${user['first_name']} ${user['last_name']} '
-                                        '(módulo, parcelas, etc.).',
-                                        style: AppTextStyles.bodyText,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                  actionsAlignment: MainAxisAlignment.center,
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(),
-                                      child: const Text('Cancelar'),
-                                    ),
-                                    ElevatedButton.icon(
-                                      icon: const Icon(Icons.app_registration),
-                                      label: const Text('Ir al formulario'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primary,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(ctx).pop();
-                                        ref.read(producerPreFillProvider.notifier).state =
-                                            ProducerPreFill(
-                                          dni: userId,
-                                          firstName: user['first_name'] as String,
-                                          lastName: user['last_name'] as String,
-                                        );
-                                        context.go(AppRoutes.producerRegistration.path);
-                                      },
-                                    ),
-                                  ],
-                                ),
+                          nav.pop();
+                          if (roleChanged) await _updateRole(userId, selectedRole);
+                          if (producerRecord != null) {
+                            // Ya era productor: actualizar módulo si cambió
+                            if (producerModuleChanged && selectedProducerModuleId != null && mounted) {
+                              await _updateProducerModule(
+                                producerRecord['id'] as String,
+                                selectedProducerModuleId!,
                               );
                             }
-                            return;
+                          } else {
+                            // Cambió a productor: pedir datos faltantes
+                            final hasRecord = await _hasProducerRecord(userId);
+                            if (!hasRecord && mounted) {
+                              await _showProducerDataDialog(user);
+                            }
                           }
+                          return;
                         }
+
                         nav.pop();
                         if (roleChanged) await _updateRole(userId, selectedRole);
-                        if (modulesChanged) {
-                          await _updateModuleAssignments(userId, selectedModuleIds.toList());
-                        }
+                        if (modulesChanged) await _updateModuleAssignments(userId, selectedModuleIds.toList());
                       },
                 child: const Text('Guardar'),
               ),
@@ -348,7 +641,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   Future<void> _updateModuleAssignments(String userId, List<String> moduleIds) async {
     try {
       final cooperativeId = AppConfig.current.id;
-      // Replace all assignments: delete then insert
       await _supabase
           .from('user_module_assignments')
           .delete()
@@ -370,13 +662,16 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           final idx = _users.indexWhere((u) => u['user_id'] == userId);
           if (idx != -1) _users[idx] = {..._users[idx], 'module_ids': moduleIds};
         });
-        AppSnackBar.show(context,
-            message: 'Módulos actualizados', type: SnackBarType.success);
+        AppSnackBar.show(context, message: 'Módulos actualizados', type: SnackBarType.success);
       }
     } catch (e) {
-      if (mounted) AppSnackBar.show(context,
+      if (mounted) {
+        AppSnackBar.show(
+          context,
           message: 'Error al actualizar módulos: ${e.toString().replaceFirst('Exception: ', '')}',
-          type: SnackBarType.error);
+          type: SnackBarType.error,
+        );
+      }
     }
   }
 
@@ -384,13 +679,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     try {
       final response = await _supabase.functions.invoke(
         'update-user-role',
-        body: {
-          'userId': userId,
-          'newRole': newRole,
-          'cooperativeId': AppConfig.current.id,
-        },
+        body: {'userId': userId, 'newRole': newRole, 'cooperativeId': AppConfig.current.id},
       );
-
       final data = response.data as Map<String, dynamic>?;
       if (data?['error'] != null) throw Exception(data!['error']);
 
@@ -399,13 +689,16 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           final idx = _users.indexWhere((u) => u['user_id'] == userId);
           if (idx != -1) _users[idx] = {..._users[idx], 'role': newRole};
         });
-        AppSnackBar.show(context,
-            message: 'Rol actualizado exitosamente', type: SnackBarType.success);
+        AppSnackBar.show(context, message: 'Rol actualizado exitosamente', type: SnackBarType.success);
       }
     } catch (e) {
-      if (mounted) AppSnackBar.show(context,
+      if (mounted) {
+        AppSnackBar.show(
+          context,
           message: e.toString().replaceFirst('Exception: ', ''),
-          type: SnackBarType.error);
+          type: SnackBarType.error,
+        );
+      }
     }
   }
 
@@ -446,7 +739,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Users list
+                // Lista de usuarios
                 AppCard(
                   padding: context.responsivePadding,
                   child: FormGroup(
@@ -481,7 +774,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
 
                 SizedBox(height: context.responsiveSpacing),
 
-                // Create user form
+                // Formulario de creación
                 AppCard(
                   padding: context.responsivePadding,
                   child: Form(
@@ -489,6 +782,26 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                     child: FormGroup(
                       children: [
                         const AppTitle(title: 'Crear nuevo usuario'),
+
+                        // Rol (primero para adaptar el formulario)
+                        AppDropdown<String>(
+                          label: 'Rol',
+                          options: _createRoleOptions,
+                          value: _selectedCreateRole,
+                          onChanged: _isCreating
+                              ? null
+                              : (v) {
+                                  if (v != null) {
+                                    setState(() {
+                                      _selectedCreateRole = v;
+                                      _selectedModuleIds = {};
+                                      _selectedProductorModuleId = null;
+                                      _createPlotNames.clear();
+                                    });
+                                  }
+                                },
+                        ),
+
                         AppTextField(
                           label: 'DNI',
                           controller: _dniController,
@@ -511,62 +824,180 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                           validator: (v) => _validateName(v, 'el apellido'),
                           enabled: !_isCreating,
                         ),
-                        AppTextField(
-                          label: 'Contraseña',
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          validator: _validatePassword,
-                          enabled: !_isCreating,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.textSecondary,
-                            ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                          ),
-                        ),
-                        AppDropdown<String>(
-                          label: 'Rol',
-                          options: _createRoleOptions,
-                          value: _selectedCreateRole,
-                          onChanged: _isCreating
-                              ? null
-                              : (v) {
-                                  if (v != null) {
-                                    setState(() {
-                                      _selectedCreateRole = v;
-                                      _selectedModuleIds = {};
-                                    });
-                                  }
-                                },
-                        ),
-                        if (_selectedCreateRole == 'admin_modulo') ...[
-                          if (_isLoadingModules)
-                            const Center(child: CircularProgressIndicator())
-                          else ...[
-                            Text('Módulos asignados', style: AppTextStyles.fieldLabel),
-                            const SizedBox(height: 6),
-                            ..._modules.map((m) => CheckboxListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(m.name, style: AppTextStyles.bodyText),
-                              value: _selectedModuleIds.contains(m.id),
+
+                        // Contraseña
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _useDniAsPassword,
                               activeColor: AppColors.primary,
                               onChanged: _isCreating
                                   ? null
-                                  : (checked) => setState(() {
-                                      if (checked == true) {
-                                        _selectedModuleIds.add(m.id);
-                                      } else {
-                                        _selectedModuleIds.remove(m.id);
-                                      }
-                                    }),
-                            )),
+                                  : (v) => setState(() {
+                                        _useDniAsPassword = v ?? true;
+                                        _passwordController.clear();
+                                      }),
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Usar DNI como contraseña',
+                                style: AppTextStyles.bodyText,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!_useDniAsPassword) ...[
+                          AppTextField(
+                            label: 'Contraseña',
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            validator: _validatePassword,
+                            enabled: !_isCreating,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                          ),
+                        ],
+
+                        // Módulos — admin_modulo (radio) / tecnico_campo (checkbox)
+                        if (_selectedCreateRole == 'admin_modulo' || _selectedCreateRole == 'tecnico_campo') ...[
+                          if (_isLoadingModules)
+                            const Center(child: CircularProgressIndicator())
+                          else ...[
+                            Text(
+                              _selectedCreateRole == 'admin_modulo'
+                                  ? 'Módulo asignado (solo 1) *'
+                                  : 'Módulos asignados *',
+                              style: AppTextStyles.fieldLabel,
+                            ),
+                            const SizedBox(height: 6),
+                            ..._modules.map((m) => _selectedCreateRole == 'admin_modulo'
+                                ? RadioListTile<String>(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(m.name, style: AppTextStyles.bodyText),
+                                    value: m.id,
+                                    groupValue: _selectedModuleIds.isEmpty ? null : _selectedModuleIds.first,
+                                    activeColor: AppColors.primary,
+                                    onChanged: _isCreating
+                                        ? null
+                                        : (v) => setState(() => _selectedModuleIds = {v!}),
+                                  )
+                                : CheckboxListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(m.name, style: AppTextStyles.bodyText),
+                                    value: _selectedModuleIds.contains(m.id),
+                                    activeColor: AppColors.primary,
+                                    onChanged: _isCreating
+                                        ? null
+                                        : (checked) => setState(() {
+                                              if (checked == true) {
+                                                _selectedModuleIds.add(m.id);
+                                              } else {
+                                                _selectedModuleIds.remove(m.id);
+                                              }
+                                            }),
+                                  )),
                           ],
                         ],
+
+                        // Campos específicos de productor
+                        if (_selectedCreateRole == 'productor') ...[
+                          // Módulo
+                          if (_isLoadingModules)
+                            const Center(child: CircularProgressIndicator())
+                          else ...[
+                            Text('Módulo *', style: AppTextStyles.fieldLabel),
+                            const SizedBox(height: 6),
+                            DropdownButtonFormField<String>(
+                              value: _selectedProductorModuleId,
+                              hint: const Text('Seleccionar módulo'),
+                              items: _modules
+                                  .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
+                                  .toList(),
+                              onChanged: _isCreating
+                                  ? null
+                                  : (v) => setState(() => _selectedProductorModuleId = v),
+                              decoration: const InputDecoration(border: OutlineInputBorder()),
+                            ),
+                          ],
+
+                          // Condición
+                          AppRadioGroup<String>(
+                            label: 'Condición',
+                            options: [
+                              RadioOption(value: 'SOCIO', label: 'SOCIO'),
+                              RadioOption(value: 'NO SOCIO', label: 'NO SOCIO'),
+                            ],
+                            groupValue: _producerMemberStatus,
+                            onChanged: _isCreating
+                                ? null
+                                : (v) => setState(() => _producerMemberStatus = v ?? 'SOCIO'),
+                          ),
+
+                          // Parcelas
+                          Text('Parcelas *', style: AppTextStyles.fieldLabel),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppTextField(
+                                  label: null,
+                                  hintText: 'Nombre de parcela',
+                                  controller: _plotNameController,
+                                  enabled: !_isCreating,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.primary,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.add, color: Colors.white),
+                                  onPressed: _isCreating ? null : _addPlotToCreate,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_createPlotNames.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            ..._createPlotNames.map((name) => Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.circle, size: 6, color: AppColors.primary),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(name, style: AppTextStyles.bodyText)),
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 16),
+                                        color: AppColors.textSecondary,
+                                        onPressed: _isCreating
+                                            ? null
+                                            : () => setState(() => _createPlotNames.remove(name)),
+                                      ),
+                                    ],
+                                  ),
+                                )),
+                          ] else ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Agrega al menos una parcela',
+                              style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ],
+
                         AppButton(
                           text: 'CREAR USUARIO',
-                          onPressed: _createUser,
+                          onPressed: _isCreating ? null : _createUser,
                           isLoading: _isCreating,
                         ),
                       ],
@@ -639,7 +1070,7 @@ class _UserTile extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 18),
               color: AppColors.primary,
-              tooltip: 'Cambiar rol',
+              tooltip: 'Editar',
               onPressed: onEdit,
             )
           else

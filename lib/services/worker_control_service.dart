@@ -85,6 +85,31 @@ class WorkerControlService {
     }
   }
 
+  // Get worker controls for historial with producer DNI (for module filtering)
+  Future<List<Map<String, dynamic>>> getWorkerControlsForHistorial(
+    String cooperativeId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('worker_controls')
+          .select('*, worker_control_items(*), production_batches!inner(producers!inner(dni))')
+          .eq('cooperative_id', cooperativeId)
+          .order('created_at', ascending: false);
+
+      return (response as List).map((json) {
+        final batch = json['production_batches'] as Map<String, dynamic>?;
+        final producer = batch?['producers'] as Map<String, dynamic>?;
+        final control = WorkerControl.fromJson(json as Map<String, dynamic>);
+        return {
+          'control': control,
+          'producer_dni': producer?['dni'] as String?,
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al obtener controles: $e');
+    }
+  }
+
   // Get single worker control by ID
   Future<WorkerControl> getWorkerControlById(String id) async {
     try {

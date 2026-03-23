@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/equipment_maintenance_record.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/equipment_maintenance_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
-class MaintenanceControlRegistrationScreen extends StatefulWidget {
+class MaintenanceControlRegistrationScreen extends ConsumerStatefulWidget {
   const MaintenanceControlRegistrationScreen({super.key});
 
   @override
-  State<MaintenanceControlRegistrationScreen> createState() =>
+  ConsumerState<MaintenanceControlRegistrationScreen> createState() =>
       _MaintenanceControlRegistrationScreenState();
 }
 
 class _MaintenanceControlRegistrationScreenState
-    extends State<MaintenanceControlRegistrationScreen> {
+    extends ConsumerState<MaintenanceControlRegistrationScreen> {
   // ============================================================================
   // EQUIPMENT SUGGESTIONS — add more options here as needed
   // ============================================================================
@@ -84,10 +86,15 @@ class _MaintenanceControlRegistrationScreenState
     });
 
     try {
-      final modules = await _moduleService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _moduleService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       if (mounted) {
         setState(() {
           _availableModules = modules;
+          if (modules.length == 1) _selectedModuleId = modules.first.id;
           _isLoadingModules = false;
         });
       }
@@ -212,7 +219,7 @@ class _MaintenanceControlRegistrationScreenState
           message: 'Registro de mantenimiento guardado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
@@ -550,7 +557,7 @@ class _MaintenanceControlRegistrationScreenState
                           AppBackButton(
                             label: 'Cancelar',
                             onPressed: () =>
-                                context.go(AppRoutes.controlForms.path),
+                                context.go(AppRoutes.controlFormsModulo.path),
                             isExpanded: true,
                           ),
                         ],
@@ -562,7 +569,7 @@ class _MaintenanceControlRegistrationScreenState
                             child: AppBackButton(
                               label: 'Cancelar',
                               onPressed: () =>
-                                  context.go(AppRoutes.controlForms.path),
+                                  context.go(AppRoutes.controlFormsModulo.path),
                             ),
                           ),
                           SizedBox(width: context.responsiveSpacing / 2),

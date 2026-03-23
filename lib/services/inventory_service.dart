@@ -83,6 +83,7 @@ class InventoryService {
                 first_name,
                 last_name,
                 dni,
+                coop_module_id,
                 coop_modules(name)
               )
             )

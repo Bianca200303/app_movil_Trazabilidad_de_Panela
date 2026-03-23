@@ -97,6 +97,7 @@ class StowageTransportInspectionService {
               id,
               document_number,
               total_kg,
+              dni_productor,
               exit_items(
                 bags_count,
                 quantity_kg,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
@@ -6,21 +7,22 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/chlorine_residual_control.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ChlorineControlRegistrationScreen extends StatefulWidget {
+class ChlorineControlRegistrationScreen extends ConsumerStatefulWidget {
   const ChlorineControlRegistrationScreen({super.key});
 
   @override
-  State<ChlorineControlRegistrationScreen> createState() =>
+  ConsumerState<ChlorineControlRegistrationScreen> createState() =>
       _ChlorineControlRegistrationScreenState();
 }
 
 class _ChlorineControlRegistrationScreenState
-    extends State<ChlorineControlRegistrationScreen> {
+    extends ConsumerState<ChlorineControlRegistrationScreen> {
   // Services
   final _moduleService = CoopModulesService();
   final _chlorineService = ChlorineResidualControlService();
@@ -97,9 +99,14 @@ class _ChlorineControlRegistrationScreenState
     });
 
     try {
-      final modules = await _moduleService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _moduleService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       setState(() {
         _availableModules = modules;
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -256,7 +263,7 @@ class _ChlorineControlRegistrationScreenState
           message: 'Control de cloro registrado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
@@ -361,7 +368,7 @@ class _ChlorineControlRegistrationScreenState
                   children: [
                     // Back button
                     AppBackButton(
-                      onPressed: () => context.go(AppRoutes.controlForms.path),
+                      onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
                       isExpanded: true,
                     ),
 
@@ -544,7 +551,7 @@ class _ChlorineControlRegistrationScreenState
                           AppBackButton(
                             label: 'Cancelar',
                             onPressed: () =>
-                                context.go(AppRoutes.controlForms.path),
+                                context.go(AppRoutes.controlFormsModulo.path),
                           ),
                         ],
                       )
@@ -555,7 +562,7 @@ class _ChlorineControlRegistrationScreenState
                             child: AppBackButton(
                               label: 'Cancelar',
                               onPressed: () =>
-                                  context.go(AppRoutes.controlForms.path),
+                                  context.go(AppRoutes.controlFormsModulo.path),
                             ),
                           ),
                           SizedBox(width: context.responsiveSpacing / 2),

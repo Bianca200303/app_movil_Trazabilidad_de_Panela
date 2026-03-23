@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panela_sys/screens/success_registration_screen.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
@@ -20,15 +21,16 @@ import 'package:panela_sys/models/exit_registration.dart';
 import 'package:panela_sys/models/exit_item.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 
-class KardexExitRegistrationScreen extends StatefulWidget {
+class KardexExitRegistrationScreen extends ConsumerStatefulWidget {
   const KardexExitRegistrationScreen({super.key});
 
   @override
-  State<KardexExitRegistrationScreen> createState() => _KardexExitRegistrationScreenState();
+  ConsumerState<KardexExitRegistrationScreen> createState() => _KardexExitRegistrationScreenState();
 }
 
-class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScreen> {
+class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistrationScreen> {
   // Current step in the registration process (start at 1, no exit type selection)
   int _currentStep = 1;
   final _scrollController = ScrollController();
@@ -87,8 +89,17 @@ class _KardexExitRegistrationScreenState extends State<KardexExitRegistrationScr
         _errorMessage = null;
       });
 
-      final stockData = await _inventoryService.getAvailableStock();
-      
+      var stockData = await _inventoryService.getAvailableStock();
+      // Filter by assigned modules for adminModulo/tecnicoCampo
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        stockData = stockData.where((item) {
+          final producer = item['production_batch']?['producer'] as Map<String, dynamic>?;
+          final coopModuleId = producer?['coop_module_id'] as String?;
+          return coopModuleId != null && currentUser.moduleIds.contains(coopModuleId);
+        }).toList();
+      }
+
       setState(() {
         _availableStock = stockData;
         _selectedStock = List.filled(stockData.length, false);

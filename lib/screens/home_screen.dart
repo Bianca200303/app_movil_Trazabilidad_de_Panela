@@ -48,7 +48,6 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildHomeContent(BuildContext context, bool isOnline, bool isAdminSistema, bool isProductor) {
     // Determine button enabled states based on connectivity + offline support
-    final producersEnabled = isOnline || OfflineConfig.instance.features.producers;
     final productionEnabled = isOnline || OfflineConfig.instance.features.production;
     final exitsEnabled = isOnline || OfflineConfig.instance.features.exits;
 
@@ -71,15 +70,6 @@ class HomeScreen extends ConsumerWidget {
 
                           if (!isProductor) ...[
                             AppButton(
-                              text: 'Registrar productor',
-                              icon: Icons.person,
-                              type: producersEnabled ? AppButtonType.optionActive : AppButtonType.option,
-                              onPressed: producersEnabled
-                                  ? () => context.go(AppRoutes.producerRegistration.path)
-                                  : null,
-                            ),
-
-                            AppButton(
                               text: 'Registrar producción',
                               icon: Icons.shopping_bag,
                               type: productionEnabled ? AppButtonType.optionActive : AppButtonType.option,
@@ -89,10 +79,17 @@ class HomeScreen extends ConsumerWidget {
                             ),
 
                             AppButton(
-                              text: 'Formularios de control',
+                              text: 'Formulario de control Módulo',
                               icon: Icons.assignment_outlined,
                               type: AppButtonType.option,
-                              onPressed: () => context.go(AppRoutes.controlForms.path),
+                              onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+                            ),
+
+                            AppButton(
+                              text: 'Formulario de control Producción',
+                              icon: Icons.assignment_turned_in_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.controlFormsProduccion.path),
                             ),
 
                             AppButton(

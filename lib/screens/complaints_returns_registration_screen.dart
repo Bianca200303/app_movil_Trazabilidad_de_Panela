@@ -232,7 +232,7 @@ class _ComplaintsReturnsRegistrationScreenState
           context,
           message: 'Devolución registrada exitosamente',
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsProduccion.path);
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -479,7 +479,7 @@ class _ComplaintsReturnsRegistrationScreenState
                               text: 'Cancelar',
                               onPressed: _isSaving
                                   ? null
-                                  : () => context.go(AppRoutes.controlForms.path),
+                                  : () => context.go(AppRoutes.controlFormsProduccion.path),
                               type: AppButtonType.secondary,
                             ),
                           ],
@@ -502,7 +502,7 @@ class _ComplaintsReturnsRegistrationScreenState
                                 onPressed: _isSaving
                                     ? null
                                     : () =>
-                                        context.go(AppRoutes.controlForms.path),
+                                        context.go(AppRoutes.controlFormsProduccion.path),
                                 type: AppButtonType.secondary,
                               ),
                             ),

@@ -77,7 +77,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
       var producers = await _producerService.getProducersForDropdown();
       // Restrict to assigned modules for adminModulo
       final currentUser = ref.read(currentUserProvider);
-      if (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty) {
+      if (currentUser?.hasModuleRestriction == true && currentUser!.moduleIds.isNotEmpty) {
         producers = producers
             .where((p) => currentUser.moduleIds.contains(p.coopModuleId))
             .toList();

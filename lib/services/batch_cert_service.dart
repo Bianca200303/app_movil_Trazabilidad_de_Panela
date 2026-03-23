@@ -3,6 +3,7 @@ import 'package:panela_sys/models/batch_cert.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/network_detector.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:drift/drift.dart' as drift;
 
 class BatchCertService {
@@ -102,7 +103,10 @@ class BatchCertService {
             updated_at,
             is_active
           )
-        ''').eq('is_active', true).order('name');
+        ''')
+        .eq('cooperative_id', AppConfig.current.id)
+        .eq('is_active', true)
+        .order('name');
 
     return (response as List).map((json) => BatchCert.fromJson(json)).toList();
   }
@@ -138,6 +142,9 @@ class BatchCertService {
             'Refreshing cache in background');
 
         final certs = await _fetchFromSupabase();
+        if (_db != null) {
+          await _db.batchCertsDao.clear();
+        }
         await _updateCache(certs);
 
         DebugLogger.debug('BatchCertService', '_refreshCacheInBackground',
@@ -170,6 +177,12 @@ class BatchCertService {
 
     try {
       final certs = await _fetchFromSupabase();
+      // Clear old cache first to avoid mixing data from different cooperatives
+      // (e.g., if logout failed to clear cache, stale certs from another
+      // cooperative would remain alongside new ones via upsert)
+      if (_db != null) {
+        await _db.batchCertsDao.clear();
+      }
       await _updateCache(certs);
 
       DebugLogger.info('BatchCertService', 'refreshCache',

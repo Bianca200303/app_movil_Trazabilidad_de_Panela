@@ -89,10 +89,16 @@ class AppRoutes {
   );
 
   // Control forms routes
-  static const controlForms = AppRoute(
-    path: '/control-forms',
-    displayName: 'Formularios de control',
-    screen: ControlFormsMenuScreen(),
+  static const controlFormsModulo = AppRoute(
+    path: '/control-forms/modulo',
+    displayName: 'Formulario de control Módulo',
+    screen: ControlFormsMenuScreen(isModulo: true),
+  );
+
+  static const controlFormsProduccion = AppRoute(
+    path: '/control-forms/produccion',
+    displayName: 'Formulario de control Producción',
+    screen: ControlFormsMenuScreen(isModulo: false),
   );
 
   static const stowageTransportInspectionRegistration = AppRoute(
@@ -177,7 +183,8 @@ class AppRoutes {
     productionRegistration,
     kardexExit,
     historial,
-    controlForms,
+    controlFormsModulo,
+    controlFormsProduccion,
     environmentInspectionRegistration,
     cleaningDisinfectionRegistration,
     chlorineControlRegistration,

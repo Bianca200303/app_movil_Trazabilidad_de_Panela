@@ -13,7 +13,13 @@
       "Bash(cd \"C:/Users/bianc/Desktop/panela_sys/panela_sys/flutter\" && flutter analyze --no-fatal-infos lib/screens/producer_registration_screen.dart 2>&1)",
       "Bash(cd:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(node:*)",
+      "Bash(grep -r \"role\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
+      "Bash(python -c \"import openpyxl; print\\(''openpyxl ok''\\)\")",
+      "Bash(py --version)",
+      "Bash(py:*)",
+      "Bash(dart analyze:*)"
     ]
   }
 }

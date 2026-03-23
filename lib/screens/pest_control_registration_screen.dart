@@ -4,6 +4,7 @@
 // =====================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
@@ -11,22 +12,23 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/pest_control.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/pest_control_service.dart';
 import 'package:panela_sys/widgets/pest_control/bait_control_step.dart';
 import 'package:panela_sys/widgets/pest_control/insect_control_step.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
-class PestControlRegistrationScreen extends StatefulWidget {
+class PestControlRegistrationScreen extends ConsumerStatefulWidget {
   const PestControlRegistrationScreen({super.key});
 
   @override
-  State<PestControlRegistrationScreen> createState() =>
+  ConsumerState<PestControlRegistrationScreen> createState() =>
       _PestControlRegistrationScreenState();
 }
 
 class _PestControlRegistrationScreenState
-    extends State<PestControlRegistrationScreen> {
+    extends ConsumerState<PestControlRegistrationScreen> {
   // Services
   final _pestControlService = PestControlService();
   final _moduleService = CoopModulesService();
@@ -100,9 +102,14 @@ class _PestControlRegistrationScreenState
 
   Future<void> _loadModules() async {
     try {
-      final modules = await _moduleService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _moduleService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       setState(() {
         _availableModules = modules;
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -278,7 +285,7 @@ class _PestControlRegistrationScreenState
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              context.go(AppRoutes.controlForms.path);
+              context.go(AppRoutes.controlFormsModulo.path);
             },
             child: const Text('Sí, cancelar'),
           ),
@@ -383,7 +390,7 @@ class _PestControlRegistrationScreenState
           message: 'Control de plagas registrado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
@@ -446,7 +453,7 @@ class _PestControlRegistrationScreenState
     return FormSection(
       children: [
         AppBackButton(
-          onPressed: () => context.go(AppRoutes.controlForms.path),
+          onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
           isExpanded: true,
         ),
         SizedBox(height: context.responsiveSpacing),

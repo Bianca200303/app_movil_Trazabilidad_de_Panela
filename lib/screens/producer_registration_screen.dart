@@ -91,15 +91,15 @@ class _ProducerRegistrationScreenState
     try {
       final modules = await _modulesService.fetchFromSupabase();
       final currentUser = ref.read(currentUserProvider);
-      // For adminModulo, filter modules to only their assigned ones
-      final filteredModules = (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty)
+      // For adminModulo/tecnicoCampo, filter modules to only their assigned ones
+      final filteredModules = (currentUser?.hasModuleRestriction == true && currentUser!.moduleIds.isNotEmpty)
           ? modules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
           : modules;
       setState(() {
         _modules = filteredModules;
         _isLoadingModules = false;
-        // If admin has exactly one module, pre-select and lock it
-        if (currentUser?.isAdminModulo == true && filteredModules.length == 1) {
+        // If user has exactly one module, pre-select and lock it
+        if (currentUser?.hasModuleRestriction == true && filteredModules.length == 1) {
           _selectedModuleId = filteredModules.first.id;
           _moduleSearchController.text = filteredModules.first.name;
         }
@@ -544,8 +544,7 @@ class _ProducerRegistrationScreenState
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
-    final isAdminModulo = currentUser?.isAdminModulo ?? false;
-    final hasLockedModule = isAdminModulo && (currentUser?.moduleIds.length == 1);
+    final hasLockedModule = (currentUser?.hasModuleRestriction ?? false) && (currentUser?.moduleIds.length == 1);
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(

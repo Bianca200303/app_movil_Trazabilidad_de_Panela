@@ -13,14 +13,14 @@ class AppRadioGroup<T> extends StatelessWidget {
   final String? label;
   final List<RadioOption<T>> options;
   final T? groupValue;
-  final void Function(T?) onChanged;
+  final void Function(T?)? onChanged;
 
   const AppRadioGroup({
     super.key,
     this.label,
     required this.options,
     this.groupValue,
-    required this.onChanged,
+    this.onChanged,
   });
 
   @override

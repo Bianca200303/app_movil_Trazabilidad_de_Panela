@@ -174,7 +174,7 @@ class _StowageTransportInspectionRegistrationScreenState
       if (_currentStep > 0) {
         _currentStep--;
       } else {
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsProduccion.path);
       }
     });
   }
@@ -234,7 +234,7 @@ class _StowageTransportInspectionRegistrationScreenState
           message: 'Inspección guardada correctamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsProduccion.path);
       }
     } catch (e) {
       if (mounted) {

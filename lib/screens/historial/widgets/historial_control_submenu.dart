@@ -9,11 +9,13 @@ import 'package:panela_sys/widgets/common/app_button.dart';
 class HistorialControlSubmenu extends StatelessWidget {
   const HistorialControlSubmenu({
     required this.isOnline,
+    required this.isModulo,
     required this.onFormTypeSelected,
     super.key,
   });
 
   final bool isOnline;
+  final bool isModulo;
 
   /// Callback al seleccionar un tipo de formulario (índice 0-8).
   final void Function(int index) onFormTypeSelected;
@@ -22,7 +24,7 @@ class HistorialControlSubmenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final features = AppConfig.current.features;
 
-    final formTypes = [
+    final moduloForms = [
       {
         'title': 'Inspección de ambientes, equipo y personal',
         'icon': Icons.business_outlined,
@@ -54,6 +56,15 @@ class HistorialControlSubmenu extends StatelessWidget {
         'enabled': isOnline && features.enableHealthAccidentTracking,
       },
       {
+        'title': 'Mantenimiento hornilla/maquinaria/equipos',
+        'icon': Icons.build_outlined,
+        'index': 8,
+        'enabled': isOnline && features.enableMaintenanceControl,
+      },
+    ];
+
+    final produccionForms = [
+      {
         'title': 'Inspección de estiba y transporte',
         'icon': Icons.local_shipping_outlined,
         'index': 5,
@@ -71,33 +82,30 @@ class HistorialControlSubmenu extends StatelessWidget {
         'index': 7,
         'enabled': isOnline && features.enableWorkerControl,
       },
-      {
-        'title': 'Mantenimiento hornilla/maquinaria/equipos',
-        'icon': Icons.build_outlined,
-        'index': 8,
-        'enabled': isOnline && features.enableMaintenanceControl,
-      },
     ];
+
+    Widget buildFormButton(Map<String, Object> formType) {
+      final isEnabled = formType['enabled'] as bool;
+      final index = formType['index'] as int;
+      return Padding(
+        padding: EdgeInsets.only(bottom: context.responsiveSpacing),
+        child: SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            text: formType['title'] as String,
+            icon: formType['icon'] as IconData,
+            type: isEnabled ? AppButtonType.primary : AppButtonType.secondary,
+            onPressed: isEnabled ? () => onFormTypeSelected(index) : null,
+          ),
+        ),
+      );
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: formTypes.map((formType) {
-        final isEnabled = formType['enabled'] as bool;
-        final index = formType['index'] as int;
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: context.responsiveSpacing),
-          child: SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              text: formType['title'] as String,
-              icon: formType['icon'] as IconData,
-              type: isEnabled ? AppButtonType.primary : AppButtonType.secondary,
-              onPressed: isEnabled ? () => onFormTypeSelected(index) : null,
-            ),
-          ),
-        );
-      }).toList(),
+      children: (isModulo ? moduloForms : produccionForms)
+          .map((f) => buildFormButton(f))
+          .toList(),
     );
   }
 }

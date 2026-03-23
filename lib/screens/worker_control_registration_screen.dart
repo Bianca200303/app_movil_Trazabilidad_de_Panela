@@ -226,7 +226,7 @@ class _WorkerControlRegistrationScreenState
           message: 'Control registrado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsProduccion.path);
       }
     } catch (e) {
       if (mounted)
@@ -288,7 +288,7 @@ class _WorkerControlRegistrationScreenState
 
   void _previousStep() {
     if (_currentStep == 0) {
-      context.go(AppRoutes.controlForms.path);
+      context.go(AppRoutes.controlFormsProduccion.path);
     } else {
       setState(() => _currentStep--);
     }

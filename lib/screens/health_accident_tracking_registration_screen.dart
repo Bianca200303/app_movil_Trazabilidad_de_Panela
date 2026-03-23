@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
@@ -6,6 +7,7 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/health_incident.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/health_incident_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
@@ -15,16 +17,16 @@ import 'package:panela_sys/widgets/health_incident/actions_taken_step.dart';
 import 'package:panela_sys/widgets/health_incident/followup_step.dart';
 import 'package:panela_sys/widgets/health_incident/review_summary_step.dart';
 
-class HealthAccidentTrackingRegistrationScreen extends StatefulWidget {
+class HealthAccidentTrackingRegistrationScreen extends ConsumerStatefulWidget {
   const HealthAccidentTrackingRegistrationScreen({super.key});
 
   @override
-  State<HealthAccidentTrackingRegistrationScreen> createState() =>
+  ConsumerState<HealthAccidentTrackingRegistrationScreen> createState() =>
       _HealthAccidentTrackingRegistrationScreenState();
 }
 
 class _HealthAccidentTrackingRegistrationScreenState
-    extends State<HealthAccidentTrackingRegistrationScreen> {
+    extends ConsumerState<HealthAccidentTrackingRegistrationScreen> {
   final CoopModulesService _moduleService = CoopModulesService();
   final HealthIncidentService _incidentService = HealthIncidentService();
 
@@ -137,7 +139,7 @@ class _HealthAccidentTrackingRegistrationScreenState
                 isExpanded: true,
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
-                  context.go(AppRoutes.controlForms.path);
+                  context.go(AppRoutes.controlFormsModulo.path);
                 },
               ),
             ],
@@ -160,9 +162,14 @@ class _HealthAccidentTrackingRegistrationScreenState
 
   Future<void> _loadModules() async {
     try {
-      final modules = await _moduleService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _moduleService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       setState(() {
         _availableModules = modules;
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoading = false;
       });
     } catch (e) {
@@ -192,7 +199,7 @@ class _HealthAccidentTrackingRegistrationScreenState
       if (_currentStep > 0) {
         _currentStep--;
       } else {
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     });
   }
@@ -239,7 +246,7 @@ class _HealthAccidentTrackingRegistrationScreenState
           message: 'Incidente de salud registrado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {

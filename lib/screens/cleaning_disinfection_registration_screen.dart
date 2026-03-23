@@ -4,6 +4,7 @@
 // =====================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
@@ -11,20 +12,21 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
-class CleaningDisinfectionRegistrationScreen extends StatefulWidget {
+class CleaningDisinfectionRegistrationScreen extends ConsumerStatefulWidget {
   const CleaningDisinfectionRegistrationScreen({super.key});
 
   @override
-  State<CleaningDisinfectionRegistrationScreen> createState() =>
+  ConsumerState<CleaningDisinfectionRegistrationScreen> createState() =>
       _CleaningDisinfectionRegistrationScreenState();
 }
 
 class _CleaningDisinfectionRegistrationScreenState
-    extends State<CleaningDisinfectionRegistrationScreen> {
+    extends ConsumerState<CleaningDisinfectionRegistrationScreen> {
   // Services
   final _cleaningService = CleaningDisinfectionService();
   final _moduleService = CoopModulesService();
@@ -73,9 +75,14 @@ class _CleaningDisinfectionRegistrationScreenState
 
   Future<void> _loadModules() async {
     try {
-      final modules = await _moduleService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _moduleService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       setState(() {
         _availableModules = modules;
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -182,7 +189,7 @@ class _CleaningDisinfectionRegistrationScreenState
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              context.go(AppRoutes.controlForms.path);
+              context.go(AppRoutes.controlFormsModulo.path);
             },
             child: const Text('Sí, cancelar'),
           ),
@@ -262,7 +269,7 @@ class _CleaningDisinfectionRegistrationScreenState
           message: 'Registro de limpieza guardado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
@@ -342,7 +349,7 @@ class _CleaningDisinfectionRegistrationScreenState
         children: [
           // Back button at the top
           AppBackButton(
-            onPressed: () => context.go(AppRoutes.controlForms.path),
+            onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
             isExpanded: true,
           ),
           SizedBox(height: context.responsiveSpacing),

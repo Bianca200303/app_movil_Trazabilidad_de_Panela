@@ -24,6 +24,7 @@ import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/services/production_batch_service.dart';
 import 'package:panela_sys/services/stowage_transport_inspection_service.dart';
+import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
@@ -183,7 +184,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         await _loadProductionData();
       } else if (_selectedOption == 2) {
         await _loadExitsData();
-      } else if (_selectedOption == 3) {
+      } else if (_selectedOption == 3 || _selectedOption == 4) {
         await _loadControlFormsData();
       }
 
@@ -218,8 +219,8 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     try {
       final currentUser = ref.read(currentUserProvider);
       var data = await _producerService.getProducersForHistorial();
-      // Filter by assigned module for adminModulo
-      if (currentUser?.isAdminModulo == true && currentUser!.moduleIds.isNotEmpty) {
+      // Filter by assigned module for adminModulo and tecnicoCampo
+      if (currentUser?.hasModuleRestriction == true && currentUser!.moduleIds.isNotEmpty) {
         data = data.where((item) => currentUser.moduleIds.contains(item['coopModuleId'])).toList();
       }
       setState(() {
@@ -246,7 +247,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       return {currentUser.dni};
     }
 
-    if (currentUser.isAdminModulo && currentUser.moduleIds.isNotEmpty) {
+    if (currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
       // Get all producers from historial and filter by assigned modules
       try {
         final all = await _producerService.getProducersForHistorial();
@@ -334,11 +335,13 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     });
     try {
       final data = await _inspectionService.getInspectionsWithExitDetails();
-      final formattedData = data.map((item) {
+      final allowedDnis = await _getAllowedProducerDnis();
+      var formattedData = data.map((item) {
         final inspection = StowageTransportInspection.fromJson(item);
         final exitData = item['exit_registration'] as Map<String, dynamic>?;
         return {
           'id': inspection.id,
+          'producer_dni': exitData?['dni_productor'],
           'document_number': exitData?['document_number'],
           'total_kg': exitData?['total_kg'],
           'exit_items': exitData?['exit_items'],
@@ -352,6 +355,9 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'observations': inspection.observations,
         };
       }).toList();
+      if (allowedDnis != null) {
+        formattedData = formattedData.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
+      }
       setState(() {
         _controlData = formattedData;
         _isLoadingControl = false;
@@ -373,11 +379,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     try {
       final data =
           await _environmentInspectionService.getInspectionsWithModuleDetails();
-      final formattedData = data.map((item) {
+      var formattedData = data.map((item) {
         final inspection = EnvironmentInspection.fromJson(item);
         final moduleData = item['coop_module'] as Map<String, dynamic>?;
         return {
           'id': inspection.id,
+          'coop_module_id': inspection.coopModuleId,
           'module_name': moduleData?['name'] ?? 'Módulo desconocido',
           'inspection_date': inspection.formattedDate,
           'is_compliant': inspection.isFullyCompliant,
@@ -389,6 +396,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'non_compliant_by_area': inspection.getNonCompliantCountByArea(),
         };
       }).toList();
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
+      }
       setState(() {
         _environmentInspectionsData = formattedData;
         _isLoadingEnvironmentInspections = false;
@@ -423,6 +434,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         }
         formattedData.add({
           'id': record.id,
+          'coop_module_id': record.coopModuleId,
           'cleaning_date': record.cleaningDate,
           'formatted_date': AppDateUtils.formatDDMMYYYY(record.cleaningDate),
           'module_name': record.moduleName ?? 'Módulo desconocido',
@@ -433,8 +445,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'total_items': items.length,
         });
       }
+      final currentUser = ref.read(currentUserProvider);
+      final filteredData = (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty)
+          ? formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList()
+          : formattedData;
       setState(() {
-        _cleaningDisinfectionData = formattedData;
+        _cleaningDisinfectionData = filteredData;
         _isLoadingCleaningDisinfection = false;
       });
     } catch (e) {
@@ -454,9 +470,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     });
     try {
       final controls = await _chlorineControlService.getControls();
-      final formattedData = controls.map((control) {
+      var formattedData = controls.map((control) {
         return {
           'id': control.id,
+          'coop_module_id': control.coopModuleId,
           'module_name': control.moduleName ?? 'Módulo desconocido',
           'control_date': control.formattedDate,
           'control_time': control.formattedTime,
@@ -473,6 +490,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'responsible_person': control.responsiblePerson,
         };
       }).toList();
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
+      }
       setState(() {
         _chlorineControlData = formattedData;
         _isLoadingChlorineControl = false;
@@ -501,13 +522,18 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
             await pestControlService.getInsectRecordsByControlId(control.id);
         return {
           'id': control.id,
+          'coop_module_id': control.coopModuleId,
           'module_name': control.moduleName ?? 'Módulo desconocido',
           'control_date': control.formattedDate,
           'bait_records': baitRecords,
           'insect_records': insectRecords,
         };
       }).toList();
-      final formattedData = await Future.wait(formattedDataFutures);
+      var formattedData = await Future.wait(formattedDataFutures);
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
+      }
       setState(() {
         _pestControlData = formattedData;
         _isLoadingPestControl = false;
@@ -529,11 +555,12 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     try {
       final healthIncidentService = HealthIncidentService();
       final data = await healthIncidentService.getIncidentsWithModuleDetails();
-      final formattedData = data.map((item) {
+      var formattedData = data.map((item) {
         final incident = HealthIncident.fromJson(item);
         final moduleData = item['coop_module'] as Map<String, dynamic>?;
         return {
           'id': incident.id,
+          'coop_module_id': incident.coopModuleId,
           'module_name': moduleData?['name'] ?? 'Módulo desconocido',
           'employee_name': incident.employeeName,
           'registration_date': incident.formattedRegistrationDate,
@@ -545,6 +572,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'has_return_date': incident.returnDate != null,
         };
       }).toList();
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
+      }
       setState(() {
         _healthIncidentsData = formattedData;
         _isLoadingHealthIncidents = false;
@@ -569,9 +600,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         fromDate: _startDate,
         toDate: _endDate,
       );
-      final formattedData = records.map((record) {
+      var formattedData = records.map((record) {
         return {
           'id': record.id,
+          'coop_module_id': record.coopModuleId,
           'maintenance_date': record.formattedDate,
           'equipment_name': record.equipmentName,
           'maintenance_type': record.maintenanceTypeDisplayName,
@@ -584,6 +616,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           'module_name': record.moduleName ?? 'Módulo desconocido',
         };
       }).toList();
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
+      }
       setState(() {
         _maintenanceControlData = formattedData;
         _isLoadingMaintenanceControl = false;
@@ -604,12 +640,15 @@ Future<void> _loadWorkerControlsData() async {
     });
     try {
       final workerControlService = WorkerControlService();
-      final controls = await workerControlService.getWorkerControlsByCoop(
+      final allowedDnis = await _getAllowedProducerDnis();
+      final rawData = await workerControlService.getWorkerControlsForHistorial(
         AppConfig.current.id,
       );
-      final formattedData = controls.map((control) {
+      var formattedData = rawData.map((entry) {
+        final control = entry['control'] as WorkerControl;
         return {
           'id': control.id,
+          'producer_dni': entry['producer_dni'],
           'work_area': control.workArea.displayName,
           'work_area_code': control.workArea.code,
           'production_batch_id': control.productionBatchId,
@@ -625,6 +664,9 @@ Future<void> _loadWorkerControlsData() async {
           'worker_name': control.displayNames,
         };
       }).toList();
+      if (allowedDnis != null) {
+        formattedData = formattedData.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
+      }
       setState(() {
         _workerControlsData = formattedData;
         _isLoadingWorkerControls = false;
@@ -645,7 +687,11 @@ Future<void> _loadWorkerControlsData() async {
     });
     try {
       final productReturnService = ProductReturnService();
-      final returns = await productReturnService.getReturnsHistory();
+      final allowedDnis = await _getAllowedProducerDnis();
+      var returns = await productReturnService.getReturnsHistory();
+      if (allowedDnis != null) {
+        returns = returns.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
+      }
       setState(() {
         _productReturnsData = returns;
         _isLoadingProductReturns = false;
@@ -664,7 +710,12 @@ Future<void> _loadWorkerControlsData() async {
     if (_selectedOption == null) return 'Historial';
 
     if (_selectedOption == 3) {
-      if (_selectedControlFormType == null) return 'Formularios de control';
+      if (_selectedControlFormType == null) return 'Formulario de control Módulo';
+      return _getControlFormTypeName(_selectedControlFormType!);
+    }
+
+    if (_selectedOption == 4) {
+      if (_selectedControlFormType == null) return 'Formulario de control Producción';
       return _getControlFormTypeName(_selectedControlFormType!);
     }
 
@@ -715,6 +766,7 @@ Future<void> _loadWorkerControlsData() async {
       case 2:
         _loadExitsData();
       case 3:
+      case 4:
         _loadControlFormsData();
     }
   }
@@ -967,13 +1019,22 @@ Future<void> _loadWorkerControlsData() async {
           ],
         );
 
-      // ── Formularios de control ────────────────────────────────────────────────
+      // ── Formularios de control Módulo ─────────────────────────────────────────
       case 3:
         final connectivityAsync = ref.watch(connectivityProvider);
         return connectivityAsync.when(
-          data: (isOnline) => _buildControlSection(isOnline),
-          loading: () => _buildControlSection(true),
-          error: (_, __) => _buildControlSection(false),
+          data: (isOnline) => _buildControlSection(isOnline, isModulo: true),
+          loading: () => _buildControlSection(true, isModulo: true),
+          error: (_, __) => _buildControlSection(false, isModulo: true),
+        );
+
+      // ── Formularios de control Producción ─────────────────────────────────────
+      case 4:
+        final connectivityAsync2 = ref.watch(connectivityProvider);
+        return connectivityAsync2.when(
+          data: (isOnline) => _buildControlSection(isOnline, isModulo: false),
+          loading: () => _buildControlSection(true, isModulo: false),
+          error: (_, __) => _buildControlSection(false, isModulo: false),
         );
 
       default:
@@ -982,11 +1043,12 @@ Future<void> _loadWorkerControlsData() async {
   }
 
   /// Enrutador de nivel 2 (submenú) y nivel 3 (contenido) para formularios.
-  Widget _buildControlSection(bool isOnline) {
+  Widget _buildControlSection(bool isOnline, {required bool isModulo}) {
     if (_selectedControlFormType == null) {
       // Nivel 2: submenú de tipos de formulario
       return HistorialControlSubmenu(
         isOnline: isOnline,
+        isModulo: isModulo,
         onFormTypeSelected: _onFormTypeSelected,
       );
     }

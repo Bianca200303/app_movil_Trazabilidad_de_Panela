@@ -24,7 +24,8 @@ class HistorialMainMenu extends ConsumerWidget {
     {'title': 'Productores registrados', 'icon': Icons.person, 'index': 0},
     {'title': 'Producción registrada', 'icon': Icons.shopping_bag, 'index': 1},
     {'title': 'Salidas registradas', 'icon': Icons.signpost, 'index': 2},
-    {'title': 'Inspecciones de control', 'icon': Icons.assignment_outlined, 'index': 3},
+    {'title': 'Formulario de control Módulo', 'icon': Icons.assignment_outlined, 'index': 3},
+    {'title': 'Formulario de control Producción', 'icon': Icons.assignment_turned_in_outlined, 'index': 4},
   ];
 
   @override
@@ -75,6 +76,7 @@ class HistorialMainMenu extends ConsumerWidget {
       case 2:
         return isOnline || OfflineConfig.instance.features.exits;
       case 3:
+      case 4:
         return isOnline; // Formularios de control solo online por ahora
       default:
         return false;

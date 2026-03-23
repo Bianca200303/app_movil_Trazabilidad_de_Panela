@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
@@ -13,16 +15,16 @@ import 'package:panela_sys/widgets/environment/module_and_date_step.dart';
 import 'package:panela_sys/widgets/environment/area_checklist_step.dart';
 import 'package:panela_sys/widgets/environment/review_summary_step.dart';
 
-class EnvironmentInspectionRegistrationScreen extends StatefulWidget {
+class EnvironmentInspectionRegistrationScreen extends ConsumerStatefulWidget {
   const EnvironmentInspectionRegistrationScreen({super.key});
 
   @override
-  State<EnvironmentInspectionRegistrationScreen> createState() =>
+  ConsumerState<EnvironmentInspectionRegistrationScreen> createState() =>
       _EnvironmentInspectionRegistrationScreenState();
 }
 
 class _EnvironmentInspectionRegistrationScreenState
-    extends State<EnvironmentInspectionRegistrationScreen> {
+    extends ConsumerState<EnvironmentInspectionRegistrationScreen> {
   final EnvironmentInspectionService _inspectionService =
       EnvironmentInspectionService();
   final CoopModulesService _modulesService = CoopModulesService();
@@ -73,9 +75,14 @@ class _EnvironmentInspectionRegistrationScreenState
     });
 
     try {
-      final modules = await _modulesService.getModules();
+      final currentUser = ref.read(currentUserProvider);
+      final allModules = await _modulesService.getModules();
+      final modules = (currentUser != null && currentUser.hasModuleRestriction)
+          ? allModules.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : allModules;
       setState(() {
         _availableModules = modules;
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -186,7 +193,7 @@ class _EnvironmentInspectionRegistrationScreenState
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                context.go(AppRoutes.controlForms.path);
+                context.go(AppRoutes.controlFormsModulo.path);
               },
               child: const Text('SALIR'),
             ),
@@ -249,7 +256,7 @@ class _EnvironmentInspectionRegistrationScreenState
           message: 'Inspección registrada exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlForms.path);
+        context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
