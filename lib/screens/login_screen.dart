@@ -145,8 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: FormGroup(
                     children: [
                       AppTitle(
-                        title: 'UDEP Captura',
-                        subtitle: AppConfig.current.name,
+                        title: AppConfig.current.displayTitle,
                       ),
                       
                       AppTextField(

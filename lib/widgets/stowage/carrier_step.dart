@@ -51,6 +51,7 @@ class CarrierStep extends StatelessWidget {
               label: 'RUC',
               controller: carrierRucController,
               keyboardType: TextInputType.number,
+              maxLength: 11,
             ),
 
             SizedBox(height: context.responsiveSpacing),

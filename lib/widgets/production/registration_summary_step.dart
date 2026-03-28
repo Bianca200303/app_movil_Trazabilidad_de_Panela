@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/production/production_step_header.dart';
 import 'package:panela_sys/screens/success_registration_screen.dart';
@@ -324,6 +325,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
   }
 
   Future<void> _saveProductionBatch() async {
+    if (!await AppConfirmDialog.show(context)) return;
     setState(() {
       _isSaving = true;
     });

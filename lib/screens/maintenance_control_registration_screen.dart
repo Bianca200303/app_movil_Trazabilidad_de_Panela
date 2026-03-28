@@ -190,6 +190,8 @@ class _MaintenanceControlRegistrationScreenState
       return;
     }
 
+    if (!await AppConfirmDialog.show(context)) return;
+
     setState(() {
       _isSubmitting = true;
     });

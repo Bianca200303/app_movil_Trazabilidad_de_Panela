@@ -5,6 +5,7 @@ import 'package:panela_sys/screens/success_registration_screen.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
@@ -736,7 +737,8 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
 
   Future<void> _completeRegistration() async {
     if (_isSubmitting) return;
-    
+    if (!await AppConfirmDialog.show(context)) return;
+
     setState(() {
       _isSubmitting = true;
     });

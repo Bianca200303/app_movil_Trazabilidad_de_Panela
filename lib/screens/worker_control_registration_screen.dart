@@ -205,6 +205,8 @@ class _WorkerControlRegistrationScreenState
       return;
     }
 
+    if (!await AppConfirmDialog.show(context)) return;
+
     setState(() => _isSaving = true);
 
     try {

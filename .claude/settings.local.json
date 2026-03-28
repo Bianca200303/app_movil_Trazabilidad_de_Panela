@@ -19,7 +19,23 @@
       "Bash(python -c \"import openpyxl; print\\(''openpyxl ok''\\)\")",
       "Bash(py --version)",
       "Bash(py:*)",
-      "Bash(dart analyze:*)"
+      "Bash(dart analyze:*)",
+      "Bash(KEY_PASSWORD=Fiorella2303 STORE_PASSWORD=Fiorella2303 flutter build appbundle --flavor caes --release 2>&1)",
+      "Bash(KEY_PASSWORD=\"Fiorella2303.\" STORE_PASSWORD=\"Fiorella2303.\" flutter build appbundle --flavor caes --release 2>&1)",
+      "Bash(KEY_PASSWORD=\"Fiorella2303.\" STORE_PASSWORD=\"Fiorella2303.\" flutter build apk --flavor caes --release 2>&1)",
+      "Bash(KEY_PASSWORD=\"Fiorella2303.\" STORE_PASSWORD=\"Fiorella2303.\" flutter build apk --flavor norandino --release 2>&1)",
+      "Bash(KEY_PASSWORD=\"Fiorella2303.\" STORE_PASSWORD=\"Fiorella2303.\" flutter build apk --release --flavor norandino --dart-define=COOPERATIVE_CODE=NORANDINO --dart-define=USE_LOCAL_SUPABASE=false 2>&1)",
+      "Bash(adb logcat:*)",
+      "Bash(/c/Users/bianc/AppData/Local/Android/Sdk/platform-tools/adb.exe logcat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"role\\\\|admin_modulo\\\\|tecnico_campo\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
+      "Bash(grep -n \"ADD COLUMN.*role\\\\|ALTER TABLE.*users.*ADD\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
+      "Bash(grep -l role /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
+      "Bash(for f:*)",
+      "Bash(do grep:*)",
+      "Bash(echo \"Found in: $f\")",
+      "Bash(done)",
+      "Bash(grep -n \"ALTER TABLE.*users\\\\|ADD COLUMN.*role\\\\|role.*VARCHAR\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)"
     ]
   }
 }

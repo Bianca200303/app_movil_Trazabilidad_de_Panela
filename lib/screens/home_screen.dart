@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/offline/offline_config.dart';
@@ -66,7 +67,7 @@ class HomeScreen extends ConsumerWidget {
                       padding: context.responsivePadding,
                       child: FormGroup(
                         children: [
-                          const AppTitle(title: 'UDEP Captura'),
+                          AppTitle(title: AppConfig.current.displayTitle),
 
                           if (!isProductor) ...[
                             AppButton(

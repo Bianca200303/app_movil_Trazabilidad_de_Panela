@@ -64,3 +64,5 @@ app.*.map.json
 #npx supabase stop
 #npx supabase start
 #net start winnat
+# Signing keys
+android/key.properties

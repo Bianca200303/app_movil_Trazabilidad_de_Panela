@@ -5,6 +5,7 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
+import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
 import 'package:panela_sys/widgets/common/app_snackbar.dart';
 import 'package:panela_sys/widgets/stowage/exit_and_date_step.dart';
 import 'package:panela_sys/widgets/stowage/carrier_step.dart';
@@ -180,6 +181,7 @@ class _StowageTransportInspectionRegistrationScreenState
   }
 
   Future<void> _submitForm() async {
+    if (!await AppConfirmDialog.show(context)) return;
     setState(() => _isSaving = true);
 
     try {

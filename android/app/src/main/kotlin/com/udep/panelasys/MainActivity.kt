@@ -1,4 +1,4 @@
-package com.example.panela_sys
+package com.udep.panelasys
 
 import io.flutter.embedding.android.FlutterActivity
 

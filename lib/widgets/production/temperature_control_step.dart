@@ -61,13 +61,8 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
         ),
         SizedBox(height: context.responsiveSpacing * 0.5),
         Text(
-          'Control de temperatura',
+          'Control de temperatura en la paila punteadora',
           style: AppTextStyles.sectionTitle,
-        ),
-        SizedBox(height: context.responsiveSpacing),
-        Text(
-          'Ingrese las temperaturas registradas',
-          style: AppTextStyles.bodyText,
         ),
         SizedBox(height: context.responsiveSpacing),
         ..._buildTemperatureFields(),

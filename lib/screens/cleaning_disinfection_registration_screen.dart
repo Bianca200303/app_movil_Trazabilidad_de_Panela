@@ -222,6 +222,7 @@ class _CleaningDisinfectionRegistrationScreenState
   // =====================================================
 
   Future<void> _submitForm() async {
+    if (!await AppConfirmDialog.show(context)) return;
     setState(() => _isSaving = true);
 
     try {

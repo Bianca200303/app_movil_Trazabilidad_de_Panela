@@ -5,6 +5,7 @@ export 'common/app_button.dart';
 export 'common/app_back_button.dart';
 export 'common/app_title.dart';
 export 'common/app_snackbar.dart';
+export 'common/app_confirm_dialog.dart';
 export 'common/under_construction_screen.dart';
 
 // Form widgets

@@ -278,9 +278,13 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       }
       final formattedData = data.map((item) {
         final processDate = item['fecha_proceso'] as DateTime;
+        final harvestDate = item['fecha_cosecha'] as DateTime?;
+        final registroDate = item['fecha_registro'] as DateTime?;
         return {
           ...item,
           'fecha_proceso': AppDateUtils.formatDDMMYYYY(processDate),
+          if (harvestDate != null) 'fecha_cosecha': AppDateUtils.formatDDMMYYYY(harvestDate),
+          if (registroDate != null) 'fecha_registro': AppDateUtils.formatDDMMYYYY(registroDate),
         };
       }).toList();
       setState(() {
@@ -983,15 +987,33 @@ Future<void> _loadWorkerControlsData() async {
             HistorialMobileDataView(
               data: _productionData,
               headers: [
+                'Código de Lote',
                 'Productor',
+                'DNI Productor',
+                'Parcela',
+                'Fecha Cosecha',
                 'Fecha Proceso',
+                'Fecha Registro',
+                'Caña (kg)',
+                'Jugo (litros)',
                 'Panela Obtenida (kg)',
+                'Confitillo (kg)',
+                '% Extracción',
                 'Rendimiento (%)',
               ],
               keys: [
+                'codigo_lote',
                 'productor',
+                'dni_productor',
+                'parcela',
+                'fecha_cosecha',
                 'fecha_proceso',
+                'fecha_registro',
+                'cana_kg',
+                'jugo_litros',
                 'panela_kg',
+                'confitillo_kg',
+                'porcentaje_extraccion',
                 'eficiencia',
               ],
             ),

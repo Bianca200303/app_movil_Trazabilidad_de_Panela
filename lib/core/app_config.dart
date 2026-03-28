@@ -114,6 +114,7 @@ class CooperativeConfig {
   final String id; // UUID from Supabase
   final String code; // Short code (NORANDINO, CAES)
   final String name; // Full name
+  final String displayTitle; // Short title shown in the app UI
   final String batchCodePrefix; // 4-char prefix for batch codes (NORA, CAES)
   final CooperativeFeatures features; // Feature configuration
 
@@ -121,6 +122,7 @@ class CooperativeConfig {
     required this.id,
     required this.code,
     required this.name,
+    required this.displayTitle,
     required this.batchCodePrefix,
     required this.features,
   });
@@ -133,6 +135,7 @@ class CooperativeConfigs {
     id: '550e8400-e29b-41d4-a716-446655440001',
     code: 'NORANDINO',
     name: 'Cooperativa Agraria Norandino',
+    displayTitle: 'Cooperativa Norandino',
     batchCodePrefix: 'NORA',
     features: CooperativeFeatures(
       requirePlotNames: true, // Nombres obligatorios para Norandino
@@ -154,6 +157,7 @@ class CooperativeConfigs {
     id: '550e8400-e29b-41d4-a716-446655440002',
     code: 'CAES',
     name: 'Cooperativa Agraria Ecológica y Solidaria Piura',
+    displayTitle: 'Cooperativa CAES',
     batchCodePrefix: 'CAES',
     features: CooperativeFeatures(
       requirePlotNames: true, // Nombres opcionales para CAES

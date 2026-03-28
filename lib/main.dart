@@ -84,7 +84,7 @@ class MyApp extends ConsumerWidget {
               debugShowCheckedModeBanner: false,
 
       scaffoldMessengerKey: scaffoldMessengerKey,
-      title: 'Panela Sys',
+      title: AppConfig.current.displayTitle,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
