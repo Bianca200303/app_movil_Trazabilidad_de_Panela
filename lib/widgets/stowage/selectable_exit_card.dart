@@ -116,7 +116,7 @@ class SelectableExitCard extends StatelessWidget {
                           ? '${producer['first_name']} ${producer['last_name']}'
                           : 'N/A';
 
-                      final bagsCount = item['bags_count'] as int? ?? 0;
+                      final bagsCount = item['bags_count'] != null ? (item['bags_count'] as num).toDouble() : 0.0;
                       final isAutoconsumo = item['is_autoconsumo'] as bool? ?? false;
                       final quantityKg = (item['quantity_kg'] as num?)?.toDouble() ?? 0.0;
                       final itemDoc = item['item_document_number'] as String?;

@@ -1,26 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/product_return.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 // ==================== ENUMS ====================
 enum QuantityMode { bags, kilograms }
 
-class ComplaintsReturnsRegistrationScreen extends StatefulWidget {
+class ComplaintsReturnsRegistrationScreen extends ConsumerStatefulWidget {
   const ComplaintsReturnsRegistrationScreen({super.key});
 
   @override
-  State<ComplaintsReturnsRegistrationScreen> createState() =>
+  ConsumerState<ComplaintsReturnsRegistrationScreen> createState() =>
       _ComplaintsReturnsRegistrationScreenState();
 }
 
 class _ComplaintsReturnsRegistrationScreenState
-    extends State<ComplaintsReturnsRegistrationScreen> {
+    extends ConsumerState<ComplaintsReturnsRegistrationScreen> {
   // ==================== SERVICES ====================
   final _productReturnService = ProductReturnService();
 
@@ -73,12 +75,20 @@ class _ComplaintsReturnsRegistrationScreenState
 
   // ==================== BATCH LOADING ====================
 
+  List<String>? get _moduleIds {
+    final user = ref.read(currentUserProvider);
+    if (user == null || !user.hasModuleRestriction) return null;
+    return user.moduleIds.isEmpty ? null : user.moduleIds;
+  }
+
   Future<void> _loadBatchesForDate() async {
     setState(() => _isLoadingBatches = true);
 
     try {
-      final batches =
-          await _productReturnService.getBatchesByDate(_selectedProductionDate);
+      final batches = await _productReturnService.getBatchesByDate(
+        _selectedProductionDate,
+        moduleIds: _moduleIds,
+      );
 
       setState(() {
         _availableBatches = batches;

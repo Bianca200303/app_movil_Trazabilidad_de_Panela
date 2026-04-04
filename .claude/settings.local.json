@@ -35,7 +35,9 @@
       "Bash(do grep:*)",
       "Bash(echo \"Found in: $f\")",
       "Bash(done)",
-      "Bash(grep -n \"ALTER TABLE.*users\\\\|ADD COLUMN.*role\\\\|role.*VARCHAR\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)"
+      "Bash(grep -n \"ALTER TABLE.*users\\\\|ADD COLUMN.*role\\\\|role.*VARCHAR\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
+      "Bash(find C:UsersbiancDesktoppanela_syspanela_sysflutter -type f \\\\\\(-name *.sql -o -name *migration* -o -name *schema* \\\\\\))",
+      "Bash(cat \"C:/Users/bianc/Desktop/panela_sys/panela_sys/web-react/src/lib/\"*)"
     ]
   }
 }

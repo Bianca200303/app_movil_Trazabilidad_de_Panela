@@ -5,6 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 
 /// Lista de controles de plagas.
@@ -32,22 +33,7 @@ class PestControlList extends StatelessWidget {
     }
 
     if (error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'Error: $error',
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            AppButton(text: 'Reintentar', onPressed: onRetry),
-          ],
-        ),
-      );
+      return HistorialErrorWidget(error: error!, onRetry: onRetry);
     }
 
     if (data.isEmpty) {

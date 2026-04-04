@@ -10,15 +10,38 @@ import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreSessionIfNeeded());
+  }
+
+  Future<void> _restoreSessionIfNeeded() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser != null) return;
+
+    final authService = AuthService();
+    if (!authService.isAuthenticated) return;
+
+    final restored = await authService.restoreCurrentUser();
+    if (restored != null && mounted) {
+      ref.read(currentUserProvider.notifier).state = restored;
+    }
+  }
 
   Future<void> _signOut(BuildContext context) async {
     try {
       final AuthService authService = AuthService();
       await authService.signOut();
-      
-      // Force navigation after logout with pushReplacement to clear history
+
       if (context.mounted) {
         context.go(AppRoutes.login.path);
       }
@@ -34,7 +57,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final connectivityAsync = ref.watch(connectivityProvider);
     final currentUser = ref.watch(currentUserProvider);
     final isAdminSistema = currentUser?.isAdminSistema ?? false;
@@ -48,7 +71,6 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildHomeContent(BuildContext context, bool isOnline, bool isAdminSistema, bool isProductor) {
-    // Determine button enabled states based on connectivity + offline support
     final productionEnabled = isOnline || OfflineConfig.instance.features.production;
     final exitsEnabled = isOnline || OfflineConfig.instance.features.exits;
 
@@ -129,7 +151,6 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
 
-                  // Show logout button only when online
                   if (isOnline) ...[
                     SizedBox(height: context.responsiveSpacing),
 
@@ -152,5 +173,4 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
-
 }

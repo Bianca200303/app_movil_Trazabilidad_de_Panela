@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/worker_control.dart';
+import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:panela_sys/widgets/worker_evaluation_card.dart';
 
-class WorkerControlRegistrationScreen extends StatefulWidget {
+class WorkerControlRegistrationScreen extends ConsumerStatefulWidget {
   const WorkerControlRegistrationScreen({super.key});
 
   @override
-  State<WorkerControlRegistrationScreen> createState() =>
+  ConsumerState<WorkerControlRegistrationScreen> createState() =>
       _WorkerControlRegistrationScreenState();
 }
 
 class _WorkerControlRegistrationScreenState
-    extends State<WorkerControlRegistrationScreen> {
+    extends ConsumerState<WorkerControlRegistrationScreen> {
   final _workerControlService = WorkerControlService();
   final _productReturnService = ProductReturnService();
 
@@ -246,8 +248,16 @@ class _WorkerControlRegistrationScreenState
   // Data Loading and Navigation (Standard logic)
   // =====================================================
 
+  List<String>? get _moduleIds {
+    final user = ref.read(currentUserProvider);
+    if (user == null || !user.hasModuleRestriction) return null;
+    return user.moduleIds.isEmpty ? null : user.moduleIds;
+  }
+
   Future<void> _loadProductionDates() async {
-    final dates = await _productReturnService.getProductionDates();
+    final dates = await _productReturnService.getProductionDates(
+      moduleIds: _moduleIds,
+    );
     if (mounted) setState(() => _productionDates = dates);
   }
 
@@ -256,6 +266,7 @@ class _WorkerControlRegistrationScreenState
     try {
       final batches = await _productReturnService.getBatchesByDate(
         _selectedDate,
+        moduleIds: _moduleIds,
       );
       setState(() {
         _availableBatches = batches;

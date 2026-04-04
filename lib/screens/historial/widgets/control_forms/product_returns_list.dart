@@ -5,6 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 
 /// Lista de quejas y devoluciones de producto.
@@ -29,20 +30,7 @@ class ProductReturnsList extends StatelessWidget {
     }
 
     if (error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
-            SizedBox(height: 16),
-            Text(
-              'Error: $error',
-              style: AppTextStyles.bodyText.copyWith(color: Colors.red[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
+      return HistorialErrorWidget(error: error!);
     }
 
     if (data.isEmpty) {

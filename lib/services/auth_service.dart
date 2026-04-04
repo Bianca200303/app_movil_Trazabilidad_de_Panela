@@ -205,6 +205,42 @@ class AuthService {
     }
   }
 
+  // Restore CurrentUser from existing session (called on app restart)
+  Future<CurrentUser?> restoreCurrentUser() async {
+    final authUser = currentUser;
+    if (authUser == null) return null;
+
+    try {
+      final profile = await _supabase
+          .from('users')
+          .select('user_id, first_name, last_name, role')
+          .eq('auth_user_id', authUser.id)
+          .maybeSingle();
+
+      if (profile == null) return null;
+
+      final moduleData = await _supabase
+          .from('user_module_assignments')
+          .select('coop_module_id')
+          .eq('user_id', profile['user_id'] as String)
+          .eq('cooperative_id', AppConfig.current.id);
+
+      final moduleIds = (moduleData as List)
+          .map((m) => m['coop_module_id'] as String)
+          .toList();
+
+      return CurrentUser(
+        dni: profile['user_id'] as String,
+        firstName: profile['first_name'] as String,
+        lastName: profile['last_name'] as String,
+        role: UserRole.fromString(profile['role'] as String? ?? 'productor'),
+        moduleIds: moduleIds,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Setup DNI user for authentication (admin function)
   Future<Map<String, dynamic>> setupDNIUserAuth({
     required String dni,

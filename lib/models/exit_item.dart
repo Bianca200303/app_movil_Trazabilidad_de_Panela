@@ -4,7 +4,7 @@ class ExitItem {
   final String productionBatchId;
   final double quantityKg;
   final bool isAutoconsumo;
-  final int bagsCount;
+  final double bagsCount;
   final double unitPrice;
   final double totalValue;
   final String? notes;
@@ -34,7 +34,7 @@ class ExitItem {
       productionBatchId: json['production_batch_id'] as String,
       quantityKg: (json['quantity_kg'] as num).toDouble(),
       isAutoconsumo: json['is_autoconsumo'] as bool,
-      bagsCount: json['bags_count'] as int,
+      bagsCount: (json['bags_count'] as num).toDouble(),
       unitPrice: (json['unit_price'] as num).toDouble(),
       totalValue: (json['total_value'] as num).toDouble(),
       notes: json['notes'] as String?,
@@ -67,7 +67,7 @@ class ExitItem {
     String? productionBatchId,
     double? quantityKg,
     bool? isAutoconsumo,
-    int? bagsCount,
+    double? bagsCount,
     double? unitPrice,
     double? totalValue,
     String? notes,

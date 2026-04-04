@@ -33,13 +33,24 @@ class ProductReturnService {
 
   // ==================== READ ====================
 
-  /// Get all distinct dates that have production batches (for calendar highlighting)
-  Future<Set<DateTime>> getProductionDates() async {
+  /// Get all distinct dates that have production batches (for calendar highlighting).
+  /// If [moduleIds] is provided, only dates with batches from those modules are returned.
+  Future<Set<DateTime>> getProductionDates({List<String>? moduleIds}) async {
     try {
-      final response = await _supabase
+      var query = _supabase
           .from('production_batches')
-          .select('process_date')
+          .select('process_date, producers!inner(coop_module_id)')
           .eq('cooperative_id', AppConfig.current.id);
+
+      if (moduleIds != null && moduleIds.isNotEmpty) {
+        query = query.filter(
+          'producers.coop_module_id',
+          'in',
+          '(${moduleIds.join(',')})',
+        );
+      }
+
+      final response = await query;
 
       return (response as List)
           .map((row) => DateTime.parse(row['process_date'] as String))
@@ -50,14 +61,16 @@ class ProductReturnService {
     }
   }
 
-  /// Get production batches by process_date
-  /// Returns list with batch info + producer info for dropdown display
-  /// This is used to populate the batch dropdown when user selects a production date
-  Future<List<Map<String, dynamic>>> getBatchesByDate(DateTime date) async {
+  /// Get production batches by process_date.
+  /// If [moduleIds] is provided, only batches whose producer belongs to those modules are returned.
+  Future<List<Map<String, dynamic>>> getBatchesByDate(
+    DateTime date, {
+    List<String>? moduleIds,
+  }) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
 
-      final response = await _supabase
+      var query = _supabase
           .from('production_batches')
           .select('''
             id,
@@ -69,12 +82,22 @@ class ProductReturnService {
               first_name,
               last_name,
               dni,
-              appagrop_code
+              appagrop_code,
+              coop_module_id
             )
           ''')
           .eq('process_date', dateStr)
-          .eq('cooperative_id', AppConfig.current.id)
-          .order('batch_code', ascending: true);
+          .eq('cooperative_id', AppConfig.current.id);
+
+      if (moduleIds != null && moduleIds.isNotEmpty) {
+        query = query.filter(
+          'producers.coop_module_id',
+          'in',
+          '(${moduleIds.join(',')})',
+        );
+      }
+
+      final response = await query.order('batch_code', ascending: true);
 
       return List<Map<String, dynamic>>.from(response as List);
     } catch (e) {

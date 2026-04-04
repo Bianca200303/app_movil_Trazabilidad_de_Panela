@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 
 /// Lista de registros de limpieza y desinfección con cards expandibles por área.
 /// Es StatefulWidget porque maneja su propio estado de expansión.
@@ -29,13 +30,7 @@ class _CleaningDisinfectionListState extends State<CleaningDisinfectionList> {
   @override
   Widget build(BuildContext context) {
     if (widget.error != null) {
-      return Center(
-        child: Text(
-          'Error: ${widget.error}',
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
-        ),
-      );
+      return HistorialErrorWidget(error: widget.error!);
     }
 
     if (widget.data.isEmpty) {

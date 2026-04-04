@@ -5,6 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_stat_chip.dart';
 
 /// Lista de inspecciones de ambientes, equipos y personal.
@@ -30,13 +31,7 @@ class EnvironmentInspectionList extends StatelessWidget {
     }
 
     if (error != null) {
-      return Center(
-        child: Text(
-          'Error: $error',
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
-        ),
-      );
+      return HistorialErrorWidget(error: error!);
     }
 
     if (data.isEmpty) {

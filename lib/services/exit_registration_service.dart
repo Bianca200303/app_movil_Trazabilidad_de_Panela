@@ -448,6 +448,9 @@ class ExitRegistrationService {
               production_batch:production_batches!inner(
                 id,
                 batch_code,
+                harvest_date,
+                process_date,
+                panela_kg,
                 producers!inner(
                   first_name,
                   last_name,
@@ -470,35 +473,62 @@ class ExitRegistrationService {
         final exitDate = DateTime.parse(exit['exit_date']).toLocal();
 
         for (final exitItem in exitItems) {
-          final producer = exitItem['production_batch']?['producers'];
+          // --- Datos del lote de producción (production_batches) ---
+          final batch = exitItem['production_batch'] as Map<String, dynamic>?;
+          final batchCode = batch?['batch_code'] as String?;
+          final batchHarvestDate = batch?['harvest_date'] as String?;
+          final batchProcessDate = batch?['process_date'] as String?;
+          final batchPanelaKg = batch?['panela_kg'] != null
+              ? (batch!['panela_kg'] as num).toDouble()
+              : null;
+
+          // --- Datos del productor (producers, dentro del lote) ---
+          final producer = batch?['producers'] as Map<String, dynamic>?;
           final moduleName = producer?['coop_modules']?['name'] as String?;
+
+          // --- Datos del ítem de salida (exit_items) ---
           final isAutoconsumo = exitItem['is_autoconsumo'] as bool;
           final quantityKg = (exitItem['quantity_kg'] as num).toDouble();
-          final bagsCount = exitItem['bags_count'] as int?;
+          final bagsCount = exitItem['bags_count'] != null
+              ? (exitItem['bags_count'] as num).toDouble()
+              : null;
 
-          // Display logic: show bags if acopio, kg if autoconsumo
-          final displayQuantity = isAutoconsumo ? quantityKg : (bagsCount ?? 0);
+          // Display logic: show bags if acopio, kg if autoconsumo.
+          // Always compute sacos from quantityKg to preserve decimals.
+          final displayQuantity = isAutoconsumo ? quantityKg : (quantityKg / 50);
           final displayUnit = isAutoconsumo ? 'kg' : 'Sacos';
 
           expandedList.add({
-            'id': '${exit['id']}_${exitItem.hashCode}', // Unique ID per item
+            // --- Del registro de salida (exit_registrations) ---
+            'id': '${exit['id']}_${exitItem.hashCode}',
             'exit_registration_id': exit['id'],
             'codigo_salida': exit['exit_code'],
             'fecha_salida': exitDate,
+            'tipo_salida': exit['exit_type'],
+            'destino': exit['destination'] ?? 'N/A',
+            'documento': exit['document_number'] ?? 'N/A',
+
+            // --- Del ítem de salida (exit_items) ---
+            'cantidad_kg': quantityKg,
+            'Sacos': bagsCount ?? 0,
+            'cantidad_mostrada': displayQuantity.toStringAsFixed(
+                displayQuantity == displayQuantity.toInt() ? 0 : 2),
+            'unidad': displayUnit,
+            'is_autoconsumo': isAutoconsumo,
+            'item_document_number': exitItem['item_document_number'],
+
+            // --- Del lote de producción (production_batches) ---
+            'lote_codigo': batchCode ?? 'N/A',
+            'lote_fecha_cosecha': batchHarvestDate ?? 'N/A',
+            'lote_fecha_proceso': batchProcessDate ?? 'N/A',
+            'lote_panela_kg': batchPanelaKg,
+
+            // --- Del productor (producers, vía lote) ---
             'productor': producer != null
                 ? '${producer['first_name']} ${producer['last_name']}'
                 : 'N/A',
-            'modulo': moduleName ?? 'N/A',
             'dni_productor': producer?['dni'] ?? 'N/A',
-            'cantidad_kg': quantityKg,
-            'Sacos': bagsCount ?? 0,
-            'cantidad_mostrada': displayQuantity.toStringAsFixed(displayQuantity == displayQuantity.toInt() ? 0 : 2),
-            'unidad': displayUnit,
-            'tipo_salida': exit['exit_type'],
-            'is_autoconsumo': isAutoconsumo,
-            'destino': exit['destination'] ?? 'N/A',
-            'documento': exit['document_number'] ?? 'N/A',
-            'item_document_number': exitItem['item_document_number'],
+            'modulo': moduleName ?? 'N/A',
           });
         }
       }

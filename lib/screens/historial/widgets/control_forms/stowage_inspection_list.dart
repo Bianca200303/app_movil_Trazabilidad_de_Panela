@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 
 /// Lista de inspecciones de estiba y transporte.
@@ -29,13 +30,7 @@ class StowageInspectionList extends StatelessWidget {
     }
 
     if (error != null) {
-      return Center(
-        child: Text(
-          'Error: $error',
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
-        ),
-      );
+      return HistorialErrorWidget(error: error!);
     }
 
     if (data.isEmpty) {
@@ -176,7 +171,7 @@ class StowageInspectionList extends StatelessWidget {
                             ? '${producer['first_name']} ${producer['last_name']}'
                             : 'N/A';
 
-                        final bagsCount = item['bags_count'] as int? ?? 0;
+                        final bagsCount = item['bags_count'] != null ? (item['bags_count'] as num).toDouble() : 0.0;
                         final isAutoconsumo =
                             item['is_autoconsumo'] as bool? ?? false;
                         final quantityKg =

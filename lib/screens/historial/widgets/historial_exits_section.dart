@@ -45,6 +45,21 @@ class HistorialExitsSection extends StatelessWidget {
             ? 'Equivale a: $cantidadStr kg'
             : 'Equivale a: ${equivalenteKg.toStringAsFixed(1)} kg';
 
+        // Fecha proceso del lote (viene como String 'YYYY-MM-DD')
+        final loteProcesoRaw = item['lote_fecha_proceso']?.toString() ?? '';
+        String loteProcesoDiaMes = loteProcesoRaw;
+        if (loteProcesoRaw.length == 10) {
+          final parts = loteProcesoRaw.split('-');
+          if (parts.length == 3) {
+            loteProcesoDiaMes = '${parts[2]}/${parts[1]}/${parts[0]}';
+          }
+        }
+
+        final loteKg = item['lote_panela_kg'];
+        final loteKgStr = loteKg != null
+            ? '${(loteKg as num).toStringAsFixed(0)} kg'
+            : 'N/A';
+
         return Container(
           margin: EdgeInsets.only(bottom: context.responsiveSpacing),
           padding: context.responsivePadding,
@@ -60,11 +75,68 @@ class HistorialExitsSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ── DATOS DEL REGISTRO DE SALIDA ──────────────────────────
               HistorialInfoRow(
-                label: 'Fecha:',
+                label: 'Código salida:',
+                value: item['codigo_salida'].toString(),
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Fecha salida:',
                 value: item['fecha_salida'].toString(),
               ),
               SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Destino:',
+                value: item['destino'].toString(),
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Documento salida:',
+                value: item['documento'].toString(),
+              ),
+
+              SizedBox(height: context.responsiveSpacing / 2),
+              const Divider(color: AppColors.inputBorder),
+              SizedBox(height: context.responsiveSpacing / 2),
+
+              // ── DATOS DEL ÍTEM ENVIADO ─────────────────────────────────
+              HistorialInfoRow(
+                label: 'Cantidad enviada:',
+                value: '$cantidadStr $unidadFinal',
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Comprobante ítem:',
+                value: (item['item_document_number'] ?? 'No especificado')
+                    .toString(),
+              ),
+
+              SizedBox(height: context.responsiveSpacing / 2),
+              const Divider(color: AppColors.inputBorder),
+              SizedBox(height: context.responsiveSpacing / 2),
+
+              // ── DATOS DEL LOTE DE PRODUCCIÓN ──────────────────────────
+              HistorialInfoRow(
+                label: 'Código lote:',
+                value: item['lote_codigo'].toString(),
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Fecha proceso lote:',
+                value: loteProcesoDiaMes,
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+              HistorialInfoRow(
+                label: 'Panela total lote:',
+                value: loteKgStr,
+              ),
+
+              SizedBox(height: context.responsiveSpacing / 2),
+              const Divider(color: AppColors.inputBorder),
+              SizedBox(height: context.responsiveSpacing / 2),
+
+              // ── DATOS DEL PRODUCTOR ────────────────────────────────────
               HistorialInfoRow(
                 label: 'Productor:',
                 value: item['productor'].toString(),
@@ -74,45 +146,23 @@ class HistorialExitsSection extends StatelessWidget {
                 label: 'Módulo:',
                 value: item['modulo'].toString(),
               ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Comprobante:',
-                value: (item['item_document_number'] ?? 'No especificado')
-                    .toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Cantidad:',
-                value: '$cantidadStr $unidadFinal',
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Documento:',
-                value: item['documento'].toString(),
-              ),
 
               // Badge AUTOCONSUMO
               if (isAutoconsumo) ...[
                 SizedBox(height: context.responsiveSpacing / 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('', style: TextStyle()),
-                    Flexible(
-                      child: Text(
-                        'AUTOCONSUMO',
-                        style: AppTextStyles.bodyText.copyWith(
-                          color: const Color(0xFF2E7D32),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.end,
-                      ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'AUTOCONSUMO',
+                    style: AppTextStyles.bodyText.copyWith(
+                      color: const Color(0xFF2E7D32),
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
+                  ),
                 ),
               ],
 
-              // --- FOOTER CON LA EQUIVALENCIA ---
+              // ── FOOTER: EQUIVALENCIA ───────────────────────────────────
               SizedBox(height: context.responsiveSpacing / 2),
               const Divider(color: AppColors.inputBorder),
               SizedBox(height: context.responsiveSpacing / 4),

@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 
 /// Lista de incidentes de salud y accidentes.
@@ -29,13 +30,7 @@ class HealthIncidentsList extends StatelessWidget {
     }
 
     if (error != null) {
-      return Center(
-        child: Text(
-          'Error: $error',
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
-        ),
-      );
+      return HistorialErrorWidget(error: error!);
     }
 
     if (data.isEmpty) {
