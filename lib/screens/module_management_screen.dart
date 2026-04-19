@@ -21,6 +21,7 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
   bool _isLoading = false;
   bool _isSaving = false;
   List<CoopModule> _modules = [];
+  int _nameFieldKey = 0;
 
   @override
   void initState() {
@@ -129,10 +130,11 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
     try {
       final module = await _service.createModule(name: _nameController.text);
       if (mounted) {
+        FocusScope.of(context).unfocus();
+        _nameController.clear();
         setState(() {
           _modules = [..._modules, module]..sort((a, b) => a.name.compareTo(b.name));
-          _nameController.clear();
-          _formKey.currentState!.reset();
+          _nameFieldKey++;
         });
         AppSnackBar.show(
           context,
@@ -181,6 +183,7 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
                       children: [
                         const AppTitle(title: 'Nuevo módulo'),
                         AppTextField(
+                          key: ValueKey('module-name-$_nameFieldKey'),
                           label: 'Nombre del módulo',
                           controller: _nameController,
                           textCapitalization: TextCapitalization.words,
