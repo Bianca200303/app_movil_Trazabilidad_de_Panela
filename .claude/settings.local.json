@@ -37,7 +37,27 @@
       "Bash(done)",
       "Bash(grep -n \"ALTER TABLE.*users\\\\|ADD COLUMN.*role\\\\|role.*VARCHAR\" /c/Users/bianc/Desktop/panela_sys/panela_sys/supabase/migrations/*.sql)",
       "Bash(find C:UsersbiancDesktoppanela_syspanela_sysflutter -type f \\\\\\(-name *.sql -o -name *migration* -o -name *schema* \\\\\\))",
-      "Bash(cat \"C:/Users/bianc/Desktop/panela_sys/panela_sys/web-react/src/lib/\"*)"
+      "Bash(cat \"C:/Users/bianc/Desktop/panela_sys/panela_sys/web-react/src/lib/\"*)",
+      "Bash(grep:*)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(powershell:*)",
+      "Bash(dart run:*)",
+      "Bash(cat C:/Users/bianc/Desktop/proyecto-panela/web-react/src/lib/*.js)",
+      "Bash(cp seed.sql seed.sql.bak)",
+      "Bash(sed -i -e '345,360d' -e '362,372d' -e '414,424d' -e '4601,5674d' -e '5881,5886d' -e '5887,5892d' -e '5899,5904d' seed.sql)",
+      "Bash(..\\\\supabase db *)",
+      "Bash(\"../supabase\" db *)",
+      "Bash(\"../supabase\" status *)",
+      "Bash(PGPASSWORD=postgres psql *)",
+      "Bash(curl -s -X POST http://127.0.0.1:54321/functions/v1/register-web-user -H 'apikey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' -H 'Authorization: Bearer sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' -H 'Content-Type: application/json' -d '{\"username\":\"33333333\",\"password\":\"33333333\",\"firstName\":\"Admin\",\"lastName\":\"Norandino\",\"role\":\"admin_web\",\"cooperativeId\":\"550e8400-e29b-41d4-a716-446655440001\"}')",
+      "Bash(curl -s -X POST http://127.0.0.1:54321/functions/v1/register-web-user -H 'apikey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' -H 'Authorization: Bearer sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' -H 'Content-Type: application/json' -d '{\"username\":\"44444444\",\"password\":\"44444444\",\"firstName\":\"Admin\",\"lastName\":\"CAES\",\"role\":\"admin_web\",\"cooperativeId\":\"550e8400-e29b-41d4-a716-446655440002\"}')",
+      "Bash(cmd //c \"crear_web_users.bat\")",
+      "Bash(cmd //c crear_web_users.bat)",
+      "Bash(cmd //c \"C:\\\\\\\\Users\\\\\\\\bianc\\\\\\\\Desktop\\\\\\\\proyecto-panela\\\\\\\\supabase\\\\\\\\mi-proyecto\\\\\\\\crear_web_users.bat\")",
+      "Bash(wc:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm run *)"
     ]
   }
 }

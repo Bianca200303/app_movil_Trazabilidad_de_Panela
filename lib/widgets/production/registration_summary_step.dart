@@ -42,6 +42,9 @@ class RegistrationSummaryStep extends StatefulWidget {
   final List<double> temperatures;
   final VoidCallback onBack;
   final double density;
+  final double? locationLatitude;
+  final double? locationLongitude;
+  final String? locationText;
 
   const RegistrationSummaryStep({
     super.key,
@@ -64,6 +67,9 @@ class RegistrationSummaryStep extends StatefulWidget {
     required this.temperatures,
     required this.onBack,
     this.density = ProductionCalculator.sugarCaneDensity,
+    this.locationLatitude,
+    this.locationLongitude,
+    this.locationText,
   });
 
   @override
@@ -366,6 +372,9 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         brix: null,
         correctiveAction: null,
         density: widget.density,
+        latitude: widget.locationLatitude,
+        longitude: widget.locationLongitude,
+        locationText: widget.locationText,
       );
 
       await _productionBatchService.createProductionBatch(request);
@@ -427,6 +436,16 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
     );
   }
 
+  String _getLocationDisplayText() {
+    if (widget.locationText != null && widget.locationText!.isNotEmpty) {
+      return widget.locationText!;
+    }
+    if (widget.locationLatitude != null && widget.locationLongitude != null) {
+      return '${widget.locationLatitude!.toStringAsFixed(4)}, ${widget.locationLongitude!.toStringAsFixed(4)}';
+    }
+    return 'No registrada';
+  }
+
   List<Widget> _buildSummaryRows(BuildContext context) {
     final selectedCerts = _selectedCertificateNames;
     final certText = selectedCerts.isNotEmpty ? selectedCerts.join(', ') : 'Ninguna seleccionada';
@@ -483,6 +502,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
       ['Regulador pH:', widget.regulatorQuantityController.text.isNotEmpty ? '${widget.regulatorQuantityController.text} ${widget.regulatorUnitController.text}' : '0 gr'],
       ['pH final:', widget.finalPHController.text.isNotEmpty ? widget.finalPHController.text : '0'],
       ['Temperaturas:', tempText],
+      ['Ubicación:', _getLocationDisplayText()],
     ]);
 
     List<Widget> widgets = [];

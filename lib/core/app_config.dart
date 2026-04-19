@@ -1,89 +1,123 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
-/// Central configuration for different cooperatives
-/// This is the single source of truth for app configuration
+
+/// Central configuration for different cooperatives.
+/// This is the single source of truth for app configuration.
+///
+/// La cooperativa se selecciona en RUNTIME (primera vez que el usuario abre la app),
+/// no en tiempo de compilación. Se persiste en SharedPreferences para que no
+/// sea necesario volver a ingresarla en los siguientes inicios.
 class AppConfig {
-  // Current cooperative configuration
-  static CooperativeConfig get current => _getCurrentConfig();
+  // Configuración activa en runtime (null hasta que el usuario ingrese su código)
+  static CooperativeConfig? _runtimeConfig;
 
-  // Si haces 'flutter run', kDebugMode es true -> usa local.
-  // Si haces 'flutter build apk --release', kDebugMode es false -> usa la nube.
+  /// Configuración de la cooperativa actualmente activa.
+  /// Lanza StateError si la cooperativa aún no fue configurada.
+  /// Siempre verificar [isConfigured] antes de acceder a este getter.
+  static CooperativeConfig get current {
+    if (_runtimeConfig == null) {
+      throw StateError(
+        'AppConfig no inicializado. '
+        'Llama a AppConfig.setCooperative() antes de acceder a current.',
+      );
+    }
+    return _runtimeConfig!;
+  }
+
+  /// Retorna true si ya se seleccionó una cooperativa en este ciclo de vida.
+  static bool get isConfigured => _runtimeConfig != null;
+
+  /// Establece la cooperativa activa por su código interno (ej: 'NORANDINO', 'CAES').
+  /// Lanza Exception si el código no corresponde a ninguna cooperativa conocida.
+  static void setCooperative(String code) {
+    final config = _findByCode(code);
+    if (config == null) {
+      throw Exception('Código de cooperativa desconocido: $code');
+    }
+    _runtimeConfig = config;
+  }
+
+  /// Busca la cooperativa que corresponde al [accessCode] ingresado por el usuario.
+  /// El accessCode es el código secreto entregado a cada cooperativa.
+  /// Retorna null si ninguna cooperativa coincide.
+  static CooperativeConfig? findByAccessCode(String accessCode) {
+    final upper = accessCode.trim().toUpperCase();
+    for (final config in CooperativeConfigs.all) {
+      if (config.accessCode.toUpperCase() == upper) {
+        return config;
+      }
+    }
+    return null;
+  }
+
+  /// Limpia la cooperativa activa (usado cuando el usuario elige "Cambiar cooperativa").
+  /// Después de llamar esto, [isConfigured] retorna false y el router redirige
+  /// a la pantalla de selección.
+  static void clearCooperative() {
+    _runtimeConfig = null;
+  }
+
+  static CooperativeConfig? _findByCode(String code) {
+    final upper = code.trim().toUpperCase();
+    for (final config in CooperativeConfigs.all) {
+      if (config.code.toUpperCase() == upper) {
+        return config;
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Configuración de Supabase (igual para todas las cooperativas)
+  // ─────────────────────────────────────────────────────────────
+
+  /// Si usas 'flutter run', kDebugMode es true -> usa local.
+  /// Si usas 'flutter build apk --release', kDebugMode es false -> usa la nube.
   static bool get useLocalSupabase => const bool.fromEnvironment(
-    'USE_LOCAL_SUPABASE',
-    defaultValue: kDebugMode, 
-  );
+        'USE_LOCAL_SUPABASE',
+        defaultValue: kDebugMode,
+      );
 
-  // 3. Lógica condicional para la URL
   static String get supabaseUrl {
     if (useLocalSupabase) {
       return _getLocalSupabaseUrl();
     }
-    // URL de Producción (La nube)
     return 'https://kyszyyxplwhhwtxmqizs.supabase.co';
   }
 
-  // Get the appropriate localhost URL based on platform
   static String _getLocalSupabaseUrl() {
     if (kIsWeb) {
       return 'http://127.0.0.1:54321';
     }
-
     try {
       if (Platform.isAndroid) {
-        // OJO: Si vas a probar en tu celular físico con cable, 
-        // cambia 10.0.2.2 por la IP de tu computadora (ej: 192.168.1.X)
-        return 'https://kyszyyxplwhhwtxmqizs.supabase.co'; 
+        // En emulador usa 10.0.2.2; en celular físico con cable, usa la IP de tu PC.
+        return 'http://10.0.2.2:54321';
       }
-    } catch (e) {
-      // Fallback if Platform is not available
-    }
-
+    } catch (_) {}
     return 'http://127.0.0.1:54321';
   }
-  
-  // 4. Lógica condicional para la Anon Key
+
   static String get supabaseAnonKey {
     if (useLocalSupabase) {
-      // IMPORTANTE: debe ser la anon key en formato JWT (eyJ...) obtenida con `supabase status`.
-      // El formato sb_publishable_* NO es un JWT y el runtime local de Edge Functions lo rechaza.
-      // Si usas el JWT secret por defecto de Supabase CLI, esta es la key correcta:
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg';
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
     }
-    
-    // Clave de Producción (La nube)
     return const String.fromEnvironment(
-      'SUPABASE_ANON_KEY', 
-      defaultValue: 
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg',
+      'SUPABASE_ANON_KEY',
+      defaultValue:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg',
     );
-  }
-
-  // Build configuration - this determines which cooperative to use
-  static const String cooperativeCode = String.fromEnvironment(
-    'COOPERATIVE_CODE',
-    defaultValue: 'CAES', // Default to Norandino for development
-  );
-
-  // Get current configuration based on build-time cooperative code
-  static CooperativeConfig _getCurrentConfig() {
-    switch (cooperativeCode.toUpperCase()) {
-      case 'NORANDINO':
-        return CooperativeConfigs.norandino;
-      case 'CAES':
-        return CooperativeConfigs.caes;
-      default:
-        throw Exception('Unknown cooperative: $cooperativeCode');
-    }
   }
 }
 
-/// Feature flags for each cooperative
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature flags por cooperativa
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CooperativeFeatures {
   final bool requirePlotNames;
   final bool useAppagropCode;
   final bool enableStowageTransportInspection;
-
-  // Control forms feature flags
   final bool enableEnvironmentInspection;
   final bool enableCleaningDisinfection;
   final bool enableChlorineControl;
@@ -96,9 +130,8 @@ class CooperativeFeatures {
   const CooperativeFeatures({
     this.requirePlotNames = true,
     this.useAppagropCode = false,
-    this.enableStowageTransportInspection = true, // Enabled by default for all cooperatives
-    // Default all new forms to false (disabled)
-    this.enableEnvironmentInspection = true, // Now enabled
+    this.enableStowageTransportInspection = true,
+    this.enableEnvironmentInspection = true,
     this.enableCleaningDisinfection = false,
     this.enableChlorineControl = true,
     this.enablePestControl = false,
@@ -109,14 +142,18 @@ class CooperativeFeatures {
   });
 }
 
-/// Configuration specific to each cooperative
+// ─────────────────────────────────────────────────────────────────────────────
+// Modelo de configuración de cooperativa
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CooperativeConfig {
-  final String id; // UUID from Supabase
-  final String code; // Short code (NORANDINO, CAES)
-  final String name; // Full name
-  final String displayTitle; // Short title shown in the app UI
-  final String batchCodePrefix; // 4-char prefix for batch codes (NORA, CAES)
-  final CooperativeFeatures features; // Feature configuration
+  final String id;            // UUID de Supabase
+  final String code;          // Código interno (NORANDINO, CAES)
+  final String name;          // Nombre completo
+  final String displayTitle;  // Título corto mostrado en la UI
+  final String batchCodePrefix; // Prefijo de 4 chars para códigos de lote
+  final String accessCode;    // Código secreto que ingresa el usuario al configurar la app
+  final CooperativeFeatures features;
 
   const CooperativeConfig({
     required this.id,
@@ -124,12 +161,19 @@ class CooperativeConfig {
     required this.name,
     required this.displayTitle,
     required this.batchCodePrefix,
+    required this.accessCode,
     required this.features,
   });
 }
 
-/// Predefined configurations for each cooperative
-/// These IDs match the ones seeded in Supabase
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuraciones predefinidas de cada cooperativa
+// Los IDs deben coincidir con los sembrados en Supabase.
+//
+// ¡IMPORTANTE! Cambia los accessCode antes de salir a producción.
+// Estos códigos son los que cada cooperativa entregará a sus usuarios.
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CooperativeConfigs {
   static const norandino = CooperativeConfig(
     id: '550e8400-e29b-41d4-a716-446655440001',
@@ -137,16 +181,16 @@ class CooperativeConfigs {
     name: 'Cooperativa Agraria Norandino',
     displayTitle: 'Cooperativa Norandino',
     batchCodePrefix: 'NORA',
+    accessCode: 'NORA2025', // ← Cambiar antes de producción
     features: CooperativeFeatures(
-      requirePlotNames: true, // Nombres obligatorios para Norandino
-      useAppagropCode: true,  // Código APPAGROP visible y obligatorio
-      enableStowageTransportInspection: true, // Control forms enabled
-      // New control forms
-      enableEnvironmentInspection: true, // Enabled
-      enableCleaningDisinfection: true, // Enabled
-      enableChlorineControl: true, // Enabled
-      enablePestControl: true, // Enabled
-      enableHealthAccidentTracking: true, // Enabled
+      requirePlotNames: true,
+      useAppagropCode: true,
+      enableStowageTransportInspection: true,
+      enableEnvironmentInspection: true,
+      enableCleaningDisinfection: true,
+      enableChlorineControl: true,
+      enablePestControl: true,
+      enableHealthAccidentTracking: true,
       enableComplaintsReturns: true,
       enableWorkerControl: true,
       enableMaintenanceControl: true,
@@ -159,19 +203,23 @@ class CooperativeConfigs {
     name: 'Cooperativa Agraria Ecológica y Solidaria Piura',
     displayTitle: 'Cooperativa CAES',
     batchCodePrefix: 'CAES',
+    accessCode: 'CAES2025', // ← Cambiar antes de producción
     features: CooperativeFeatures(
-      requirePlotNames: true, // Nombres opcionales para CAES
-      useAppagropCode: false,  // Código APPAGROP oculto
-      enableStowageTransportInspection: true, // Control forms enabled
-      // New control forms
-      enableEnvironmentInspection: true, // Enabled
-      enableCleaningDisinfection: true, // Enabled
-      enableChlorineControl: true, // Enabled
-      enablePestControl: true, // Enabled
-      enableHealthAccidentTracking: true, // Enabled
+      requirePlotNames: true,
+      useAppagropCode: false,
+      enableStowageTransportInspection: true,
+      enableEnvironmentInspection: true,
+      enableCleaningDisinfection: true,
+      enableChlorineControl: true,
+      enablePestControl: true,
+      enableHealthAccidentTracking: true,
       enableComplaintsReturns: true,
       enableWorkerControl: true,
       enableMaintenanceControl: true,
     ),
   );
+
+  /// Lista de todas las cooperativas registradas.
+  /// Al agregar una nueva cooperativa, solo añadirla aquí y en la lista.
+  static const List<CooperativeConfig> all = [norandino, caes];
 }

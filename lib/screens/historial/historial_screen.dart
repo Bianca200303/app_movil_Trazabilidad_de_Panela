@@ -17,6 +17,7 @@ import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/environment_inspection_service.dart';
 import 'package:panela_sys/services/equipment_maintenance_service.dart';
+import 'package:panela_sys/models/exit_registration.dart';
 import 'package:panela_sys/services/exit_registration_service.dart';
 import 'package:panela_sys/services/health_incident_service.dart';
 import 'package:panela_sys/services/pest_control_service.dart';
@@ -328,6 +329,63 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         _exitsError = e.toString().replaceFirst('Exception: ', '');
         _isLoadingExits = false;
       });
+    }
+  }
+
+  Future<void> _addGRToExit(String exitRegistrationId) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Agregar Guía de Remisión'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Número de GR',
+            hintText: 'Ej: GR-001, T001-0012345',
+          ),
+          textCapitalization: TextCapitalization.characters,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || controller.text.trim().isEmpty) return;
+
+    try {
+      await _exitRegistrationService.updateExitRegistration(
+        exitRegistrationId,
+        UpdateExitRegistrationRequest(documentNumber: controller.text.trim()),
+      );
+      await _loadExitsData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Guía de Remisión agregada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al agregar GR: ${e.toString().replaceFirst('Exception: ', '')}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -1037,7 +1095,10 @@ Future<void> _loadWorkerControlsData() async {
             HistorialDateRangeMessage(
                 startDate: _startDate, endDate: _endDate),
             SizedBox(height: context.responsiveSpacing),
-            HistorialExitsSection(exitsData: _exitsData),
+            HistorialExitsSection(
+              exitsData: _exitsData,
+              onAddGR: _addGRToExit,
+            ),
           ],
         );
 

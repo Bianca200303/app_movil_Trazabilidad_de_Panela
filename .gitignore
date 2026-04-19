@@ -66,3 +66,12 @@ app.*.map.json
 #net start winnat
 # Signing keys
 android/key.properties
+
+#..\supabase db reset
+#..\supabase functions serve
+
+
+poner en marcha el contenedor
+cd C:\Users\bianc\Desktop\proyecto-panela\supabase\mi-proyecto
+..\supabase start
+..\supabase stop

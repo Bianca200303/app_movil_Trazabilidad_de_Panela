@@ -19,9 +19,6 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
-    // Configure flavor dimensions for cooperative variants
-    flavorDimensions += "cooperative"
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -46,21 +43,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    // Product flavors for different cooperatives
-    productFlavors {
-        create("norandino") {
-            dimension = "cooperative"
-            applicationIdSuffix = ".norandino"
-            resValue("string", "app_name", "NORANDINO - Captura UDEP")
-        }
-
-        create("caes") {
-            dimension = "cooperative"
-            applicationIdSuffix = ".caes"
-            resValue("string", "app_name", "CAES - Captura UDEP")
-        }
     }
 
     buildTypes {

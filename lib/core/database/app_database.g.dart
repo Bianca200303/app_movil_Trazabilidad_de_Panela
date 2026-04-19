@@ -1833,6 +1833,39 @@ class $ProductionBatchesTable extends ProductionBatches
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _locationTextMeta = const VerificationMeta(
+    'locationText',
+  );
+  @override
+  late final GeneratedColumn<String> locationText = GeneratedColumn<String>(
+    'location_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -1896,6 +1929,9 @@ class $ProductionBatchesTable extends ProductionBatches
     producerLocalId,
     plotLocalId,
     cooperativeId,
+    latitude,
+    longitude,
+    locationText,
     syncStatus,
     remoteId,
     createdAt,
@@ -2053,6 +2089,27 @@ class $ProductionBatchesTable extends ProductionBatches
     } else if (isInserting) {
       context.missing(_cooperativeIdMeta);
     }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    }
+    if (data.containsKey('location_text')) {
+      context.handle(
+        _locationTextMeta,
+        locationText.isAcceptableOrUnknown(
+          data['location_text']!,
+          _locationTextMeta,
+        ),
+      );
+    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -2146,6 +2203,18 @@ class $ProductionBatchesTable extends ProductionBatches
         DriftSqlType.string,
         data['${effectivePrefix}cooperative_id'],
       )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      ),
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      ),
+      locationText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location_text'],
+      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sync_status'],
@@ -2189,6 +2258,9 @@ class ProductionBatchLocal extends DataClass
   final int producerLocalId;
   final int? plotLocalId;
   final String cooperativeId;
+  final double? latitude;
+  final double? longitude;
+  final String? locationText;
 
   /// Sync status: 0=pending, 1=synced, 2=modified
   final int syncStatus;
@@ -2217,6 +2289,9 @@ class ProductionBatchLocal extends DataClass
     required this.producerLocalId,
     this.plotLocalId,
     required this.cooperativeId,
+    this.latitude,
+    this.longitude,
+    this.locationText,
     required this.syncStatus,
     this.remoteId,
     required this.createdAt,
@@ -2246,6 +2321,15 @@ class ProductionBatchLocal extends DataClass
       map['plot_local_id'] = Variable<int>(plotLocalId);
     }
     map['cooperative_id'] = Variable<String>(cooperativeId);
+    if (!nullToAbsent || latitude != null) {
+      map['latitude'] = Variable<double>(latitude);
+    }
+    if (!nullToAbsent || longitude != null) {
+      map['longitude'] = Variable<double>(longitude);
+    }
+    if (!nullToAbsent || locationText != null) {
+      map['location_text'] = Variable<String>(locationText);
+    }
     map['sync_status'] = Variable<int>(syncStatus);
     if (!nullToAbsent || remoteId != null) {
       map['remote_id'] = Variable<String>(remoteId);
@@ -2280,6 +2364,15 @@ class ProductionBatchLocal extends DataClass
           ? const Value.absent()
           : Value(plotLocalId),
       cooperativeId: Value(cooperativeId),
+      latitude: latitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitude),
+      longitude: longitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitude),
+      locationText: locationText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationText),
       syncStatus: Value(syncStatus),
       remoteId: remoteId == null && nullToAbsent
           ? const Value.absent()
@@ -2318,6 +2411,9 @@ class ProductionBatchLocal extends DataClass
       producerLocalId: serializer.fromJson<int>(json['producerLocalId']),
       plotLocalId: serializer.fromJson<int?>(json['plotLocalId']),
       cooperativeId: serializer.fromJson<String>(json['cooperativeId']),
+      latitude: serializer.fromJson<double?>(json['latitude']),
+      longitude: serializer.fromJson<double?>(json['longitude']),
+      locationText: serializer.fromJson<String?>(json['locationText']),
       syncStatus: serializer.fromJson<int>(json['syncStatus']),
       remoteId: serializer.fromJson<String?>(json['remoteId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -2343,6 +2439,9 @@ class ProductionBatchLocal extends DataClass
       'producerLocalId': serializer.toJson<int>(producerLocalId),
       'plotLocalId': serializer.toJson<int?>(plotLocalId),
       'cooperativeId': serializer.toJson<String>(cooperativeId),
+      'latitude': serializer.toJson<double?>(latitude),
+      'longitude': serializer.toJson<double?>(longitude),
+      'locationText': serializer.toJson<String?>(locationText),
       'syncStatus': serializer.toJson<int>(syncStatus),
       'remoteId': serializer.toJson<String?>(remoteId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -2366,6 +2465,9 @@ class ProductionBatchLocal extends DataClass
     int? producerLocalId,
     Value<int?> plotLocalId = const Value.absent(),
     String? cooperativeId,
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
+    Value<String?> locationText = const Value.absent(),
     int? syncStatus,
     Value<String?> remoteId = const Value.absent(),
     DateTime? createdAt,
@@ -2390,6 +2492,9 @@ class ProductionBatchLocal extends DataClass
     producerLocalId: producerLocalId ?? this.producerLocalId,
     plotLocalId: plotLocalId.present ? plotLocalId.value : this.plotLocalId,
     cooperativeId: cooperativeId ?? this.cooperativeId,
+    latitude: latitude.present ? latitude.value : this.latitude,
+    longitude: longitude.present ? longitude.value : this.longitude,
+    locationText: locationText.present ? locationText.value : this.locationText,
     syncStatus: syncStatus ?? this.syncStatus,
     remoteId: remoteId.present ? remoteId.value : this.remoteId,
     createdAt: createdAt ?? this.createdAt,
@@ -2434,6 +2539,11 @@ class ProductionBatchLocal extends DataClass
       cooperativeId: data.cooperativeId.present
           ? data.cooperativeId.value
           : this.cooperativeId,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      locationText: data.locationText.present
+          ? data.locationText.value
+          : this.locationText,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -2461,6 +2571,9 @@ class ProductionBatchLocal extends DataClass
           ..write('producerLocalId: $producerLocalId, ')
           ..write('plotLocalId: $plotLocalId, ')
           ..write('cooperativeId: $cooperativeId, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('locationText: $locationText, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -2470,7 +2583,7 @@ class ProductionBatchLocal extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     batchCode,
     harvestDate,
@@ -2486,11 +2599,14 @@ class ProductionBatchLocal extends DataClass
     producerLocalId,
     plotLocalId,
     cooperativeId,
+    latitude,
+    longitude,
+    locationText,
     syncStatus,
     remoteId,
     createdAt,
     syncedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2510,6 +2626,9 @@ class ProductionBatchLocal extends DataClass
           other.producerLocalId == this.producerLocalId &&
           other.plotLocalId == this.plotLocalId &&
           other.cooperativeId == this.cooperativeId &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.locationText == this.locationText &&
           other.syncStatus == this.syncStatus &&
           other.remoteId == this.remoteId &&
           other.createdAt == this.createdAt &&
@@ -2532,6 +2651,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
   final Value<int> producerLocalId;
   final Value<int?> plotLocalId;
   final Value<String> cooperativeId;
+  final Value<double?> latitude;
+  final Value<double?> longitude;
+  final Value<String?> locationText;
   final Value<int> syncStatus;
   final Value<String?> remoteId;
   final Value<DateTime> createdAt;
@@ -2552,6 +2674,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.producerLocalId = const Value.absent(),
     this.plotLocalId = const Value.absent(),
     this.cooperativeId = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.locationText = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2573,6 +2698,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     required int producerLocalId,
     this.plotLocalId = const Value.absent(),
     required String cooperativeId,
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.locationText = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2603,6 +2731,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Expression<int>? producerLocalId,
     Expression<int>? plotLocalId,
     Expression<String>? cooperativeId,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? locationText,
     Expression<int>? syncStatus,
     Expression<String>? remoteId,
     Expression<DateTime>? createdAt,
@@ -2626,6 +2757,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       if (producerLocalId != null) 'producer_local_id': producerLocalId,
       if (plotLocalId != null) 'plot_local_id': plotLocalId,
       if (cooperativeId != null) 'cooperative_id': cooperativeId,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (locationText != null) 'location_text': locationText,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (remoteId != null) 'remote_id': remoteId,
       if (createdAt != null) 'created_at': createdAt,
@@ -2649,6 +2783,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Value<int>? producerLocalId,
     Value<int?>? plotLocalId,
     Value<String>? cooperativeId,
+    Value<double?>? latitude,
+    Value<double?>? longitude,
+    Value<String?>? locationText,
     Value<int>? syncStatus,
     Value<String?>? remoteId,
     Value<DateTime>? createdAt,
@@ -2670,6 +2807,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       producerLocalId: producerLocalId ?? this.producerLocalId,
       plotLocalId: plotLocalId ?? this.plotLocalId,
       cooperativeId: cooperativeId ?? this.cooperativeId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationText: locationText ?? this.locationText,
       syncStatus: syncStatus ?? this.syncStatus,
       remoteId: remoteId ?? this.remoteId,
       createdAt: createdAt ?? this.createdAt,
@@ -2729,6 +2869,15 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     if (cooperativeId.present) {
       map['cooperative_id'] = Variable<String>(cooperativeId.value);
     }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (locationText.present) {
+      map['location_text'] = Variable<String>(locationText.value);
+    }
     if (syncStatus.present) {
       map['sync_status'] = Variable<int>(syncStatus.value);
     }
@@ -2762,6 +2911,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
           ..write('producerLocalId: $producerLocalId, ')
           ..write('plotLocalId: $plotLocalId, ')
           ..write('cooperativeId: $cooperativeId, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('locationText: $locationText, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -6065,6 +6217,9 @@ typedef $$ProductionBatchesTableCreateCompanionBuilder =
       required int producerLocalId,
       Value<int?> plotLocalId,
       required String cooperativeId,
+      Value<double?> latitude,
+      Value<double?> longitude,
+      Value<String?> locationText,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6087,6 +6242,9 @@ typedef $$ProductionBatchesTableUpdateCompanionBuilder =
       Value<int> producerLocalId,
       Value<int?> plotLocalId,
       Value<String> cooperativeId,
+      Value<double?> latitude,
+      Value<double?> longitude,
+      Value<String?> locationText,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6174,6 +6332,21 @@ class $$ProductionBatchesTableFilterComposer
 
   ColumnFilters<String> get cooperativeId => $composableBuilder(
     column: $table.cooperativeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get locationText => $composableBuilder(
+    column: $table.locationText,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6282,6 +6455,21 @@ class $$ProductionBatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locationText => $composableBuilder(
+    column: $table.locationText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -6379,6 +6567,17 @@ class $$ProductionBatchesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get locationText => $composableBuilder(
+    column: $table.locationText,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => column,
@@ -6449,6 +6648,9 @@ class $$ProductionBatchesTableTableManager
                 Value<int> producerLocalId = const Value.absent(),
                 Value<int?> plotLocalId = const Value.absent(),
                 Value<String> cooperativeId = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> locationText = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6469,6 +6671,9 @@ class $$ProductionBatchesTableTableManager
                 producerLocalId: producerLocalId,
                 plotLocalId: plotLocalId,
                 cooperativeId: cooperativeId,
+                latitude: latitude,
+                longitude: longitude,
+                locationText: locationText,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,
@@ -6491,6 +6696,9 @@ class $$ProductionBatchesTableTableManager
                 required int producerLocalId,
                 Value<int?> plotLocalId = const Value.absent(),
                 required String cooperativeId,
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> locationText = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6511,6 +6719,9 @@ class $$ProductionBatchesTableTableManager
                 producerLocalId: producerLocalId,
                 plotLocalId: plotLocalId,
                 cooperativeId: cooperativeId,
+                latitude: latitude,
+                longitude: longitude,
+                locationText: locationText,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,

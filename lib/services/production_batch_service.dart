@@ -33,6 +33,9 @@ class CreateProductionBatchRequest {
   final double? brix;
   final String? correctiveAction;
   final double density;
+  final double? latitude;
+  final double? longitude;
+  final String? locationText;
 
   CreateProductionBatchRequest({
     this.batchCode,
@@ -55,6 +58,9 @@ class CreateProductionBatchRequest {
     this.brix,
     this.correctiveAction,
     this.density = ProductionCalculator.sugarCaneDensity,
+    this.latitude,
+    this.longitude,
+    this.locationText,
   });
 }
 
@@ -113,7 +119,7 @@ class ProductionBatchService {
       final caneKg = ProductionCalculator.calculateCaneInput(
           juiceWeightKg, request.extractionPercentage);
       final efficiency = ProductionCalculator.calculateYield(
-          request.panelaKg, request.juiceLiters);
+          request.panelaKg, request.juiceLiters).clamp(0.0, 999.99);
 
       DebugLogger.debug('ProductionBatchService', 'createProductionBatch',
           'Calculated: caneKg=$caneKg, efficiency=$efficiency');
@@ -135,6 +141,9 @@ class ProductionBatchService {
           cachazaPercentage: drift.Value(request.cachazaPercentage),
           efficiencyPercentage: efficiency,
           caneDensity: drift.Value(request.density),
+          latitude: drift.Value(request.latitude),
+          longitude: drift.Value(request.longitude),
+          locationText: drift.Value(request.locationText),
           producerLocalId: producerLocalId,
           plotLocalId: drift.Value(plotLocalId),
           cooperativeId: AppConfig.current.id,
@@ -197,6 +206,9 @@ class ProductionBatchService {
             brix: request.brix,
             correctiveAction: request.correctiveAction,
             density: request.density,
+            latitude: request.latitude,
+            longitude: request.longitude,
+            locationText: request.locationText,
           );
 
           final remoteBatch = await createOnline(remoteRequest);
@@ -271,7 +283,7 @@ class ProductionBatchService {
       final caneKg = ProductionCalculator.calculateCaneInput(
           juiceWeightKg, request.extractionPercentage);
       final efficiency = ProductionCalculator.calculateYield(
-          request.panelaKg, request.juiceLiters);
+          request.panelaKg, request.juiceLiters).clamp(0.0, 999.99);
 
       // 1. Create production batch
       final insertData = {
@@ -293,6 +305,17 @@ class ProductionBatchService {
       // Only include plot_id if provided
       if (request.plotId != null && request.plotId!.isNotEmpty) {
         insertData['plot_id'] = request.plotId!;
+      }
+
+      // Include location data if available
+      if (request.latitude != null) {
+        insertData['latitude'] = request.latitude!;
+      }
+      if (request.longitude != null) {
+        insertData['longitude'] = request.longitude!;
+      }
+      if (request.locationText != null) {
+        insertData['location_text'] = request.locationText!;
       }
 
       DebugLogger.debug('ProductionBatchService', 'createOnline',

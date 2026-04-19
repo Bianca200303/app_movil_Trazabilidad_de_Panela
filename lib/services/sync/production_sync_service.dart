@@ -130,6 +130,9 @@ class ProductionSyncService {
           regulatorQuantityUnit: phControl?.regulatorQuantityUnit,
           brix: phControl?.brix,
           correctiveAction: phControl?.correctiveAction,
+          latitude: batch.latitude,
+          longitude: batch.longitude,
+          locationText: batch.locationText,
         );
 
         DebugLogger.debug('ProductionSyncService', 'sync',

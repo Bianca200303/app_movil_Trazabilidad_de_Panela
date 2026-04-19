@@ -6,6 +6,7 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/auth_service.dart';
+import 'package:panela_sys/services/cooperative_preferences_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
@@ -25,9 +26,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _dniComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _identifierController.addListener(_onDniChanged);
+  }
+
+  void _onDniChanged() {
+    final complete =
+        RegExp(r'^\d{8}$').hasMatch(_identifierController.text.trim());
+    if (complete != _dniComplete) {
+      setState(() => _dniComplete = complete);
+    }
+  }
 
   @override
   void dispose() {
+    _identifierController.removeListener(_onDniChanged);
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -54,6 +71,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return 'La contraseña debe tener al menos 6 caracteres';
     }
     return null;
+  }
+
+  String _friendlyAuthError(String _) {
+    // Todos los errores de auth muestran el mismo mensaje genérico
+    // para no revelar si el usuario existe o a qué cooperativa pertenece.
+    return 'DNI o contraseña incorrectos.';
+  }
+
+  Future<void> _signInWithDni() async {
+    _passwordController.text = _identifierController.text.trim();
+    await _signIn();
+  }
+
+  Future<void> _changeCooperative() async {
+    // Limpia la cooperativa guardada y vuelve a la pantalla de selección
+    await CooperativePreferencesService.clearSavedCode();
+    AppConfig.clearCooperative();
+    if (mounted) {
+      context.go(AppRoutes.cooperativeSelection.path);
+    }
   }
 
   Future<void> _signIn() async {
@@ -101,15 +138,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: e.message,
+          message: _friendlyAuthError(e.message),
           type: SnackBarType.error,
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error: ${e.toString()}',
+          message: 'Error de conexión. Verifica tu internet e intenta de nuevo.',
           type: SnackBarType.error,
         );
       }
@@ -156,7 +193,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         validator: _validateDNI,
                         enabled: !_isLoading,
                       ),
-                      
+
+                      // Botón rápido: aparece al completar los 8 dígitos del DNI
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        child: _dniComplete
+                            ? Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.tonal(
+                                    onPressed: _isLoading ? null : _signInWithDni,
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Usar DNI como contraseña',
+                                      style: TextStyle(fontSize: 15),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+
                       AppTextField(
                         label: 'Contraseña',
                         controller: _passwordController,
@@ -182,6 +245,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         text: 'INICIAR SESIÓN',
                         onPressed: _signIn,
                         isLoading: _isLoading,
+                      ),
+
+                      // Link para corregir la cooperativa si se eligió mal
+                      TextButton(
+                        onPressed: _isLoading ? null : _changeCooperative,
+                        child: Text(
+                          '¿Cooperativa incorrecta? Cambiar',
+                          style: TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ],
                   ),

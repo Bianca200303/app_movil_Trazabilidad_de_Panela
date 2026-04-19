@@ -8,9 +8,17 @@ import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.d
 /// Sección de salidas registradas en el historial.
 /// Cada item muestra código de salida, fecha, productor, comprobante, cantidad y documento.
 class HistorialExitsSection extends StatelessWidget {
-  const HistorialExitsSection({required this.exitsData, super.key});
+  const HistorialExitsSection({
+    required this.exitsData,
+    this.onAddGR,
+    super.key,
+  });
 
   final List<Map<String, dynamic>> exitsData;
+
+  /// Callback invocado cuando el usuario quiere agregar un GR a una salida sin documento.
+  /// Recibe el ID del registro de salida (exit_registration_id).
+  final Future<void> Function(String exitRegistrationId)? onAddGR;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +103,21 @@ class HistorialExitsSection extends StatelessWidget {
                 label: 'Documento salida:',
                 value: item['documento'].toString(),
               ),
+              if (item['documento'].toString() == 'N/A' && onAddGR != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        onAddGR!(item['exit_registration_id'].toString()),
+                    icon: const Icon(Icons.add_circle_outline, size: 16),
+                    label: const Text('Agregar GR'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
 
               SizedBox(height: context.responsiveSpacing / 2),
               const Divider(color: AppColors.inputBorder),

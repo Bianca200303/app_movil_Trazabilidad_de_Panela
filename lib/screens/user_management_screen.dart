@@ -44,11 +44,18 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   List<CoopModule> _modules = [];
   Set<String> _selectedModuleIds = {};
   bool _isLoadingModules = false;
+  final _createModuleSearchController = TextEditingController();
 
   // Producer-specific state (used when role = productor)
   String? _selectedProductorModuleId;
   String _producerMemberStatus = 'SOCIO';
   final List<String> _createPlotNames = [];
+
+  // Admin-also-producer state (optional, only when role = admin_modulo)
+  bool _adminAlsoProducer = false;
+  String _adminProducerMemberStatus = 'SOCIO';
+  final List<String> _adminProducerPlotNames = [];
+  final _adminPlotNameController = TextEditingController();
 
   // Users list
   List<Map<String, dynamic>> _users = [];
@@ -92,6 +99,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     _lastNameController.dispose();
     _passwordController.dispose();
     _plotNameController.dispose();
+    _adminPlotNameController.dispose();
+    _createModuleSearchController.dispose();
     super.dispose();
   }
 
@@ -159,6 +168,22 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     });
   }
 
+  void _addAdminPlot() {
+    final name = _adminPlotNameController.text.trim();
+    if (name.isEmpty) {
+      AppSnackBar.show(context, message: 'Ingresa el nombre de la parcela', type: SnackBarType.error);
+      return;
+    }
+    if (_adminProducerPlotNames.any((p) => p.toLowerCase() == name.toLowerCase())) {
+      AppSnackBar.show(context, message: 'Ya existe una parcela con ese nombre', type: SnackBarType.error);
+      return;
+    }
+    setState(() {
+      _adminProducerPlotNames.add(name);
+      _adminPlotNameController.clear();
+    });
+  }
+
   void _resetCreateForm() {
     _formKey.currentState?.reset();
     _dniController.clear();
@@ -172,6 +197,10 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       _selectedProductorModuleId = null;
       _producerMemberStatus = 'SOCIO';
       _createPlotNames.clear();
+      _adminAlsoProducer = false;
+      _adminProducerMemberStatus = 'SOCIO';
+      _adminProducerPlotNames.clear();
+      _adminPlotNameController.clear();
       _useDniAsPassword = true;
     });
   }
@@ -186,6 +215,10 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     if (role == 'admin_modulo') {
       if (_selectedModuleIds.isEmpty) {
         AppSnackBar.show(context, message: 'Seleccione el módulo asignado', type: SnackBarType.error);
+        return;
+      }
+      if (_adminAlsoProducer && _adminProducerPlotNames.isEmpty) {
+        AppSnackBar.show(context, message: 'Agregue al menos una parcela', type: SnackBarType.error);
         return;
       }
     }
@@ -232,6 +265,18 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           isMember: _producerMemberStatus == 'SOCIO',
         ));
         final plots = _createPlotNames.map((name) => PlotData(name: name)).toList();
+        await _plotService.createMultiplePlots(producer.id, plots);
+      }
+
+      if (role == 'admin_modulo' && _adminAlsoProducer && _selectedModuleIds.isNotEmpty) {
+        final producer = await _producerService.createProducer(CreateProducerRequest(
+          firstName: firstName,
+          lastName: lastName,
+          dni: dni,
+          coopModuleId: _selectedModuleIds.first,
+          isMember: _adminProducerMemberStatus == 'SOCIO',
+        ));
+        final plots = _adminProducerPlotNames.map((name) => PlotData(name: name)).toList();
         await _plotService.createMultiplePlots(producer.id, plots);
       }
 
@@ -324,6 +369,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     String memberStatus = 'SOCIO';
     final plotNames = <String>[];
     final plotCtrl = TextEditingController();
+    final producerModuleSearchCtrl = TextEditingController();
 
     await showDialog<void>(
       context: context,
@@ -347,16 +393,32 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 if (_modules.isEmpty)
                   Text('No hay módulos disponibles',
                       style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
-                else
-                  DropdownButtonFormField<String>(
-                    value: selectedModuleId,
-                    hint: const Text('Seleccionar módulo'),
-                    items: _modules
-                        .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
-                        .toList(),
-                    onChanged: (v) => setDialogState(() => selectedModuleId = v),
-                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                else ...[
+                  TextField(
+                    controller: producerModuleSearchCtrl,
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar módulo...',
+                      prefixIcon: Icon(Icons.search, size: 20),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setDialogState(() {}),
                   ),
+                  const SizedBox(height: 4),
+                  ...(_modules.where((m) => m.name.toLowerCase()
+                          .contains(producerModuleSearchCtrl.text.toLowerCase()))
+                      .toList())
+                      .map((m) => RadioListTile<String>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(m.name, style: AppTextStyles.bodyText),
+                            value: m.id,
+                            groupValue: selectedModuleId,
+                            activeColor: AppColors.primary,
+                            onChanged: (v) => setDialogState(() => selectedModuleId = v),
+                          )),
+                ],
                 const SizedBox(height: 16),
 
                 // Condición
@@ -434,6 +496,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
             TextButton(
               onPressed: () {
                 plotCtrl.dispose();
+                producerModuleSearchCtrl.dispose();
                 Navigator.of(ctx).pop();
               },
               child: const Text('Cancelar'),
@@ -443,6 +506,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                   ? null
                   : () {
                       plotCtrl.dispose();
+                      producerModuleSearchCtrl.dispose();
                       Navigator.of(ctx).pop();
                       _createProducerRecord(user, selectedModuleId!, memberStatus, plotNames);
                     },
@@ -460,15 +524,18 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final currentModuleIds = ((user['module_ids'] as List?) ?? []).cast<String>().toSet();
     Set<String> selectedModuleIds = Set.from(currentModuleIds);
 
-    // Pre-fetch producer record if user is already a productor
+    // Pre-fetch producer record for productor and admin_modulo (admin may also be a producer)
     Map<String, dynamic>? producerRecord;
-    if (currentRole == 'productor') {
+    if (currentRole == 'productor' || currentRole == 'admin_modulo') {
       producerRecord = await _fetchProducerRecord(user['user_id'] as String);
     }
     String? selectedProducerModuleId = producerRecord?['coop_module_id'] as String?;
     final String? originalProducerModuleId = selectedProducerModuleId;
+    bool adminWantsToBeProducer = false;
 
     if (!mounted) return;
+
+    final editModuleSearchController = TextEditingController();
 
     await showDialog<void>(
       context: context,
@@ -485,7 +552,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           final producerModuleChanged = isProductor &&
               producerRecord != null &&
               selectedProducerModuleId != originalProducerModuleId;
-          final hasChanges = roleChanged || modulesChanged || producerModuleChanged;
+          final hasChanges = roleChanged || modulesChanged || producerModuleChanged ||
+              (isAdminModulo && adminWantsToBeProducer && producerRecord == null);
           final modulesValid = !needsModules || selectedModuleIds.isNotEmpty;
           final adminModuloValid = !isAdminModulo || selectedModuleIds.length == 1;
 
@@ -532,8 +600,23 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                     if (_modules.isEmpty)
                       Text('No hay módulos disponibles',
                           style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
-                    else
-                      ..._modules.map((m) => isAdminModulo
+                    else ...[
+                      TextField(
+                        controller: editModuleSearchController,
+                        decoration: const InputDecoration(
+                          hintText: 'Buscar módulo...',
+                          prefixIcon: Icon(Icons.search, size: 20),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (v) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 4),
+                      ...(_modules.where((m) => m.name.toLowerCase()
+                              .contains(editModuleSearchController.text.toLowerCase()))
+                          .toList())
+                          .map((m) => isAdminModulo
                           ? RadioListTile<String>(
                               dense: true,
                               contentPadding: EdgeInsets.zero,
@@ -557,6 +640,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                                 }
                               }),
                             )),
+                    ], // cierre de else [...] del buscador
                     if (selectedModuleIds.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
@@ -579,14 +663,68 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                     if (_modules.isEmpty)
                       Text('No hay módulos disponibles',
                           style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary))
+                    else ...[
+                      TextField(
+                        controller: editModuleSearchController,
+                        decoration: const InputDecoration(
+                          hintText: 'Buscar módulo...',
+                          prefixIcon: Icon(Icons.search, size: 20),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (v) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 4),
+                      ...(_modules.where((m) => m.name.toLowerCase()
+                              .contains(editModuleSearchController.text.toLowerCase()))
+                          .toList())
+                          .map((m) => RadioListTile<String>(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(m.name, style: AppTextStyles.bodyText),
+                                value: m.id,
+                                groupValue: selectedProducerModuleId,
+                                activeColor: AppColors.primary,
+                                onChanged: (v) => setDialogState(() => selectedProducerModuleId = v),
+                              )),
+                    ],
+                  ],
+
+                  // Productor para admin_modulo
+                  if (isAdminModulo) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 4),
+                    if (producerRecord != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.agriculture, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'También registrado como productor de este módulo',
+                              style: AppTextStyles.smallText.copyWith(color: AppColors.primary),
+                            ),
+                          ),
+                        ],
+                      )
                     else
-                      DropdownButton<String>(
-                        isExpanded: true,
-                        value: selectedProducerModuleId,
-                        items: _modules
-                            .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
-                            .toList(),
-                        onChanged: (v) => setDialogState(() => selectedProducerModuleId = v),
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: adminWantsToBeProducer,
+                            activeColor: AppColors.primary,
+                            onChanged: (v) => setDialogState(() => adminWantsToBeProducer = v ?? false),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Registrar también como productor de este módulo',
+                              style: AppTextStyles.bodyText,
+                            ),
+                          ),
+                        ],
                       ),
                   ],
                 ],
@@ -628,6 +766,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                         nav.pop();
                         if (roleChanged) await _updateRole(userId, selectedRole);
                         if (modulesChanged) await _updateModuleAssignments(userId, selectedModuleIds.toList());
+                        if (selectedRole == 'admin_modulo' && adminWantsToBeProducer && producerRecord == null && mounted) {
+                          await _showProducerDataDialog(user);
+                        }
                       },
                 child: const Text('Guardar'),
               ),
@@ -636,6 +777,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         },
       ),
     );
+    editModuleSearchController.dispose();
   }
 
   Future<void> _updateModuleAssignments(String userId, List<String> moduleIds) async {
@@ -876,7 +1018,22 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                               style: AppTextStyles.fieldLabel,
                             ),
                             const SizedBox(height: 6),
-                            ..._modules.map((m) => _selectedCreateRole == 'admin_modulo'
+                            TextField(
+                              controller: _createModuleSearchController,
+                              decoration: const InputDecoration(
+                                hintText: 'Buscar módulo...',
+                                prefixIcon: Icon(Icons.search, size: 20),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 4),
+                            ...(_modules.where((m) => m.name.toLowerCase()
+                                    .contains(_createModuleSearchController.text.toLowerCase()))
+                                .toList())
+                                .map((m) => _selectedCreateRole == 'admin_modulo'
                                 ? RadioListTile<String>(
                                     dense: true,
                                     contentPadding: EdgeInsets.zero,
@@ -907,6 +1064,100 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                           ],
                         ],
 
+                        // Sección productor opcional para admin_modulo
+                        if (_selectedCreateRole == 'admin_modulo') ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: _adminAlsoProducer,
+                                activeColor: AppColors.primary,
+                                onChanged: _isCreating
+                                    ? null
+                                    : (v) => setState(() {
+                                          _adminAlsoProducer = v ?? false;
+                                          if (!_adminAlsoProducer) {
+                                            _adminProducerPlotNames.clear();
+                                            _adminPlotNameController.clear();
+                                          }
+                                        }),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'También es productor de este módulo',
+                                  style: AppTextStyles.bodyText,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_adminAlsoProducer) ...[
+                            const SizedBox(height: 4),
+                            AppRadioGroup<String>(
+                              label: 'Condición',
+                              options: [
+                                RadioOption(value: 'SOCIO', label: 'SOCIO'),
+                                RadioOption(value: 'NO SOCIO', label: 'NO SOCIO'),
+                              ],
+                              groupValue: _adminProducerMemberStatus,
+                              onChanged: _isCreating
+                                  ? null
+                                  : (v) => setState(() => _adminProducerMemberStatus = v ?? 'SOCIO'),
+                            ),
+                            Text('Parcelas *', style: AppTextStyles.fieldLabel),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppTextField(
+                                    label: null,
+                                    hintText: 'Nombre de parcela',
+                                    controller: _adminPlotNameController,
+                                    enabled: !_isCreating,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.primary,
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.add, color: Colors.white),
+                                    onPressed: _isCreating ? null : _addAdminPlot,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_adminProducerPlotNames.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              ..._adminProducerPlotNames.map((name) => Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.circle, size: 6, color: AppColors.primary),
+                                        const SizedBox(width: 8),
+                                        Expanded(child: Text(name, style: AppTextStyles.bodyText)),
+                                        IconButton(
+                                          icon: const Icon(Icons.close, size: 16),
+                                          color: AppColors.textSecondary,
+                                          onPressed: _isCreating
+                                              ? null
+                                              : () => setState(() => _adminProducerPlotNames.remove(name)),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                            ] else ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Agrega al menos una parcela',
+                                style: AppTextStyles.smallText.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ],
+                        ],
+
                         // Campos específicos de productor
                         if (_selectedCreateRole == 'productor') ...[
                           // Módulo
@@ -915,17 +1166,33 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                           else ...[
                             Text('Módulo *', style: AppTextStyles.fieldLabel),
                             const SizedBox(height: 6),
-                            DropdownButtonFormField<String>(
-                              value: _selectedProductorModuleId,
-                              hint: const Text('Seleccionar módulo'),
-                              items: _modules
-                                  .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
-                                  .toList(),
-                              onChanged: _isCreating
-                                  ? null
-                                  : (v) => setState(() => _selectedProductorModuleId = v),
-                              decoration: const InputDecoration(border: OutlineInputBorder()),
+                            TextField(
+                              controller: _createModuleSearchController,
+                              enabled: !_isCreating,
+                              decoration: const InputDecoration(
+                                hintText: 'Buscar módulo...',
+                                prefixIcon: Icon(Icons.search, size: 20),
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
                             ),
+                            const SizedBox(height: 4),
+                            ...(_modules.where((m) => m.name.toLowerCase()
+                                    .contains(_createModuleSearchController.text.toLowerCase()))
+                                .toList())
+                                .map((m) => RadioListTile<String>(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(m.name, style: AppTextStyles.bodyText),
+                                      value: m.id,
+                                      groupValue: _selectedProductorModuleId,
+                                      activeColor: AppColors.primary,
+                                      onChanged: _isCreating
+                                          ? null
+                                          : (v) => setState(() => _selectedProductorModuleId = v),
+                                    )),
                           ],
 
                           // Condición

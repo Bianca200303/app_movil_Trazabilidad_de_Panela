@@ -23,6 +23,7 @@ import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/cane_density_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/core/production_calculator.dart';
+import 'package:panela_sys/services/location_service.dart';
 
 class ProductionRegistrationScreen extends ConsumerStatefulWidget {
   const ProductionRegistrationScreen({super.key});
@@ -68,6 +69,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   // Selected producer and plot for default percentage values
   Producer? _selectedProducer;
   Plot? _selectedPlot;
+
+  // Location data
+  double? _locationLatitude;
+  double? _locationLongitude;
+  String? _locationText;
 
   // Density stored as local state to avoid ref.watch in build
   double _density = ProductionCalculator.sugarCaneDensity;
@@ -174,6 +180,20 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           cachazaPercentageController: _cachazaPercentageController,
           selectedProducer: _selectedProducer,
           selectedPlot: _selectedPlot,
+          locationLatitude: _locationLatitude,
+          locationLongitude: _locationLongitude,
+          locationText: _locationText,
+          onLocationChanged: (result) {
+            setState(() {
+              _locationLatitude = result.latitude;
+              _locationLongitude = result.longitude;
+            });
+          },
+          onLocationTextChanged: (text) {
+            setState(() {
+              _locationText = text.isNotEmpty ? text : null;
+            });
+          },
           onContinue: () => _nextStep(),
         );
       case 1:
@@ -205,7 +225,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           selectedPlot: _selectedPlot,
           density: density,
           densityController: isAdminSistema ? _densityController : null,
-          onContinue: () => _nextStep(),
+          onContinue: () => _validateResultsAndNextStep(),
           onBack: () => _previousStep(),
         );
       case 4:
@@ -259,6 +279,9 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           selectedCertificates: _selectedCertificates,
           temperatures: _temperatures,
           density: density,
+          locationLatitude: _locationLatitude,
+          locationLongitude: _locationLongitude,
+          locationText: _locationText,
           onBack: () => _previousStep(),
         );
       default:
@@ -269,6 +292,20 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           cachazaPercentageController: _cachazaPercentageController,
           selectedProducer: _selectedProducer,
           selectedPlot: _selectedPlot,
+          locationLatitude: _locationLatitude,
+          locationLongitude: _locationLongitude,
+          locationText: _locationText,
+          onLocationChanged: (result) {
+            setState(() {
+              _locationLatitude = result.latitude;
+              _locationLongitude = result.longitude;
+            });
+          },
+          onLocationTextChanged: (text) {
+            setState(() {
+              _locationText = text.isNotEmpty ? text : null;
+            });
+          },
           onContinue: () => _nextStep(),
         );
     }
@@ -415,6 +452,41 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
 
     // If validation passes, proceed to next step
     _nextStep();
+  }
+
+  void _validateResultsAndNextStep() {
+    final juiceLiters = double.tryParse(_juiceQuantityController.text);
+    final panelaKg = double.tryParse(_panelaQuantityController.text);
+    final confitilloKg = double.tryParse(_confitilloQuantityController.text);
+
+    if (juiceLiters == null || juiceLiters <= 0) {
+      _showResultsError('Ingresa los litros de jugo (mayor a 0)');
+      return;
+    }
+    if (panelaKg == null || panelaKg < 0) {
+      _showResultsError('Ingresa los kg de panela (mayor o igual a 0)');
+      return;
+    }
+    if (confitilloKg == null || confitilloKg < 0) {
+      _showResultsError('Ingresa los kg de confitillo (mayor o igual a 0)');
+      return;
+    }
+    if (panelaKg >= juiceLiters) {
+      _showResultsError(
+          'La panela (${panelaKg.toStringAsFixed(1)} kg) no puede pesar igual o más que los litros de jugo (${juiceLiters.toStringAsFixed(1)} L)');
+      return;
+    }
+
+    _nextStep();
+  }
+
+  void _showResultsError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
 }

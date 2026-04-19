@@ -591,6 +591,17 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                 _scrollController.jumpTo(0);
               }
             }),
+            SizedBox(height: AppDimensions.spacingSmall),
+            AppButton(
+              text: 'Registrar sin documento',
+              type: AppButtonType.secondary,
+              onPressed: () {
+                if (_validateQuantities()) {
+                  _completeRegistration();
+                }
+              },
+              isLoading: _isSubmitting,
+            ),
           ],
         ),
       ],

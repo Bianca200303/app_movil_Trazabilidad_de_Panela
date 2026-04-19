@@ -26,6 +26,11 @@ class ProductionBatches extends Table {
   IntColumn get plotLocalId => integer().nullable()();
   TextColumn get cooperativeId => text()();
 
+  // Location fields (nullable - location is optional)
+  RealColumn get latitude => real().nullable()();
+  RealColumn get longitude => real().nullable()();
+  TextColumn get locationText => text().nullable()();
+
   // Synchronization fields (MANDATORY for offline tables)
   /// Sync status: 0=pending, 1=synced, 2=modified
   IntColumn get syncStatus => integer().withDefault(const Constant(0))();

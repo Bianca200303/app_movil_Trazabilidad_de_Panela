@@ -6,6 +6,7 @@ import 'package:panela_sys/core/router.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/models/auto_sync_event.dart';
+import 'package:panela_sys/services/cooperative_preferences_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Global key for showing SnackBars from auto-sync events
@@ -14,6 +15,17 @@ final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ── Cargar cooperativa guardada (si existe) ──────────────────────────────
+  // En el primer arranque no habrá código guardado → isConfigured = false
+  // → el router redirigirá a la pantalla de selección de cooperativa.
+  final savedCooperativeCode =
+      await CooperativePreferencesService.getSavedCode();
+  if (savedCooperativeCode != null) {
+    AppConfig.setCooperative(savedCooperativeCode);
+  }
+
+  // ── Inicializar Supabase ─────────────────────────────────────────────────
+  // La URL y anon key son las mismas para todas las cooperativas.
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
@@ -32,7 +44,6 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Initialize auto-sync listener on app startup
-    // This watches for connectivity changes and triggers auto-sync when going online
     ref.watch(autoSyncStateProvider);
 
     // Listen to auto-sync events and show SnackBars
@@ -80,19 +91,24 @@ class MyApp extends ConsumerWidget {
       },
     );
 
-    return MaterialApp.router(
-              debugShowCheckedModeBanner: false,
+    // El título usa el nombre de la cooperativa si ya está configurada,
+    // o un nombre genérico en el primer arranque.
+    final appTitle = AppConfig.isConfigured
+        ? AppConfig.current.displayTitle
+        : 'Panela UDEP';
 
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
-      title: AppConfig.current.displayTitle,
+      title: appTitle,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('es', 'PE'), // Spanish (Peru)
-        Locale('es', ''), // Spanish (fallback)
+        Locale('es', 'PE'),
+        Locale('es', ''),
       ],
       locale: const Locale('es', 'PE'),
       theme: ThemeData(
@@ -146,5 +162,3 @@ class MyApp extends ConsumerWidget {
     );
   }
 }
-
-

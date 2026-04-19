@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:panela_sys/screens/cooperative_selection_screen.dart';
 import 'package:panela_sys/screens/login_screen.dart';
 import 'package:panela_sys/screens/register_screen.dart';
 import 'package:panela_sys/screens/home_screen.dart';
@@ -36,6 +37,14 @@ class AppRoute {
 }
 
 class AppRoutes {
+  // Configuración inicial (se muestra solo una vez, antes del login)
+  static const cooperativeSelection = AppRoute(
+    path: '/select-cooperative',
+    displayName: 'Seleccionar cooperativa',
+    screen: CooperativeSelectionScreen(),
+    isPublic: true,
+  );
+
   // Authentication routes
   static const login = AppRoute(
     path: '/login',
@@ -176,6 +185,7 @@ class AppRoutes {
   
   // Get all routes as a list
   static List<AppRoute> get all => [
+    cooperativeSelection,
     login,
     register,
     home,

@@ -16,6 +16,7 @@ import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
+import 'package:panela_sys/services/location_service.dart';
 
 class ProducerSelectionStep extends ConsumerStatefulWidget {
   final TextEditingController producerController;
@@ -25,6 +26,11 @@ class ProducerSelectionStep extends ConsumerStatefulWidget {
   final Producer? selectedProducer;
   final Plot? selectedPlot;
   final VoidCallback onContinue;
+  final double? locationLatitude;
+  final double? locationLongitude;
+  final String? locationText;
+  final ValueChanged<LocationResult> onLocationChanged;
+  final ValueChanged<String> onLocationTextChanged;
 
   const ProducerSelectionStep({
     super.key,
@@ -35,6 +41,11 @@ class ProducerSelectionStep extends ConsumerStatefulWidget {
     this.selectedProducer,
     this.selectedPlot,
     required this.onContinue,
+    this.locationLatitude,
+    this.locationLongitude,
+    this.locationText,
+    required this.onLocationChanged,
+    required this.onLocationTextChanged,
   });
 
   @override
@@ -50,6 +61,10 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   bool _isLoadingProducers = false;
   bool _isLoadingPlots = false;
   String? _errorMessage;
+  bool _isLoadingLocation = false;
+  String? _locationError;
+  bool _isEditingLocation = false;
+  final TextEditingController _manualLocationController = TextEditingController();
 
   @override
   void initState() {
@@ -65,6 +80,46 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     if (widget.producerController.text.isNotEmpty) {
       _loadPlotsForProducer(widget.producerController.text, clearSelection: false);
     }
+
+    // Restore manual location text if returning to this step
+    if (widget.locationText != null) {
+      _manualLocationController.text = widget.locationText!;
+    }
+
+    // Auto-detect location if not already obtained
+    if (widget.locationLatitude == null && widget.locationText == null) {
+      _detectLocation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _manualLocationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _locationError = null;
+    });
+
+    final result = await LocationService.getCurrentLocation();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingLocation = false;
+      if (result.hasCoordinates) {
+        _locationError = null;
+        _isEditingLocation = false;
+      } else {
+        _locationError = result.errorMessage;
+        _isEditingLocation = true;
+      }
+    });
+
+    widget.onLocationChanged(result);
   }
 
   Future<void> _loadProducers() async {
@@ -307,6 +362,8 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
             ],
           ),
         SizedBox(height: context.responsiveSpacing * 1.5),
+        _buildLocationSection(context),
+        SizedBox(height: context.responsiveSpacing * 1.5),
         AppButton(
           text: 'CONTINUAR',
           onPressed: _canContinue ? _handleContinue : null,
@@ -320,6 +377,130 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
           textAlign: TextAlign.center,
         ),
       ],
+      ),
+    );
+  }
+
+  Widget _buildLocationSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.location_on, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Ubicación del registro',
+                style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingLocation)
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Detectando ubicación...',
+                  style: AppTextStyles.bodyText.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            )
+          else if (_isEditingLocation || (_locationError != null && widget.locationLatitude == null))
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_locationError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _locationError!,
+                      style: AppTextStyles.bodyText.copyWith(
+                        color: AppColors.warning,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                AppTextField(
+                  controller: _manualLocationController,
+                  label: 'Escriba la ubicación',
+                  hintText: 'Ej: Finca El Roble, Vereda La Esperanza',
+                  onChanged: (value) {
+                    widget.onLocationTextChanged(value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _detectLocation,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Reintentar detección automática',
+                        style: AppTextStyles.bodyText.copyWith(
+                          color: AppColors.primary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Ubicación detectada (${widget.locationLatitude?.toStringAsFixed(4)}, ${widget.locationLongitude?.toStringAsFixed(4)})',
+                        style: AppTextStyles.bodyText.copyWith(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isEditingLocation = true;
+                    });
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Corregir ubicación manualmente',
+                        style: AppTextStyles.bodyText.copyWith(
+                          color: AppColors.primary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }
