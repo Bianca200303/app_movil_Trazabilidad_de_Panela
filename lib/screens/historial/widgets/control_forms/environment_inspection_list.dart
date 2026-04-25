@@ -171,9 +171,9 @@ class _EnvironmentInspectionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Fecha de producción',
+                    'Fecha de inspección',
                     style: AppTextStyles.captionText.copyWith(
-                      color: AppColors.textPrimary,
+                      color: const Color.fromARGB(255, 0, 0, 0),
                       fontSize: 11,
                     ),
                   ),

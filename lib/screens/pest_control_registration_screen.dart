@@ -12,15 +12,12 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/pest_control.dart';
-import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
-import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/pest_control_service.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/pest_control/bait_control_step.dart';
 import 'package:panela_sys/widgets/pest_control/insect_control_step.dart';
-import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class PestControlRegistrationScreen extends ConsumerStatefulWidget {
@@ -46,10 +43,9 @@ class _PestControlRegistrationScreenState
   DateTime? _selectedDate;
   List<CoopModule> _availableModules = [];
   bool _isLoadingModules = true;
-  List<ProductionDateGroup> _productionDates = [];
-  bool _isLoadingDates = false;
-  late DateTime _filterFrom;
-  late DateTime _filterTo;
+  bool _hadProduction = false;
+  bool _isCheckingDate = false;
+  bool _duplicateWarningAcknowledged = false;
 
   // Step 1: Bait Control
   final _baitProductController = TextEditingController();
@@ -78,9 +74,6 @@ class _PestControlRegistrationScreenState
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _filterFrom = DateTime(now.year, now.month, now.day);
-    _filterTo = now;
     _baitProductController.text = 'Panela';
     _baitUnitController.text = 'gr';
     _insectProductController.text = 'Trampa de Luz';
@@ -120,10 +113,7 @@ class _PestControlRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) {
-          _selectedModuleId = modules.first.id;
-          _loadProductionDates(_filterFrom, _filterTo);
-        }
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -145,18 +135,24 @@ class _PestControlRegistrationScreenState
   Future<void> _nextStep() async {
     if (_currentStep == 0) {
       if (!_validateStep0()) return;
-      final existing = await _pestControlService.getByModuleAndDate(
-        _selectedModuleId!,
-        _selectedDate!,
-      );
-      if (!mounted) return;
-      if (existing != null) {
-        AppSnackBar.show(
-          context,
-          message: 'Ya existe un control de plagas para este módulo en esta fecha',
-          type: SnackBarType.error,
-        );
-        return;
+      if (!_duplicateWarningAcknowledged) {
+        final hasExisting = await _pestControlService.hasControlOnDate(_selectedModuleId!, _selectedDate!);
+        if (!mounted) return;
+        if (hasExisting) {
+          final proceed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Ya hay un control este día', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              content: const Text('Ya existe un control de plagas para este módulo en esta fecha.\n\n¿Deseas registrar otro igualmente?', style: TextStyle(fontSize: 16)),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
+                TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
+              ],
+            ),
+          );
+          if (proceed != true || !mounted) return;
+          _duplicateWarningAcknowledged = true;
+        }
       }
     } else if (!_validateCurrentStep()) {
       return;
@@ -200,7 +196,7 @@ class _PestControlRegistrationScreenState
       return false;
     }
     if (_selectedDate == null) {
-      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
+      AppSnackBar.show(context, message: 'Selecciona la fecha', type: SnackBarType.error);
       return false;
     }
     return true;
@@ -325,15 +321,22 @@ class _PestControlRegistrationScreenState
     );
   }
 
-  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      locale: const Locale('es'),
+    );
+    if (picked == null || !mounted) return;
+    setState(() { _selectedDate = picked; _hadProduction = false; _duplicateWarningAcknowledged = false; });
     if (_selectedModuleId == null) return;
-    setState(() => _isLoadingDates = true);
-    try {
-      final groups = await _pestControlService.getProductionDateGroups(_selectedModuleId!, from, to);
-      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingDates = false);
-    }
+    setState(() => _isCheckingDate = true);
+    final hasProd = await _pestControlService.hasProductionOnDate(_selectedModuleId!, picked);
+    if (mounted) setState(() { _hadProduction = hasProd; _isCheckingDate = false; });
   }
 
   // =====================================================
@@ -493,27 +496,67 @@ class _PestControlRegistrationScreenState
             options: _availableModules
                 .map((m) => DropdownOption(value: m.id, label: m.name))
                 .toList(),
-            onChanged: (value) {
-              setState(() { _selectedModuleId = value; _selectedDate = null; _productionDates = []; });
-              if (value != null) _loadProductionDates(_filterFrom, _filterTo);
-            },
+            onChanged: (value) => setState(() {
+              _selectedModuleId = value;
+              _selectedDate = null;
+              _hadProduction = false;
+              _duplicateWarningAcknowledged = false;
+            }),
           ),
         if (_selectedModuleId != null) ...[
           FormSection(
-            title: 'Fecha de producción',
-            subtitle: 'Selecciona el día que quieres controlar',
+            title: 'Fecha del control',
+            subtitle: 'Selecciona cualquier fecha',
             children: [
-              ProductionDateSelector(
-                productionDates: _productionDates,
-                isLoadingDates: _isLoadingDates,
-                selectedDate: _selectedDate,
-                blocksAlreadyRecorded: true,
-                onDateSelected: (date) => setState(() => _selectedDate = date),
-                onFilterChanged: (from, to) {
-                  setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
-                  _loadProductionDates(from, to);
-                },
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                child: Container(
+                  padding: context.responsivePadding,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.inputBorder),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 20, color: AppColors.primary),
+                      SizedBox(width: context.responsiveSpacing / 2),
+                      Expanded(
+                        child: Text(
+                          _selectedDate != null
+                              ? AppDateUtils.formatDDMMYYYY(_selectedDate!)
+                              : 'Selecciona una fecha',
+                          style: AppTextStyles.bodyText.copyWith(
+                            color: _selectedDate != null ? AppColors.textPrimary : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                    ],
+                  ),
+                ),
               ),
+              if (_isCheckingDate) ...[
+                const SizedBox(height: 8),
+                const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+              ] else if (_selectedDate != null && _hadProduction) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                      const SizedBox(width: 6),
+                      Text('Día con producción registrada',
+                        style: AppTextStyles.captionText.copyWith(color: const Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],

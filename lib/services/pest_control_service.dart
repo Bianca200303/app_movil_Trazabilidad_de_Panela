@@ -186,33 +186,33 @@ class PestControlService {
     }
   }
 
-  /// Checks if a pest control record already exists for module and date
-  ///
-  /// Used to prevent duplicate records before user starts filling the form
-  ///
-  /// Returns the existing record if found, null otherwise
-  Future<PestControl?> getByModuleAndDate(
-    String moduleId,
-    DateTime date,
-  ) async {
+  Future<bool> hasControlOnDate(String moduleId, DateTime date) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-
       final response = await _supabase
           .from('pest_controls')
-          .select('''
-            *,
-            module:coop_modules(name)
-          ''')
+          .select('id')
           .eq('coop_module_id', moduleId)
           .eq('control_date', dateStr)
-          .maybeSingle();
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
-      if (response == null) return null;
-
-      return PestControl.fromJson(response);
-    } catch (e) {
-      throw Exception('Error al verificar registro existente: $e');
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('production_batches')
+          .select('id, producers!inner(coop_module_id)')
+          .eq('producers.coop_module_id', moduleId)
+          .eq('process_date', dateStr)
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 

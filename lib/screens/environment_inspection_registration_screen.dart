@@ -101,45 +101,43 @@ class _EnvironmentInspectionRegistrationScreenState
   }
 
   Future<void> _handleStep0Continue() async {
-    // Button is disabled unless both are selected — these are safety guards only
     if (_selectedModuleId == null || _selectedDate == null) return;
 
     setState(() => _isCheckingStep0 = true);
     try {
-      final existing = await _inspectionService.getInspectionByModuleAndDate(
+      final hasExisting = await _inspectionService.hasInspectionOnDate(
         _selectedModuleId!,
         _selectedDate!,
       );
       if (!mounted) return;
+      setState(() => _isCheckingStep0 = false);
 
-      if (existing != null) {
-        setState(() => _isCheckingStep0 = false);
-        await showDialog(
+      if (hasExisting) {
+        final proceed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Inspección ya registrada'),
             content: const Text(
               'Ya existe una inspección para este módulo en esta fecha. '
-              'Puedes verla en el historial.',
+              '¿Deseas registrar otra igualmente?',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('ENTENDIDO'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('CANCELAR'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('CONTINUAR'),
               ),
             ],
           ),
         );
-        return;
+        if (proceed != true || !mounted) return;
       }
 
-      if (mounted) {
-        setState(() {
-          _isCheckingStep0 = false;
-          _currentStep = 1;
-        });
-        _scrollToTop();
-      }
+      setState(() => _currentStep = 1);
+      _scrollToTop();
     } catch (e) {
       if (mounted) {
         setState(() => _isCheckingStep0 = false);

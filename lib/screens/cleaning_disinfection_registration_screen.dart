@@ -12,11 +12,9 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/models/coop_module.dart';
-import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
-import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class CleaningDisinfectionRegistrationScreen extends ConsumerStatefulWidget {
@@ -39,10 +37,9 @@ class _CleaningDisinfectionRegistrationScreenState
   // Step 0: Configuration
   String? _selectedModuleId;
   DateTime? _selectedDate;
-  List<ProductionDateGroup> _productionDates = [];
-  bool _isLoadingDates = false;
-  late DateTime _filterFrom;
-  late DateTime _filterTo;
+  bool _hadProduction = false;
+  bool _isCheckingDate = false;
+  bool _duplicateWarningAcknowledged = false;
   final Set<String> _selectedAreas = {};
   CleaningType? _cleaningType;
   final Set<CleaningProduct> _selectedProducts = {};
@@ -66,9 +63,6 @@ class _CleaningDisinfectionRegistrationScreenState
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _filterFrom = DateTime(now.year, now.month, now.day);
-    _filterTo = now;
     _loadModules();
     _initializeSelectedPoints();
   }
@@ -93,10 +87,7 @@ class _CleaningDisinfectionRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) {
-          _selectedModuleId = modules.first.id;
-          _loadProductionDates(_filterFrom, _filterTo);
-        }
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -125,28 +116,90 @@ class _CleaningDisinfectionRegistrationScreenState
   // =====================================================
 
   Future<void> _nextStep() async {
-    // Validate current step
     if (_currentStep == 0) {
       if (!_validateConfigStep()) return;
-      final existing = await _cleaningService.getByModuleAndDate(
+      final hasExisting = await _cleaningService.hasCleaningOnDate(
         _selectedModuleId!,
         _selectedDate!,
       );
       if (!mounted) return;
-      if (existing != null) {
-        AppSnackBar.show(
-          context,
-          message: 'Ya existe un registro de limpieza para este módulo en esta fecha',
-          type: SnackBarType.error,
+      if (hasExisting && !_duplicateWarningAcknowledged) {
+        final coveredAreas = await _cleaningService.getAreasCoveredOnDate(
+          _selectedModuleId!,
+          _selectedDate!,
         );
-        return;
+        if (!mounted) return;
+        final missingAreas = CleaningAreas.all
+            .where((a) => !coveredAreas.contains(a))
+            .toList();
+
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text(
+              'Ya hay un registro este día',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Otro usuario ya registró limpieza para este módulo hoy.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                if (coveredAreas.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Áreas ya cubiertas:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  ...coveredAreas.map((a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• ${CleaningAreas.getDisplayName(a)}',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                  )),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  '¿Cómo deseas continuar?',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: const Text('CANCELAR', style: TextStyle(fontSize: 15)),
+              ),
+              if (missingAreas.isNotEmpty)
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop('missing'),
+                  child: const Text('ÁREAS FALTANTES', style: TextStyle(fontSize: 15)),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('all'),
+                child: const Text('ELEGIR MIS ÁREAS', style: TextStyle(fontSize: 15)),
+              ),
+            ],
+          ),
+        );
+        if (choice == null || !mounted) return;
+        _duplicateWarningAcknowledged = true;
+        if (choice == 'missing') {
+          setState(() => _selectedAreas
+            ..clear()
+            ..addAll(missingAreas));
+        }
       }
     }
 
     setState(() {
-      if (_currentStep < _totalSteps - 1) {
-        _currentStep++;
-      }
+      if (_currentStep < _totalSteps - 1) _currentStep++;
     });
     _scrollController.jumpTo(0);
   }
@@ -169,7 +222,7 @@ class _CleaningDisinfectionRegistrationScreenState
     }
 
     if (_selectedDate == null) {
-      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
+      AppSnackBar.show(context, message: 'Selecciona la fecha', type: SnackBarType.error);
       return false;
     }
 
@@ -228,15 +281,22 @@ class _CleaningDisinfectionRegistrationScreenState
     );
   }
 
-  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      locale: const Locale('es'),
+    );
+    if (picked == null || !mounted) return;
+    setState(() { _selectedDate = picked; _hadProduction = false; _duplicateWarningAcknowledged = false; });
     if (_selectedModuleId == null) return;
-    setState(() => _isLoadingDates = true);
-    try {
-      final groups = await _cleaningService.getProductionDateGroups(_selectedModuleId!, from, to);
-      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingDates = false);
-    }
+    setState(() => _isCheckingDate = true);
+    final hasProd = await _cleaningService.hasProductionOnDate(_selectedModuleId!, picked);
+    if (mounted) setState(() { _hadProduction = hasProd; _isCheckingDate = false; });
   }
 
   // =====================================================
@@ -402,28 +462,72 @@ class _CleaningDisinfectionRegistrationScreenState
                   ),
                 )
                 .toList(),
-            onChanged: (moduleId) {
-              setState(() { _selectedModuleId = moduleId; _selectedDate = null; _productionDates = []; });
-              if (moduleId != null) _loadProductionDates(_filterFrom, _filterTo);
-            },
+            onChanged: (moduleId) => setState(() {
+              _selectedModuleId = moduleId;
+              _selectedDate = null;
+              _hadProduction = false;
+              _duplicateWarningAcknowledged = false;
+            }),
           ),
 
-          // Production date selector
           if (_selectedModuleId != null) ...[
             const SizedBox(height: 8),
-            Text('Fecha de producción', style: AppTextStyles.fieldLabel),
+            Text('Fecha de limpieza', style: AppTextStyles.fieldLabel),
             const SizedBox(height: 8),
-            ProductionDateSelector(
-              productionDates: _productionDates,
-              isLoadingDates: _isLoadingDates,
-              selectedDate: _selectedDate,
-              blocksAlreadyRecorded: true,
-              onDateSelected: (date) => setState(() => _selectedDate = date),
-              onFilterChanged: (from, to) {
-                setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
-                _loadProductionDates(from, to);
-              },
+            InkWell(
+              onTap: _pickDate,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+              child: Container(
+                padding: context.responsivePadding,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.inputBorder),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 20, color: AppColors.primary),
+                    SizedBox(width: context.responsiveSpacing / 2),
+                    Expanded(
+                      child: Text(
+                        _selectedDate != null
+                            ? AppDateUtils.formatDDMMYYYY(_selectedDate!)
+                            : 'Selecciona una fecha',
+                        style: AppTextStyles.bodyText.copyWith(
+                          color: _selectedDate != null ? AppColors.textPrimary : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                  ],
+                ),
+              ),
             ),
+            if (_isCheckingDate) ...[
+              const SizedBox(height: 8),
+              const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+            ] else if (_selectedDate != null && _hadProduction) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Día con producción registrada',
+                      style: AppTextStyles.captionText.copyWith(
+                        color: const Color(0xFF2E7D32),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
 
           // Areas to clean (checkboxes)

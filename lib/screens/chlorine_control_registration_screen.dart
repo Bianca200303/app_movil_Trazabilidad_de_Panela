@@ -7,12 +7,10 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/chlorine_residual_control.dart';
 import 'package:panela_sys/models/coop_module.dart';
-import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
-import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -46,10 +44,8 @@ class _ChlorineControlRegistrationScreenState
   // Date and time
   DateTime? _controlDate;
   TimeOfDay _controlTime = const TimeOfDay(hour: 6, minute: 0);
-  List<ProductionDateGroup> _productionDates = [];
-  bool _isLoadingDates = false;
-  late DateTime _filterFrom;
-  late DateTime _filterTo;
+  bool _hadProduction = false;
+  bool _isCheckingDate = false;
 
   // Text controllers
   final _m1Controller = TextEditingController();
@@ -61,9 +57,6 @@ class _ChlorineControlRegistrationScreenState
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _filterFrom = DateTime(now.year, now.month, now.day);
-    _filterTo = now;
     _loadModules();
     _loadProducers();
   }
@@ -116,10 +109,7 @@ class _ChlorineControlRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) {
-          _selectedModuleId = modules.first.id;
-          _loadProductionDates(_filterFrom, _filterTo);
-        }
+        if (modules.length == 1) _selectedModuleId = modules.first.id;
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -168,15 +158,22 @@ class _ChlorineControlRegistrationScreenState
   // Date and Time Pickers
   // =====================================================
 
-  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _controlDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      locale: const Locale('es'),
+    );
+    if (picked == null || !mounted) return;
+    setState(() { _controlDate = picked; _hadProduction = false; });
     if (_selectedModuleId == null) return;
-    setState(() => _isLoadingDates = true);
-    try {
-      final groups = await _chlorineService.getProductionDateGroups(_selectedModuleId!, from, to);
-      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingDates = false);
-    }
+    setState(() => _isCheckingDate = true);
+    final hasProd = await _chlorineService.hasProductionOnDate(_selectedModuleId!, picked);
+    if (mounted) setState(() { _hadProduction = hasProd; _isCheckingDate = false; });
   }
 
   Future<void> _selectTime() async {
@@ -209,46 +206,47 @@ class _ChlorineControlRegistrationScreenState
     }
 
     if (_controlDate == null) {
-      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
+      AppSnackBar.show(context, message: 'Selecciona la fecha', type: SnackBarType.error);
       return;
+    }
+
+    final timeString =
+        '${_controlTime.hour.toString().padLeft(2, '0')}:${_controlTime.minute.toString().padLeft(2, '0')}';
+
+    final results = await Future.wait([
+      _chlorineService.hasControlOnDate(_selectedModuleId!, _controlDate!),
+      _chlorineService.hasControlOnDateTime(_selectedModuleId!, _controlDate!, timeString),
+    ]);
+    if (!mounted) return;
+    final hasOnDate = results[0];
+    final hasOnDateTime = results[1];
+
+    if (hasOnDate) {
+      final message = hasOnDateTime
+          ? '¡Atención! Ya existe un control registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(_controlDate!)} a las $timeString exactamente.\n\n¿Deseas registrar otro de todas formas?'
+          : 'Ya existe al menos un control de cloro para este módulo en esta fecha.\n\n¿Deseas registrar otro igualmente?';
+      final title = hasOnDateTime ? 'Misma fecha y hora exacta' : 'Ya hay un control este día';
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          content: Text(message, style: const TextStyle(fontSize: 16)),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
+          ],
+        ),
+      );
+      if (proceed != true || !mounted) return;
     }
 
     if (!await AppConfirmDialog.show(context)) return;
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      // Parse measurements
       final m1 = double.parse(_m1Controller.text.trim());
       final m2 = double.parse(_m2Controller.text.trim());
-
-      // Format time as "HH:mm"
-      final timeString =
-          '${_controlTime.hour.toString().padLeft(2, '0')}:${_controlTime.minute.toString().padLeft(2, '0')}';
-
-      // Check for duplicate record
-      final existingControl = await _chlorineService.getByModuleAndDateTime(
-        moduleId: _selectedModuleId!,
-        date: _controlDate!,
-        time: timeString,
-      );
-
-      if (existingControl != null) {
-        if (mounted) {
-          AppSnackBar.show(
-            context,
-            message:
-                'Ya existe un control para este módulo en esta fecha y hora',
-            type: SnackBarType.error,
-          );
-          setState(() {
-            _isSaving = false;
-          });
-        }
-        return;
-      }
 
       // Create request
       final request = CreateChlorineResidualControlRequest(
@@ -401,30 +399,67 @@ class _ChlorineControlRegistrationScreenState
                                 label: module.name,
                               ))
                           .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedModuleId = value;
-                          _controlDate = null;
-                          _productionDates = [];
-                        });
-                        if (value != null) _loadProductionDates(_filterFrom, _filterTo);
-                      },
+                      onChanged: (value) => setState(() {
+                        _selectedModuleId = value;
+                        _controlDate = null;
+                        _hadProduction = false;
+                      }),
                       isLoading: _isLoadingModules,
                     ),
 
-                    // Control date
                     if (_selectedModuleId != null) ...[
                       const SizedBox(height: 8),
-                      ProductionDateSelector(
-                        productionDates: _productionDates,
-                        isLoadingDates: _isLoadingDates,
-                        selectedDate: _controlDate,
-                        onDateSelected: (date) => setState(() => _controlDate = date),
-                        onFilterChanged: (from, to) {
-                          setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
-                          _loadProductionDates(from, to);
-                        },
+                      Text('Fecha del control', style: AppTextStyles.fieldLabel),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: _pickDate,
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                        child: Container(
+                          padding: context.responsivePadding,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.inputBorder),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today_outlined, size: 20, color: AppColors.primary),
+                              SizedBox(width: context.responsiveSpacing / 2),
+                              Expanded(
+                                child: Text(
+                                  _controlDate != null
+                                      ? AppDateUtils.formatDDMMYYYY(_controlDate!)
+                                      : 'Selecciona una fecha',
+                                  style: AppTextStyles.bodyText.copyWith(
+                                    color: _controlDate != null ? AppColors.textPrimary : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                            ],
+                          ),
+                        ),
                       ),
+                      if (_isCheckingDate) ...[
+                        const SizedBox(height: 8),
+                        const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+                      ] else if (_controlDate != null && _hadProduction) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                              const SizedBox(width: 6),
+                              Text('Día con producción registrada',
+                                style: AppTextStyles.captionText.copyWith(color: const Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
 
                     // Control time

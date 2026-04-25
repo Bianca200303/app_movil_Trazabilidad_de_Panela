@@ -167,40 +167,54 @@ class CleaningDisinfectionService {
     }
   }
 
-  /// Checks if a cleaning record already exists for module and date
-  ///
-  /// Used to prevent duplicate records before user starts filling the form
-  ///
-  /// Returns the existing record if found, null otherwise
-  Future<CleaningDisinfection?> getByModuleAndDate(
-    String moduleId,
-    DateTime date,
-  ) async {
+  Future<List<String>> getAreasCoveredOnDate(String moduleId, DateTime date) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final records = await _supabase
+          .from('cleaning_disinfections')
+          .select('id')
+          .eq('coop_module_id', moduleId)
+          .eq('cleaning_date', dateStr);
+      if ((records as List).isEmpty) return [];
+      final ids = records.map((r) => r['id'] as String).toList();
+      final items = await _supabase
+          .from('cleaning_disinfection_items')
+          .select('area_code')
+          .inFilter('cleaning_disinfection_id', ids);
+      final areas = (items as List).map((i) => i['area_code'] as String).toSet().toList();
+      return areas;
+    } catch (_) {
+      return [];
+    }
+  }
 
+  Future<bool> hasCleaningOnDate(String moduleId, DateTime date) async {
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final response = await _supabase
           .from('cleaning_disinfections')
-          .select('''
-            *,
-            module:coop_modules(name)
-          ''')
+          .select('id')
           .eq('coop_module_id', moduleId)
           .eq('cleaning_date', dateStr)
-          .maybeSingle();
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
-      if (response == null) return null;
-
-      // Extract joined data
-      final moduleName =
-          response['module'] != null ? response['module']['name'] as String : null;
-
-      return CleaningDisinfection.fromJson({
-        ...response,
-        'module_name': moduleName,
-      });
-    } catch (e) {
-      throw Exception('Error checking for existing record: $e');
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('production_batches')
+          .select('id, producers!inner(coop_module_id)')
+          .eq('producers.coop_module_id', moduleId)
+          .eq('process_date', dateStr)
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 

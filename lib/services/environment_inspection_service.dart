@@ -165,23 +165,33 @@ class EnvironmentInspectionService {
     }
   }
 
-  // Get inspection for a specific module and date (duplicate guard)
-  Future<EnvironmentInspection?> getInspectionByModuleAndDate(
-    String moduleId,
-    DateTime date,
-  ) async {
+  Future<bool> hasInspectionOnDate(String moduleId, DateTime date) async {
     try {
       final dateStr = date.toIso8601String().split('T')[0];
       final response = await _supabase
           .from('environment_inspections')
-          .select('*, environment_inspection_items(*)')
+          .select('id')
           .eq('coop_module_id', moduleId)
           .eq('inspection_date', dateStr)
-          .maybeSingle();
-      if (response == null) return null;
-      return EnvironmentInspection.fromJson(response);
-    } catch (e) {
-      throw Exception('Error al verificar inspección existente: $e');
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('production_batches')
+          .select('id, producers!inner(coop_module_id)')
+          .eq('producers.coop_module_id', moduleId)
+          .eq('process_date', dateStr)
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 

@@ -152,46 +152,52 @@ class ChlorineResidualControlService {
     }
   }
 
-  /// Checks if a control already exists for module, date, and time
-  ///
-  /// Used to prevent duplicates before user submits the form
-  ///
-  /// Returns the existing record if found, null otherwise
-  Future<ChlorineResidualControl?> getByModuleAndDateTime({
-    required String moduleId,
-    required DateTime date,
-    required String time,
-  }) async {
+  Future<bool> hasControlOnDate(String moduleId, DateTime date) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-
-      // Ensure time is in "HH:mm:ss" format
-      final timeStr = time.split(':').length == 3 ? time : '$time:00';
-
       final response = await _supabase
           .from('chlorine_residual_controls')
-          .select('''
-            *,
-            module:coop_modules(name)
-          ''')
+          .select('id')
+          .eq('coop_module_id', moduleId)
+          .eq('control_date', dateStr)
+          .eq('cooperative_id', AppConfig.current.id)
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> hasControlOnDateTime(String moduleId, DateTime date, String time) async {
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final timeStr = time.split(':').length == 3 ? time : '$time:00';
+      final response = await _supabase
+          .from('chlorine_residual_controls')
+          .select('id')
           .eq('coop_module_id', moduleId)
           .eq('control_date', dateStr)
           .eq('control_time', timeStr)
           .eq('cooperative_id', AppConfig.current.id)
-          .maybeSingle();
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
-      if (response == null) return null;
-
-      // Extract joined data
-      final moduleName =
-          response['module'] != null ? response['module']['name'] as String : null;
-
-      return ChlorineResidualControl.fromJson({
-        ...response,
-        'module_name': moduleName,
-      });
-    } catch (e) {
-      throw Exception('Error al verificar control existente: $e');
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('production_batches')
+          .select('id, producers!inner(coop_module_id)')
+          .eq('producers.coop_module_id', moduleId)
+          .eq('process_date', dateStr)
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 
