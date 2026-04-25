@@ -93,7 +93,7 @@ class _ModuleAndDateStepState extends State<ModuleAndDateStep> {
               const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
             else
               AppDropdown<String>(
-                label: 'Módulo',
+                label: null,
                 value: widget.selectedModuleId,
                 options: widget.availableModules
                     .map((m) => DropdownOption(value: m.id, label: m.name))

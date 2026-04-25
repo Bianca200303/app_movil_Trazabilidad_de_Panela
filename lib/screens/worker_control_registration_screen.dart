@@ -82,6 +82,7 @@ class _WorkerControlRegistrationScreenState
   // Workers del área actual
   List<WorkerEvaluation> _formWorkers = [];
   final _nameController = TextEditingController();
+  final _nameFocusNode = FocusNode();
   bool _uniformComplete = true;
   bool _noMakeup = true;
   bool _nailsShortClean = true;
@@ -108,6 +109,7 @@ class _WorkerControlRegistrationScreenState
     _scrollController.dispose();
     _formObsController.dispose();
     _nameController.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -161,26 +163,41 @@ class _WorkerControlRegistrationScreenState
     });
   }
 
-  void _nextStep() {
-    if (_selectedBatchId == null) {
-      AppSnackBar.show(context, message: 'Selecciona un lote de producción', type: SnackBarType.error);
-      return;
-    }
-    setState(() => _currentStep = 1);
+  void _scrollToTop() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) _scrollController.jumpTo(0);
     });
   }
 
+  void _nextStep() {
+    if (_currentStep == 0) {
+      if (_selectedBatchId == null) {
+        AppSnackBar.show(context, message: 'Selecciona un lote de producción', type: SnackBarType.error);
+        return;
+      }
+      setState(() => _currentStep = _areaEntries.isNotEmpty ? 3 : 1);
+    } else if (_currentStep == 1) {
+      if (_formArea == null) {
+        AppSnackBar.show(context, message: 'Selecciona el área de trabajo', type: SnackBarType.error);
+        return;
+      }
+      setState(() => _currentStep = 2);
+    } else if (_currentStep == 2) {
+      _saveAreaAndContinue();
+      return;
+    }
+    _scrollToTop();
+  }
+
   void _previousStep() {
     if (_currentStep == 0) {
       context.go(AppRoutes.controlFormsProduccion.path);
-    } else {
-      setState(() { _currentStep = 0; _editingIndex = null; });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) _scrollController.jumpTo(0);
-      });
+    } else if (_currentStep == 1) {
+      setState(() { _currentStep = 0; _editingIndex = null; _resetForm(); });
+    } else if (_currentStep == 2) {
+      setState(() => _currentStep = 1);
     }
+    _scrollToTop();
   }
 
   // ── Worker form helpers ───────────────────────────────────────────────────────
@@ -205,11 +222,10 @@ class _WorkerControlRegistrationScreenState
       _formArea = entry.workArea;
       _formObsController.text = entry.observations ?? '';
       _formWorkers = List.from(entry.workers);
+      _currentStep = 1;
       _resetTempWorker();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) _scrollController.jumpTo(999999);
-    });
+    _scrollToTop();
   }
 
   bool _addTempWorker() {
@@ -227,6 +243,7 @@ class _WorkerControlRegistrationScreenState
       ));
       _resetTempWorker();
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocusNode.requestFocus());
     return true;
   }
 
@@ -250,24 +267,18 @@ class _WorkerControlRegistrationScreenState
     return true;
   }
 
-  void _saveArea() async {
-    if (_formArea == null) {
-      AppSnackBar.show(context, message: 'Selecciona el área de trabajo', type: SnackBarType.error);
-      return;
-    }
+  Future<void> _saveAreaAndContinue() async {
     if (!await _checkPendingWorker()) return;
     if (_formWorkers.isEmpty) {
       AppSnackBar.show(context, message: 'Añade al menos un trabajador', type: SnackBarType.error);
       return;
     }
-
     final entry = _AreaEntry(
       existingId: _editingIndex != null ? _areaEntries[_editingIndex!].existingId : null,
       workArea: _formArea!,
       observations: _formObsController.text.trim().isEmpty ? null : _formObsController.text.trim(),
       workers: List.from(_formWorkers),
     );
-
     setState(() {
       if (_editingIndex != null) {
         _areaEntries[_editingIndex!] = entry;
@@ -276,10 +287,9 @@ class _WorkerControlRegistrationScreenState
       }
       _editingIndex = null;
       _resetForm();
+      _currentStep = 3;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
-    });
+    _scrollToTop();
   }
 
   // ── Submit ───────────────────────────────────────────────────────────────────
@@ -333,26 +343,87 @@ class _WorkerControlRegistrationScreenState
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: context.responsiveCardWidth),
-            child: _currentStep == 0 ? _buildStep0() : _buildStep1(),
+            child: switch (_currentStep) {
+              0 => _buildStep0(),
+              1 => _buildStep1(),
+              2 => _buildStep2(),
+              _ => _buildStep3(),
+            },
           ),
         ),
       ),
     );
   }
 
-  // ── Step 0 ────────────────────────────────────────────────────────────────────
+  // ── Shared: banner lote ───────────────────────────────────────────────────────
+
+  Widget _buildLoteBanner() {
+    final batch = _selectedBatch;
+    final producer = batch?['producers'] as Map<String, dynamic>?;
+    final processDateRaw = batch?['process_date'] as String?;
+    final processDate = processDateRaw != null
+        ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
+        : null;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text('LOTE DE PRODUCCIÓN',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  producer != null
+                      ? '${producer['first_name']} ${producer['last_name']}'
+                      : 'Lote seleccionado',
+                  style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
+                ),
+                if (processDate != null) ...[
+                  const SizedBox(height: 2),
+                  Text('Fecha: $processDate', style: AppTextStyles.captionText),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step 0: Seleccionar lote ──────────────────────────────────────────────────
 
   Widget _buildStep0() {
     return AppCard(
       padding: context.responsivePadding,
       child: FormGroup(
         children: [
-          AppBackButton(onPressed: _previousStep, isExpanded: true),
+          AppBackButton(onPressed: _previousStep, isExpanded: false),
           SizedBox(height: context.responsiveSpacing),
-          const AppTitle(title: 'Control de personal operario'),
-          const SizedBox(height: 8),
-          const SectionTitle(title: 'Seleccionar Lote de Producción'),
-          const SizedBox(height: 24),
+          const _StepIndicatorBar(currentStep: 0),
+          SizedBox(height: context.responsiveSpacing),
           HistorialPeriodFilter(
             initial: HistorialPeriodo.esteMes,
             onChanged: (from, to) { _from = from; _to = to; _loadBatches(); },
@@ -366,7 +437,7 @@ class _WorkerControlRegistrationScreenState
             _buildBatchList(),
           const SizedBox(height: 24),
           AppButton(
-            text: 'Continuar',
+            text: 'CONTINUAR',
             type: AppButtonType.primary,
             onPressed: _selectedBatchId != null ? _nextStep : null,
             isExpanded: true,
@@ -464,132 +535,47 @@ class _WorkerControlRegistrationScreenState
     );
   }
 
-  // ── Step 1 ────────────────────────────────────────────────────────────────────
+  // ── Step 1: Seleccionar área ──────────────────────────────────────────────────
 
   Widget _buildStep1() {
-    final batch = _selectedBatch;
-    final producer = batch?['producers'] as Map<String, dynamic>?;
-    final processDateRaw = batch?['process_date'] as String?;
-    final processDate = processDateRaw != null
-        ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
-        : null;
-
-    // Areas ya usadas (para deshabilitar en el selector cuando se agrega nueva)
     final usedAreas = _editingIndex != null
-        ? _areaEntries
-            .asMap()
-            .entries
+        ? _areaEntries.asMap().entries
             .where((e) => e.key != _editingIndex)
-            .map((e) => e.value.workArea)
-            .toSet()
+            .map((e) => e.value.workArea).toSet()
         : _areaEntries.map((e) => e.workArea).toSet();
 
     return AppCard(
       padding: context.responsivePadding,
       child: FormGroup(
         children: [
-          AppBackButton(onPressed: _previousStep, isExpanded: true),
+          AppBackButton(onPressed: _previousStep, isExpanded: false),
           SizedBox(height: context.responsiveSpacing),
-
-          // Banner lote fijo
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.inventory_2_outlined, size: 18, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        producer != null
-                            ? '${producer['first_name']} ${producer['last_name']}'
-                            : 'Lote seleccionado',
-                        style: AppTextStyles.fieldLabel.copyWith(color: AppColors.primary),
-                      ),
-                      if (processDate != null)
-                        Text(processDate, style: AppTextStyles.captionText),
-                    ],
+          const _StepIndicatorBar(currentStep: 1),
+          SizedBox(height: context.responsiveSpacing),
+          _buildLoteBanner(),
+          SizedBox(height: context.responsiveSpacing),
+          if (_editingIndex != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, size: 16, color: Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Editando: ${_areaEntries[_editingIndex!].workArea.displayName}',
+                        style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w600)),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Lista de áreas ya añadidas
-          if (_areaEntries.isNotEmpty) ...[
-            Text('Áreas evaluadas (${_areaEntries.length}):', style: AppTextStyles.fieldLabel),
-            const SizedBox(height: 8),
-            ..._areaEntries.asMap().entries.map((e) {
-              final idx = e.key;
-              final entry = e.value;
-              final isEditing = _editingIndex == idx;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isEditing
-                      ? AppColors.primary.withValues(alpha: 0.06)
-                      : Colors.green.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isEditing ? AppColors.primary : Colors.green.shade400,
-                    width: isEditing ? 1.5 : 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isEditing ? Icons.edit : Icons.check_circle,
-                      size: 18,
-                      color: isEditing ? AppColors.primary : Colors.green.shade600,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(entry.workArea.displayName,
-                              style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600)),
-                          Text('${entry.workers.length} trabajador${entry.workers.length != 1 ? 'es' : ''}',
-                              style: AppTextStyles.captionText),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _loadAreaIntoForm(entry, idx),
-                      child: Text(isEditing ? 'Editando...' : 'Editar',
-                          style: TextStyle(fontSize: 12, color: AppColors.primary)),
-                    ),
-                    if (!isEditing)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                        onPressed: () => setState(() => _areaEntries.removeAt(idx)),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                  ],
-                ),
-              );
-            }),
-            const Divider(height: 32),
-          ],
-
-          // Formulario de área
-          Text(
-            _editingIndex != null ? 'Editando área:' : 'Nueva área:',
-            style: AppTextStyles.sectionTitle,
-          ),
+          if (_editingIndex != null) SizedBox(height: context.responsiveSpacing),
+          Text('¿En qué área realizas el control?', style: AppTextStyles.sectionTitle),
           const SizedBox(height: 12),
-
           AppDropdown<WorkArea>(
             label: 'Área de Trabajo',
             value: _formArea,
@@ -599,27 +585,54 @@ class _WorkerControlRegistrationScreenState
                 .toList(),
             onChanged: (area) => setState(() => _formArea = area),
           ),
+          const SizedBox(height: 24),
+          AppButton(
+            text: 'CONTINUAR',
+            type: AppButtonType.primary,
+            onPressed: _formArea != null ? _nextStep : null,
+            isExpanded: true,
+          ),
+        ],
+      ),
+    );
+  }
 
-          const Divider(height: 32),
+  // ── Step 2: Añadir trabajadores ───────────────────────────────────────────────
 
-          // Workers del área
-          if (_formWorkers.isNotEmpty) ...[
-            Text('Trabajadores (${_formWorkers.length}):', style: AppTextStyles.fieldLabel),
-            const SizedBox(height: 8),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _formWorkers.length,
-              itemBuilder: (context, i) => WorkerEvaluationCard(
-                worker: _formWorkers[i],
-                onUpdate: (updated) => setState(() => _formWorkers[i] = updated),
-                onDelete: () => setState(() => _formWorkers.removeAt(i)),
-              ),
+  Widget _buildStep2() {
+    return AppCard(
+      padding: context.responsivePadding,
+      child: FormGroup(
+        children: [
+          AppBackButton(onPressed: _previousStep, isExpanded: false),
+          SizedBox(height: context.responsiveSpacing),
+          const _StepIndicatorBar(currentStep: 1),
+          SizedBox(height: context.responsiveSpacing),
+          _buildLoteBanner(),
+          SizedBox(height: context.responsiveSpacing),
+
+          // Área seleccionada
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
-            const Divider(height: 32),
-          ],
+            child: Row(
+              children: [
+                Icon(Icons.work_outline, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Área: ${_formArea?.displayName ?? ''}',
+                      style: AppTextStyles.fieldLabel.copyWith(color: AppColors.primary)),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: context.responsiveSpacing),
 
-          // Formulario trabajador temporal
+          // Formulario trabajador (lista + form juntos)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -630,6 +643,22 @@ class _WorkerControlRegistrationScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Lista de trabajadores ya añadidos (dentro del mismo contenedor)
+                if (_formWorkers.isNotEmpty) ...[
+                  Text('Trabajadores añadidos (${_formWorkers.length}):', style: AppTextStyles.fieldLabel),
+                  const SizedBox(height: 8),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _formWorkers.length,
+                    itemBuilder: (context, i) => WorkerEvaluationCard(
+                      worker: _formWorkers[i],
+                      onUpdate: (updated) => setState(() => _formWorkers[i] = updated),
+                      onDelete: () => setState(() => _formWorkers.removeAt(i)),
+                    ),
+                  ),
+                  const Divider(height: 24),
+                ],
                 Text(
                   _formWorkers.isEmpty ? 'Añadir primer trabajador:' : 'Añadir otro trabajador:',
                   style: AppTextStyles.sectionTitle,
@@ -639,6 +668,7 @@ class _WorkerControlRegistrationScreenState
                   label: 'Nombre del Trabajador',
                   controller: _nameController,
                   hintText: 'Ej: Juan García',
+                  focusNode: _nameFocusNode,
                 ),
                 const SizedBox(height: 16),
                 Text('Cumplimiento de Higiene y Seguridad:', style: AppTextStyles.fieldLabel),
@@ -672,35 +702,268 @@ class _WorkerControlRegistrationScreenState
             controller: _formObsController,
             maxLines: 2,
           ),
-
           const SizedBox(height: 16),
           AppButton(
-            text: _editingIndex != null ? 'GUARDAR CAMBIOS DE ÁREA' : 'AÑADIR ÁREA',
-            type: AppButtonType.secondary,
-            onPressed: _saveArea,
+            text: 'CONTINUAR',
+            type: AppButtonType.primary,
+            onPressed: _nextStep,
             isExpanded: true,
           ),
-
-          if (_areaEntries.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            AppButton(
-              text: _isSaving ? 'Guardando...' : 'REGISTRAR TODO',
-              type: AppButtonType.primary,
-              onPressed: _isSaving ? null : _submitAll,
-              isExpanded: true,
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _check(String label, bool value, ValueChanged<bool?> onChanged) =>
-      CheckboxListTile(
-        title: Text(label),
-        value: value,
-        onChanged: onChanged,
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-      );
+  // ── Step 3: Resumen ───────────────────────────────────────────────────────────
+
+  Widget _buildStep3() {
+    return AppCard(
+      padding: context.responsivePadding,
+      child: FormGroup(
+        children: [
+          const _StepIndicatorBar(currentStep: 2),
+          SizedBox(height: context.responsiveSpacing),
+          _buildLoteBanner(),
+          SizedBox(height: context.responsiveSpacing),
+
+          // Confirmación visual
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade400),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '¡Área guardada correctamente!',
+                    style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: context.responsiveSpacing),
+
+          Text('Áreas evaluadas (${_areaEntries.length}):', style: AppTextStyles.fieldLabel),
+          const SizedBox(height: 8),
+          ..._areaEntries.asMap().entries.map((e) {
+            final idx = e.key;
+            final entry = e.value;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade400),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.workArea.displayName,
+                            style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600)),
+                        Text('${entry.workers.length} trabajador${entry.workers.length != 1 ? 'es' : ''}',
+                            style: AppTextStyles.captionText),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _loadAreaIntoForm(entry, idx),
+                    child: Text('Editar', style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    onPressed: () => setState(() => _areaEntries.removeAt(idx)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() { _resetForm(); _currentStep = 1; });
+              _scrollToTop();
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('AÑADIR OTRA ÁREA'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              minimumSize: const Size(double.infinity, 52),
+              side: BorderSide(color: AppColors.primary, width: 1.5),
+              foregroundColor: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            text: _isSaving ? 'Guardando...' : 'REGISTRAR TODO',
+            type: AppButtonType.primary,
+            onPressed: _isSaving ? null : _submitAll,
+            isExpanded: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _check(String label, bool value, ValueChanged<bool?> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
+          const SizedBox(width: 8),
+          _YesNoButton(label: 'SI', selected: value, isYes: true, onTap: () => onChanged(true)),
+          const SizedBox(width: 6),
+          _YesNoButton(label: 'NO', selected: !value, isYes: false, onTap: () => onChanged(false)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepIndicatorBar extends StatelessWidget {
+  final int currentStep;
+
+  const _StepIndicatorBar({required this.currentStep});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StepCircle(index: 0, currentStep: currentStep, label: 'Lote'),
+        Expanded(child: _StepLine(done: currentStep > 0)),
+        _StepCircle(index: 1, currentStep: currentStep, label: 'Área'),
+        Expanded(child: _StepLine(done: currentStep > 1)),
+        _StepCircle(index: 2, currentStep: currentStep, label: 'Registro'),
+      ],
+    );
+  }
+}
+
+class _StepCircle extends StatelessWidget {
+  final int index;
+  final int currentStep;
+  final String label;
+
+  const _StepCircle({required this.index, required this.currentStep, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = currentStep > index;
+    final isActive = currentStep == index;
+    final bgColor = (isDone || isActive) ? AppColors.primary : Colors.grey.shade300;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+          child: Center(
+            child: isDone
+                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                : Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.grey.shade500,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+            color: isActive ? AppColors.primary : Colors.grey.shade500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepLine extends StatelessWidget {
+  final bool done;
+
+  const _StepLine({required this.done});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        height: 3,
+        decoration: BoxDecoration(
+          color: done ? AppColors.primary : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
+class _YesNoButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool isYes;
+  final VoidCallback onTap;
+
+  const _YesNoButton({
+    required this.label,
+    required this.selected,
+    required this.isYes,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isYes ? Colors.green.shade600 : Colors.red.shade600;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 52,
+        height: 36,
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected ? color : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : Colors.grey.shade400,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

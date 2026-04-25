@@ -24,8 +24,8 @@ class HistorialMainMenu extends ConsumerWidget {
     {'title': 'Productores registrados', 'icon': Icons.person, 'index': 0},
     {'title': 'Producción registrada', 'icon': Icons.shopping_bag, 'index': 1},
     {'title': 'Salidas registradas', 'icon': Icons.signpost, 'index': 2},
-    {'title': 'Formulario de control Módulo', 'icon': Icons.assignment_outlined, 'index': 3},
     {'title': 'Formulario de control Producción', 'icon': Icons.assignment_turned_in_outlined, 'index': 4},
+    {'title': 'Formulario de control Módulo', 'icon': Icons.assignment_outlined, 'index': 3},
   ];
 
   @override
@@ -58,7 +58,9 @@ class HistorialMainMenu extends ConsumerWidget {
             child: AppButton(
               text: option['title'] as String,
               icon: option['icon'] as IconData,
-              type: isEnabled ? AppButtonType.primary : AppButtonType.secondary,
+              type: (index == 3 || index == 4)
+                  ? AppButtonType.secondary
+                  : isEnabled ? AppButtonType.primary : AppButtonType.secondary,
               onPressed: isEnabled ? () => onOptionSelected(index) : null,
             ),
           ),

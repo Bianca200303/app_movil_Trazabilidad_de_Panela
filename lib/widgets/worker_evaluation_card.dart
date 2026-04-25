@@ -61,13 +61,62 @@ class WorkerEvaluationCard extends StatelessWidget {
   }
 
   Widget _buildEditToggle(String title, bool value, ValueChanged<bool> onChanged) {
-    return SwitchListTile(
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      value: value,
-      onChanged: onChanged,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      activeColor: Colors.green.shade700,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
+          const SizedBox(width: 8),
+          _YesNoButton(label: 'SI', selected: value, isYes: true, onTap: () => onChanged(true)),
+          const SizedBox(width: 6),
+          _YesNoButton(label: 'NO', selected: !value, isYes: false, onTap: () => onChanged(false)),
+        ],
+      ),
+    );
+  }
+}
+
+class _YesNoButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool isYes;
+  final VoidCallback onTap;
+
+  const _YesNoButton({
+    required this.label,
+    required this.selected,
+    required this.isYes,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isYes ? Colors.green.shade600 : Colors.red.shade600;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 52,
+        height: 36,
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected ? color : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : Colors.grey.shade400,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
