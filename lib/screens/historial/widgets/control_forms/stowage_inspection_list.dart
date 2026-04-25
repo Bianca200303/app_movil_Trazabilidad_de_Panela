@@ -3,273 +3,392 @@ import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
+import 'package:panela_sys/services/stowage_transport_inspection_service.dart';
 
-/// Lista de inspecciones de estiba y transporte.
-/// Muestra conformidad, guía de remisión, condición del vehículo, sacos y lotes inspeccionados.
-class StowageInspectionList extends StatelessWidget {
-  const StowageInspectionList({
-    required this.isLoading,
-    required this.error,
-    required this.data,
-    super.key,
-  });
+class StowageInspectionList extends StatefulWidget {
+  const StowageInspectionList({required this.service, super.key});
+  final StowageTransportInspectionService service;
 
-  final bool isLoading;
-  final String? error;
-  final List<Map<String, dynamic>> data;
+  @override
+  State<StowageInspectionList> createState() => _StowageInspectionListState();
+}
+
+class _StowageInspectionListState extends State<StowageInspectionList> {
+  late DateTime _from;
+  late DateTime _to;
+  bool _isLoading = false;
+  String? _error;
+  List<Map<String, dynamic>> _items = [];
+  final Set<String> _expanded = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final (from, to) = historialPeriodoRange(HistorialPeriodo.esteMes);
+    _from = from;
+    _to = to;
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final raw = await widget.service.getInspectionsWithExitDetails(from: _from, to: _to);
+      setState(() { _items = raw; _isLoading = false; });
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const HistorialLoadingWidget(
-        message: 'Cargando inspecciones...',
-      );
-    }
-
-    if (error != null) {
-      return HistorialErrorWidget(error: error!);
-    }
-
-    if (data.isEmpty) {
-      return const Center(
-        child: Text(
-          'No hay inspecciones registradas',
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: data.map((inspection) {
-        final isCompliant = inspection['is_compliant'] as bool;
-        final documentNumber = inspection['document_number'] as String?;
-        final exitItems = (inspection['exit_items'] as List?) ?? [];
-        final vehicleCondition = inspection['vehicle_condition'] as String;
-        final sackCleanCondition = inspection['sack_clean_condition'] as String;
-        final sackTiedCondition = inspection['sack_tied_condition'] as String;
-        final observations = inspection['observations'] as String?;
-
-        return Container(
-          margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-          padding: context.responsivePadding,
-          decoration: BoxDecoration(
-            color: isCompliant ? Colors.green[50] : Colors.orange[50],
-            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-            border: Border.all(
-              color: AppColors.inputBorder,
-              width: AppDimensions.inputBorderWidth,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HistorialPeriodFilter(
+          onChanged: (from, to) { _from = from; _to = to; _load(); },
+        ),
+        SizedBox(height: context.responsiveSpacing),
+        if (!_isLoading && _error == null)
+          Padding(
+            padding: EdgeInsets.only(bottom: context.responsiveSpacing / 2),
+            child: Text(
+              '${_items.length} inspección${_items.length != 1 ? 'es' : ''} encontrada${_items.length != 1 ? 's' : ''}',
+              style: AppTextStyles.captionText,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        if (_isLoading)
+          const HistorialLoadingWidget(message: 'Cargando inspecciones...')
+        else if (_error != null)
+          HistorialErrorWidget(error: _error!, onRetry: _load)
+        else if (_items.isEmpty)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(context.responsiveSpacing * 2),
+              child: Text(
+                'No hay inspecciones en este período.',
+                style: AppTextStyles.captionText,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        else
+          Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header: conformidad + fecha
-              Row(
+            children: _items.map((item) {
+              final id = item['id']?.toString() ?? '';
+              return _StowageCard(
+                data: item,
+                isExpanded: _expanded.contains(id),
+                onToggle: () => setState(() {
+                  _expanded.contains(id) ? _expanded.remove(id) : _expanded.add(id);
+                }),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Card ──────────────────────────────────────────────────────────────────────
+
+class _StowageCard extends StatelessWidget {
+  const _StowageCard({
+    required this.data,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final exitReg     = data['exit_registration'] as Map<String, dynamic>?;
+    final exitCode    = exitReg?['exit_code'] as String?;
+    final regUser     = data['registered_by_user'] as Map<String, dynamic>?;
+    final regName     = regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null;
+    final docNumber   = exitReg?['document_number'] as String?;
+    final exitItems   = (exitReg?['exit_items'] as List?) ?? [];
+    final date        = data['inspection_date'] as String?;
+    final carrierName = data['carrier_name'] as String? ?? '—';
+    final carrierRuc  = data['carrier_ruc']  as String?;
+    final carrierLic  = data['carrier_license'] as String?;
+    final vBrand      = data['vehicle_brand'] as String? ?? '—';
+    final vPlate      = data['vehicle_plate'] as String? ?? '—';
+    final vCond       = data['vehicle_condition'] as String?;
+    final isApto      = vCond == 'adequate';
+    final obs         = data['observations'] as String?;
+    final sackClean   = data['sack_clean_condition'] as String? ?? '—';
+    final sackTied    = data['sack_tied_condition']  as String? ?? '—';
+
+    final checkVehicle = <String, bool>{
+      'Llanta repuesto':   data['has_spare_tire']         == true,
+      'SOAT vigente':      data['has_valid_soat']          == true,
+      'Revisión técnica':  data['has_technical_review']    == true,
+      'Botiquín':          data['has_first_aid_kit']       == true,
+      'Extintor':          data['has_fire_extinguisher']   == true,
+      'GPS':               data['has_gps']                 == true,
+      'Útiles limpieza':   data['has_cleaning_supplies']   == true,
+    };
+    final checkLimpieza = <String, bool>{
+      'Piso limpio':       data['floors_clean']   == true,
+      'Paredes limpias':   data['walls_clean']    == true,
+      'Techo limpio':      data['ceilings_clean'] == true,
+      'Sin olores':        data['no_strange_odors'] == true,
+      'Toldo limpio':      data['tarp_clean']     == true,
+      'Pallets limpios':   data['pallets_clean']  == true,
+    };
+
+    final allChecks = {...checkVehicle, ...checkLimpieza};
+    final compliant = allChecks.values.where((v) => v).length;
+    final total = allChecks.length;
+
+    return GestureDetector(
+      onTap: onToggle,
+      child: Container(
+        margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: context.responsivePadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    isCompliant ? Icons.check_circle : Icons.warning,
-                    color: isCompliant ? AppColors.success : AppColors.warning,
-                    size: 20,
-                  ),
-                  SizedBox(width: context.responsiveSpacing / 2),
-                  Expanded(
-                    child: Text(
-                      isCompliant ? 'CONFORME' : 'NO CONFORME',
-                      style: AppTextStyles.fieldLabel.copyWith(
-                        color: isCompliant ? AppColors.success : AppColors.warning,
-                        fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Icon(
+                        isApto ? Icons.check_circle : Icons.warning,
+                        size: 16,
+                        color: isApto ? AppColors.success : AppColors.warning,
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          exitCode ?? '—',
+                          style: AppTextStyles.fieldLabel.copyWith(fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                      ),
+                      Text(
+                        date != null ? AppDateUtils.formatDDMMYYYY(DateTime.tryParse(date) ?? DateTime.now()) : '—',
+                        style: AppTextStyles.captionText,
+                      ),
+                      SizedBox(width: context.responsiveSpacing / 2),
+                      Icon(
+                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        size: 18, color: AppColors.textSecondary,
+                      ),
+                    ],
                   ),
+                  SizedBox(height: context.responsiveSpacing / 4),
                   Text(
-                    inspection['inspection_date'] as String,
-                    style: AppTextStyles.captionText,
+                    '$carrierName · $vPlate',
+                    style: AppTextStyles.captionText.copyWith(color: AppColors.textSecondary),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
+                  SizedBox(height: context.responsiveSpacing / 4),
+                  Row(children: [
+                    _Tag(
+                      label: isApto ? 'APTO' : 'NO APTO',
+                      color: isApto ? Colors.green[700]! : Colors.red[700]!,
+                    ),
+                    SizedBox(width: context.responsiveSpacing / 2),
+                    _Tag(
+                      label: '$compliant/$total checks',
+                      color: compliant == total ? Colors.green[700]! : AppColors.warning,
+                    ),
+                  ]),
                 ],
               ),
+            ),
 
-              SizedBox(height: context.responsiveSpacing / 2),
-
-              if (documentNumber != null && documentNumber.isNotEmpty)
-                HistorialInfoRow(label: 'Guía de Remisión:', value: documentNumber),
-
-              if (documentNumber != null && documentNumber.isNotEmpty)
-                SizedBox(height: context.responsiveSpacing / 2),
-
-              HistorialInfoRow(
-                  label: 'Condición del vehículo:', value: vehicleCondition),
-
-              // Condiciones de sacos
-              SizedBox(height: context.responsiveSpacing),
-              Container(
-                padding: EdgeInsets.all(context.responsiveSpacing / 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                  border: Border.all(
-                    color: AppColors.inputBorder.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
+            // Detalle expandible
+            if (isExpanded) ...[
+              Divider(height: 1, color: AppColors.inputBorder),
+              Padding(
+                padding: context.responsivePadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Condiciones de sacos:',
-                      style: AppTextStyles.fieldLabel.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: context.responsiveSpacing / 4),
-                    HistorialInfoRow(
-                        label: 'Limpieza:', value: sackCleanCondition),
-                    SizedBox(height: context.responsiveSpacing / 4),
-                    HistorialInfoRow(
-                        label: 'Amarrado:', value: sackTiedCondition),
-                  ],
-                ),
-              ),
-
-              // Lista de lotes inspeccionados
-              if (exitItems.isNotEmpty) ...[
-                SizedBox(height: context.responsiveSpacing),
-                Container(
-                  padding: EdgeInsets.all(context.responsiveSpacing / 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    border: Border.all(
-                      color: AppColors.inputBorder.withValues(alpha: 0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Lotes inspeccionados:',
-                        style: AppTextStyles.fieldLabel.copyWith(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: context.responsiveSpacing / 4),
-                      ...exitItems.map((item) {
-                        final batch =
-                            item['production_batch'] as Map<String, dynamic>?;
-                        final producer =
-                            batch?['producer'] as Map<String, dynamic>?;
-                        final producerName = producer != null
-                            ? '${producer['first_name']} ${producer['last_name']}'
-                            : 'N/A';
-
-                        final bagsCount = item['bags_count'] != null ? (item['bags_count'] as num).toDouble() : 0.0;
-                        final isAutoconsumo =
-                            item['is_autoconsumo'] as bool? ?? false;
-                        final quantityKg =
-                            (item['quantity_kg'] as num?)?.toDouble() ?? 0.0;
-                        final itemDoc =
-                            item['item_document_number'] as String?;
-
-                        return Padding(
-                          padding: EdgeInsets.only(
-                              bottom: context.responsiveSpacing / 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '• ',
-                                style:
-                                    AppTextStyles.bodyText.copyWith(fontSize: 12),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '$producerName - ${isAutoconsumo ? '${quantityKg.toStringAsFixed(2)} kg' : '$bagsCount ${bagsCount == 1 ? 'saco' : 'sacos'}'}',
-                                      style: AppTextStyles.bodyText.copyWith(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (itemDoc != null && itemDoc.isNotEmpty)
-                                      Text(
-                                        'Comp: $itemDoc',
-                                        style: AppTextStyles.captionText.copyWith(
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
+                    // Registrado por
+                    if (regName != null) ...[
+                      HistorialInfoRow(label: 'Registrado por:', value: regName),
+                      SizedBox(height: context.responsiveSpacing / 2),
                     ],
-                  ),
-                ),
-              ],
 
-              // Observaciones
-              if (observations != null && observations.isNotEmpty) ...[
-                SizedBox(height: context.responsiveSpacing),
-                Container(
-                  padding: EdgeInsets.all(context.responsiveSpacing / 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    border: Border.all(color: Colors.blue[200]!, width: 1),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
+                    // Transportista
+                    _SectionTitle('Transportista'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    HistorialInfoRow(label: 'Nombre:', value: carrierName),
+                    if (carrierRuc?.isNotEmpty == true) ...[
+                      SizedBox(height: context.responsiveSpacing / 4),
+                      HistorialInfoRow(label: 'RUC:', value: carrierRuc!),
+                    ],
+                    if (carrierLic?.isNotEmpty == true) ...[
+                      SizedBox(height: context.responsiveSpacing / 4),
+                      HistorialInfoRow(label: 'Licencia:', value: carrierLic!),
+                    ],
+                    SizedBox(height: context.responsiveSpacing),
+
+                    // Vehículo
+                    _SectionTitle('Vehículo'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    HistorialInfoRow(label: 'Marca / Placa:', value: '$vBrand · $vPlate'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.notes, size: 16, color: Colors.blue[700]),
-                          SizedBox(width: context.responsiveSpacing / 4),
+                          const SizedBox(
+                            width: 120,
+                            child: Text('Estado:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
                           Text(
-                            'Observaciones:',
-                            style: AppTextStyles.fieldLabel.copyWith(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue[900],
-                            ),
+                            isApto ? 'APTO' : 'NO APTO',
+                            style: TextStyle(fontSize: 13, color: isApto ? AppColors.success : AppColors.error, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
-                      SizedBox(height: context.responsiveSpacing / 4),
-                      Text(
-                        observations,
-                        style: AppTextStyles.bodyText.copyWith(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                    SizedBox(height: context.responsiveSpacing),
 
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                  label: 'Transportista:',
-                  value: inspection['carrier_name'] as String),
-              HistorialInfoRow(
-                  label: 'Vehículo:',
-                  value: inspection['vehicle_plate'] as String),
+                    // Checklist vehículo
+                    _SectionTitle('Checklist del vehículo'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    _ChecklistGrid(items: checkVehicle),
+                    SizedBox(height: context.responsiveSpacing),
+
+                    // Checklist limpieza
+                    _SectionTitle('Condiciones de limpieza'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    _ChecklistGrid(items: checkLimpieza),
+                    SizedBox(height: context.responsiveSpacing),
+
+                    // Sacos
+                    _SectionTitle('Condición de sacos'),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    HistorialInfoRow(label: 'Limpieza:', value: sackClean),
+                    SizedBox(height: context.responsiveSpacing / 4),
+                    HistorialInfoRow(label: 'Amarrado / cosido:', value: sackTied),
+
+                    // GR
+                    if (docNumber?.isNotEmpty == true) ...[
+                      SizedBox(height: context.responsiveSpacing),
+                      HistorialInfoRow(label: 'Guía de Remisión:', value: docNumber!),
+                    ],
+
+                    // Observaciones
+                    if (obs?.isNotEmpty == true) ...[
+                      SizedBox(height: context.responsiveSpacing),
+                      _SectionTitle('Observaciones'),
+                      SizedBox(height: context.responsiveSpacing / 4),
+                      Text(obs!, style: AppTextStyles.captionText),
+                    ],
+
+                    // Lotes
+                    if (exitItems.isNotEmpty) ...[
+                      SizedBox(height: context.responsiveSpacing),
+                      _SectionTitle('Lotes de campo (${exitItems.length})'),
+                      SizedBox(height: context.responsiveSpacing / 4),
+                      ...exitItems.map((item) {
+                        final pb = item['production_batch'] as Map<String, dynamic>?;
+                        final prod = pb?['producer'] as Map<String, dynamic>?;
+                        final prodName = prod != null ? '${prod['first_name']} ${prod['last_name']}' : null;
+                        final kg = item['quantity_kg'];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: context.responsiveSpacing / 4),
+                          child: Row(children: [
+                            const Icon(Icons.circle, size: 6, color: AppColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(
+                              '${prodName ?? '—'}${kg != null ? ' · $kg kg' : ''}',
+                              style: AppTextStyles.captionText,
+                            )),
+                          ]),
+                        );
+                      }),
+                    ],
+                  ],
+                ),
+              ),
             ],
-          ),
-        );
-      }).toList(),
+          ],
+        ),
+      ),
     );
   }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: AppTextStyles.fieldLabel.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
+  );
+}
+
+class _ChecklistGrid extends StatelessWidget {
+  const _ChecklistGrid({required this.items});
+  final Map<String, bool> items;
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: context.responsiveSpacing / 2,
+      runSpacing: context.responsiveSpacing / 4,
+      children: items.entries.map((e) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            e.value ? Icons.check_circle : Icons.cancel,
+            size: 14,
+            color: e.value ? AppColors.success : AppColors.error,
+          ),
+          const SizedBox(width: 4),
+          Text(e.key, style: AppTextStyles.captionText),
+        ],
+      )).toList(),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag({required this.label, required this.color});
+  final String label;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withValues(alpha: 0.4)),
+    ),
+    child: Text(label, style: AppTextStyles.captionText.copyWith(color: color, fontWeight: FontWeight.w600, fontSize: 10)),
+  );
 }

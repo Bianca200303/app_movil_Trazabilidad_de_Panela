@@ -87,7 +87,7 @@ class ResultsInputStep extends StatelessWidget {
         SizedBox(height: context.responsiveSpacing),
         AppTextField(
           controller: confitilloQuantityController,
-          label: 'Ingrese la cantidad de confitillo producido (kg)',
+          label: 'Ingrese la cantidad de confitillo producido (kg) (opcional)',
           keyboardType: TextInputType.number,
         ),
         SizedBox(height: context.responsiveSpacing),

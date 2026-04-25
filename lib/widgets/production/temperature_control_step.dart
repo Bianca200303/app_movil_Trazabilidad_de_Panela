@@ -31,13 +31,13 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
   @override
   void initState() {
     super.initState();
-    _controllers = widget.temperatures
+    final initial = widget.temperatures.isEmpty ? <double>[0.0] : widget.temperatures;
+    _controllers = initial
         .map((temp) => TextEditingController(
               text: temp == 0.0 ? '' : temp.toString(),
             ))
         .toList();
-    _focusNodes =
-        List.generate(widget.temperatures.length, (_) => FocusNode());
+    _focusNodes = List.generate(initial.length, (_) => FocusNode());
   }
 
   @override
@@ -154,11 +154,12 @@ class _TemperatureControlStepState extends State<TemperatureControlStep> {
   }
 
   void _notifyTemperaturesChanged() {
-    final temperatures = _controllers.map((controller) {
-      final text = controller.text.trim();
-      return text.isEmpty ? 0.0 : double.tryParse(text) ?? 0.0;
-    }).toList();
-    
+    final temperatures = _controllers
+        .map((c) => double.tryParse(c.text.trim().replaceAll(',', '.')))
+        .where((v) => v != null && v > 0)
+        .map((v) => v!)
+        .toList();
+
     widget.onTemperaturesChanged(temperatures);
   }
 }

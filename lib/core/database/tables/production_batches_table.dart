@@ -31,6 +31,9 @@ class ProductionBatches extends Table {
   RealColumn get longitude => real().nullable()();
   TextColumn get locationText => text().nullable()();
 
+  // Observaciones opcionales (capturadas en campo, editables en planta)
+  TextColumn get observations => text().nullable()();
+
   // Synchronization fields (MANDATORY for offline tables)
   /// Sync status: 0=pending, 1=synced, 2=modified
   IntColumn get syncStatus => integer().withDefault(const Constant(0))();

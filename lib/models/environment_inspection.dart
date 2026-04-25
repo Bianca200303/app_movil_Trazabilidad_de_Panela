@@ -1,3 +1,5 @@
+export 'package:panela_sys/models/production_date_group.dart';
+
 // Enum for inspection condition
 enum InspectionCondition {
   compliant,

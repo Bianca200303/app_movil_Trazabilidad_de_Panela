@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
 import 'package:panela_sys/services/production_batch_service.dart';
@@ -30,7 +31,7 @@ class ProductionSyncService {
     DebugLogger.info('ProductionSyncService', 'sync',
         'Iniciando sincronización de lotes de producción');
 
-    final pending = await _db.productionBatchesDao.getPending();
+    final pending = await _db.productionBatchesDao.getPending(AppConfig.current.id);
 
     DebugLogger.info('ProductionSyncService', 'sync',
         'Lotes de producción pendientes: ${pending.length}');
@@ -42,6 +43,12 @@ class ProductionSyncService {
     }
 
     for (final batch in pending) {
+      if (batch.cooperativeId != AppConfig.current.id) {
+        DebugLogger.warning('ProductionSyncService', 'sync',
+            'Skipping batch ${batch.id}: belongs to coop ${batch.cooperativeId}, current is ${AppConfig.current.id}');
+        continue;
+      }
+
       bool synced = false;
 
       try {
@@ -133,6 +140,8 @@ class ProductionSyncService {
           latitude: batch.latitude,
           longitude: batch.longitude,
           locationText: batch.locationText,
+          cooperativeId: batch.cooperativeId,
+          observations: batch.observations,
         );
 
         DebugLogger.debug('ProductionSyncService', 'sync',

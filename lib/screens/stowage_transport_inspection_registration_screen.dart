@@ -19,6 +19,7 @@ import 'package:panela_sys/services/stowage_transport_inspection_service.dart';
 import 'package:panela_sys/services/auth_service.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StowageTransportInspectionRegistrationScreen extends StatefulWidget {
   const StowageTransportInspectionRegistrationScreen({super.key});
@@ -31,16 +32,19 @@ class StowageTransportInspectionRegistrationScreen extends StatefulWidget {
 class _StowageTransportInspectionRegistrationScreenState
     extends State<StowageTransportInspectionRegistrationScreen> {
   final ExitRegistrationService _exitService = ExitRegistrationService();
+  final _supabase = Supabase.instance.client;
   final StowageTransportInspectionService _inspectionService =
       StowageTransportInspectionService();
   final AuthService _authService = AuthService();
 
   int _currentStep = 0;
+  final ScrollController _scrollController = ScrollController();
 
   // Loading states
   bool _isLoadingExits = false;
   bool _isSaving = false;
   List<Map<String, dynamic>> _availableExits = [];
+  Set<String> _inspectedExitIds = {};
 
   // Form controllers - Page 1: General data
   String? _selectedExitId;
@@ -78,25 +82,19 @@ class _StowageTransportInspectionRegistrationScreenState
   void initState() {
     super.initState();
     _inspectionDateController.text = AppDateUtils.getCurrentDDMMYYYY();
-    _inspectionDateController.addListener(_onDateChanged);
-    _loadExitsForDate(DateTime.now());
+    final now = DateTime.now();
+    _loadExitsForRange(DateTime(now.year, now.month, 1), now);
   }
 
-  void _onDateChanged() {
-    final dateText = _inspectionDateController.text.trim();
-    if (dateText.isNotEmpty && AppDateUtils.isValidDDMMYYYY(dateText)) {
-      final date = AppDateUtils.parseDDMMYYYY(dateText);
-      if (date != null) {
-        _loadExitsForDate(date);
-        // Clear selection when date changes
-        setState(() => _selectedExitId = null);
-      }
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
     }
   }
 
   @override
   void dispose() {
-    _inspectionDateController.removeListener(_onDateChanged);
+    _scrollController.dispose();
     _inspectionDateController.dispose();
     _carrierNameController.dispose();
     _carrierRucController.dispose();
@@ -107,12 +105,18 @@ class _StowageTransportInspectionRegistrationScreenState
     super.dispose();
   }
 
-  Future<void> _loadExitsForDate(DateTime date) async {
+  Future<void> _loadExitsForRange(DateTime start, DateTime end) async {
     setState(() => _isLoadingExits = true);
     try {
-      final exits = await _exitService.getExitRegistrationsWithItemsByDate(date);
+      final exits = await _exitService.getExitRegistrationsWithItemsByDateRange(start, end);
+      final inspected = await _supabase
+          .from('stowage_transport_inspections')
+          .select('exit_registration_id');
       setState(() {
         _availableExits = exits;
+        _inspectedExitIds = (inspected as List)
+            .map((e) => e['exit_registration_id'] as String)
+            .toSet();
         _isLoadingExits = false;
       });
     } catch (e) {
@@ -168,6 +172,7 @@ class _StowageTransportInspectionRegistrationScreenState
     setState(() {
       _currentStep++;
     });
+    _scrollToTop();
   }
 
   void _previousStep() {
@@ -178,6 +183,7 @@ class _StowageTransportInspectionRegistrationScreenState
         context.go(AppRoutes.controlFormsProduccion.path);
       }
     });
+    _scrollToTop();
   }
 
   Future<void> _submitForm() async {
@@ -271,6 +277,7 @@ class _StowageTransportInspectionRegistrationScreenState
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,
@@ -304,12 +311,26 @@ class _StowageTransportInspectionRegistrationScreenState
         return ExitAndDateStep(
           selectedExitId: _selectedExitId,
           availableExits: _availableExits,
+          inspectedExitIds: _inspectedExitIds,
           isLoadingExits: _isLoadingExits,
           inspectionDateController: _inspectionDateController,
+          onRangeChanged: (start, end) {
+            setState(() => _selectedExitId = null);
+            _loadExitsForRange(start, end);
+          },
           onExitChanged: (value) {
             setState(() => _selectedExitId = value);
+            if (value != null) {
+              final exitData = _availableExits.firstWhere((e) => e['id'] == value, orElse: () => {});
+              final raw = exitData['exit_date'];
+              if (raw != null) {
+                final date = DateTime.tryParse(raw.toString());
+                if (date != null) {
+                  _inspectionDateController.text = AppDateUtils.formatDDMMYYYY(date);
+                }
+              }
+            }
           },
-          onDateTap: () => _selectDate(context),
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );
@@ -413,12 +434,16 @@ class _StowageTransportInspectionRegistrationScreenState
         return ExitAndDateStep(
           selectedExitId: _selectedExitId,
           availableExits: _availableExits,
+          inspectedExitIds: _inspectedExitIds,
           isLoadingExits: _isLoadingExits,
           inspectionDateController: _inspectionDateController,
+          onRangeChanged: (start, end) {
+            setState(() => _selectedExitId = null);
+            _loadExitsForRange(start, end);
+          },
           onExitChanged: (value) {
             setState(() => _selectedExitId = value);
           },
-          onDateTap: () => _selectDate(context),
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );

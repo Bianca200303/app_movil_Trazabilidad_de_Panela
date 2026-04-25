@@ -82,7 +82,7 @@ class AppConfig {
     if (useLocalSupabase) {
       return _getLocalSupabaseUrl();
     }
-    return 'https://kyszyyxplwhhwtxmqizs.supabase.co';
+    return 'https://csrsgkkzxcuwsamloedb.supabase.co';
   }
 
   static String _getLocalSupabaseUrl() {
@@ -105,7 +105,7 @@ class AppConfig {
     return const String.fromEnvironment(
       'SUPABASE_ANON_KEY',
       defaultValue:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5c3p5eXhwbHdoaHd0eG1xaXpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTE1NjAsImV4cCI6MjA4ODc2NzU2MH0.Xd1q49uMKirU8NjxHAXfhGmFOQkTkofRrnrq23_r6fg',
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzcnNna2t6eGN1d3NhbWxvZWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzcxNzUsImV4cCI6MjA5MjYxMzE3NX0.Nl4CB6d_h30k9_DLXksjks7UV8llEamkBvgEzbsjtXU',
     );
   }
 }

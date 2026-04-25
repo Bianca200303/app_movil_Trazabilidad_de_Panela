@@ -6,15 +6,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class CleaningDisinfectionRegistrationScreen extends ConsumerStatefulWidget {
@@ -36,7 +38,11 @@ class _CleaningDisinfectionRegistrationScreenState
 
   // Step 0: Configuration
   String? _selectedModuleId;
-  DateTime _selectedDate = DateTime.now();
+  DateTime? _selectedDate;
+  List<ProductionDateGroup> _productionDates = [];
+  bool _isLoadingDates = false;
+  late DateTime _filterFrom;
+  late DateTime _filterTo;
   final Set<String> _selectedAreas = {};
   CleaningType? _cleaningType;
   final Set<CleaningProduct> _selectedProducts = {};
@@ -52,6 +58,7 @@ class _CleaningDisinfectionRegistrationScreenState
   List<CoopModule> _availableModules = [];
   bool _isLoadingModules = true;
   bool _isSaving = false;
+  final _scrollController = ScrollController();
 
   // Computed: Total steps (dynamic based on selected areas)
   int get _totalSteps => 1 + _selectedAreas.length + 1;
@@ -59,12 +66,16 @@ class _CleaningDisinfectionRegistrationScreenState
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _filterFrom = DateTime(now.year, now.month, now.day);
+    _filterTo = now;
     _loadModules();
     _initializeSelectedPoints();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _observationsController.dispose();
     super.dispose();
   }
@@ -82,7 +93,10 @@ class _CleaningDisinfectionRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) _selectedModuleId = modules.first.id;
+        if (modules.length == 1) {
+          _selectedModuleId = modules.first.id;
+          _loadProductionDates(_filterFrom, _filterTo);
+        }
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -110,10 +124,23 @@ class _CleaningDisinfectionRegistrationScreenState
   // Navigation
   // =====================================================
 
-  void _nextStep() {
+  Future<void> _nextStep() async {
     // Validate current step
-    if (_currentStep == 0 && !_validateConfigStep()) {
-      return;
+    if (_currentStep == 0) {
+      if (!_validateConfigStep()) return;
+      final existing = await _cleaningService.getByModuleAndDate(
+        _selectedModuleId!,
+        _selectedDate!,
+      );
+      if (!mounted) return;
+      if (existing != null) {
+        AppSnackBar.show(
+          context,
+          message: 'Ya existe un registro de limpieza para este módulo en esta fecha',
+          type: SnackBarType.error,
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -121,6 +148,7 @@ class _CleaningDisinfectionRegistrationScreenState
         _currentStep++;
       }
     });
+    _scrollController.jumpTo(0);
   }
 
   void _previousStep() {
@@ -130,16 +158,18 @@ class _CleaningDisinfectionRegistrationScreenState
       setState(() {
         _currentStep--;
       });
+      _scrollController.jumpTo(0);
     }
   }
 
   bool _validateConfigStep() {
     if (_selectedModuleId == null) {
-      AppSnackBar.show(
-        context,
-        message: 'Selecciona un módulo',
-        type: SnackBarType.error,
-      );
+      AppSnackBar.show(context, message: 'Selecciona un módulo', type: SnackBarType.error);
+      return false;
+    }
+
+    if (_selectedDate == null) {
+      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
       return false;
     }
 
@@ -198,22 +228,14 @@ class _CleaningDisinfectionRegistrationScreenState
     );
   }
 
-  // =====================================================
-  // Date Picker
-  // =====================================================
-
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+    if (_selectedModuleId == null) return;
+    setState(() => _isLoadingDates = true);
+    try {
+      final groups = await _cleaningService.getProductionDateGroups(_selectedModuleId!, from, to);
+      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingDates = false);
     }
   }
 
@@ -254,7 +276,7 @@ class _CleaningDisinfectionRegistrationScreenState
 
       final request = CreateCleaningDisinfectionRequest(
         coopModuleId: _selectedModuleId!,
-        cleaningDate: _selectedDate,
+        cleaningDate: _selectedDate!,
         cooperativeId: AppConfig.current.id,
         items: items,
         generalObservations: _observationsController.text.trim().isEmpty
@@ -304,6 +326,7 @@ class _CleaningDisinfectionRegistrationScreenState
       topLabelText: 'Limpieza y Desinfección',
       child: Center(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: context.responsiveHorizontalPadding.copyWith(
             top: context.responsivePadding.top,
             bottom: context.responsivePadding.bottom,
@@ -380,20 +403,28 @@ class _CleaningDisinfectionRegistrationScreenState
                 )
                 .toList(),
             onChanged: (moduleId) {
-              setState(() => _selectedModuleId = moduleId);
+              setState(() { _selectedModuleId = moduleId; _selectedDate = null; _productionDates = []; });
+              if (moduleId != null) _loadProductionDates(_filterFrom, _filterTo);
             },
           ),
 
-          // Date picker
-          AppTextField(
-            label: 'Fecha de limpieza',
-            controller: TextEditingController(
-              text: DateFormat('dd/MM/yyyy').format(_selectedDate),
+          // Production date selector
+          if (_selectedModuleId != null) ...[
+            const SizedBox(height: 8),
+            Text('Fecha de producción', style: AppTextStyles.fieldLabel),
+            const SizedBox(height: 8),
+            ProductionDateSelector(
+              productionDates: _productionDates,
+              isLoadingDates: _isLoadingDates,
+              selectedDate: _selectedDate,
+              blocksAlreadyRecorded: true,
+              onDateSelected: (date) => setState(() => _selectedDate = date),
+              onFilterChanged: (from, to) {
+                setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
+                _loadProductionDates(from, to);
+              },
             ),
-            readOnly: true,
-            onTap: _selectDate,
-            suffixIcon: const Icon(Icons.calendar_today),
-          ),
+          ],
 
           // Areas to clean (checkboxes)
           const SizedBox(height: 16),

@@ -11,13 +11,15 @@ class ProductionBatchesDao extends DatabaseAccessor<AppDatabase>
     with _$ProductionBatchesDaoMixin {
   ProductionBatchesDao(super.db);
 
-  /// Get all pending production batches (not synced yet)
-  Future<List<ProductionBatchLocal>> getPending() async {
+  /// Get all pending production batches (not synced yet) for a specific cooperative
+  Future<List<ProductionBatchLocal>> getPending(String cooperativeId) async {
     DebugLogger.debug('ProductionBatchesDao', 'getPending',
-        'Fetching pending production batches');
+        'Fetching pending production batches for coop: $cooperativeId');
 
     final pending = await (select(productionBatches)
-          ..where((b) => b.syncStatus.equals(SyncStatus.pending.value)))
+          ..where((b) =>
+              b.syncStatus.equals(SyncStatus.pending.value) &
+              b.cooperativeId.equals(cooperativeId)))
         .get();
 
     DebugLogger.info('ProductionBatchesDao', 'getPending',
@@ -26,11 +28,12 @@ class ProductionBatchesDao extends DatabaseAccessor<AppDatabase>
     return pending;
   }
 
-  /// Count pending production batches
-  Future<int> countPending() async {
+  /// Count pending production batches for a specific cooperative
+  Future<int> countPending(String cooperativeId) async {
     final count = await (selectOnly(productionBatches)
           ..addColumns([productionBatches.id.count()])
-          ..where(productionBatches.syncStatus.equals(SyncStatus.pending.value)))
+          ..where(productionBatches.syncStatus.equals(SyncStatus.pending.value) &
+              productionBatches.cooperativeId.equals(cooperativeId)))
         .getSingle();
 
     final pendingCount = count.read(productionBatches.id.count()) ?? 0;

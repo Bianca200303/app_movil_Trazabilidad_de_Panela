@@ -972,7 +972,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                           children: [
                             Checkbox(
                               value: _useDniAsPassword,
-                              activeColor: AppColors.primary,
+                              activeColor: const Color.fromARGB(255, 29, 114, 200),
                               onChanged: _isCreating
                                   ? null
                                   : (v) => setState(() {

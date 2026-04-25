@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
-import 'package:panela_sys/models/environment_inspection.dart';
-import 'package:panela_sys/models/cleaning_disinfection.dart';
-import 'package:panela_sys/models/stowage_transport_inspection.dart';
-import 'package:panela_sys/models/health_incident.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
@@ -25,7 +20,6 @@ import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/services/production_batch_service.dart';
 import 'package:panela_sys/services/stowage_transport_inspection_service.dart';
-import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
@@ -37,6 +31,7 @@ import 'widgets/historial_main_menu.dart';
 import 'widgets/historial_control_submenu.dart';
 import 'widgets/historial_exits_section.dart';
 import 'widgets/shared/historial_date_range.dart';
+import 'widgets/shared/historial_period_filter.dart';
 import 'widgets/shared/historial_error.dart';
 import 'widgets/shared/historial_loading.dart';
 import 'widgets/control_forms/environment_inspection_list.dart';
@@ -48,6 +43,7 @@ import 'widgets/control_forms/stowage_inspection_list.dart';
 import 'widgets/control_forms/product_returns_list.dart';
 import 'widgets/control_forms/worker_control_list.dart';
 import 'widgets/control_forms/maintenance_control_list.dart';
+import 'widgets/control_forms/production_batch_list.dart';
 
 /// Pantalla de historial.
 ///
@@ -72,12 +68,18 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       ExitRegistrationService();
   final StowageTransportInspectionService _inspectionService =
       StowageTransportInspectionService();
+  final ProductReturnService _productReturnService = ProductReturnService();
+  final WorkerControlService _workerControlService = WorkerControlService();
   final EnvironmentInspectionService _environmentInspectionService =
       EnvironmentInspectionService();
   final CleaningDisinfectionService _cleaningDisinfectionService =
       CleaningDisinfectionService();
   final ChlorineResidualControlService _chlorineControlService =
       ChlorineResidualControlService();
+  final PestControlService _pestControlService = PestControlService();
+  final HealthIncidentService _healthIncidentService = HealthIncidentService();
+  final EquipmentMaintenanceService _maintenanceService =
+      EquipmentMaintenanceService();
 
   // ── Estado de productores ────────────────────────────────────────────────────
   List<Map<String, dynamic>> _producersData = [];
@@ -94,51 +96,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
   bool _isLoadingExits = false;
   String? _exitsError;
 
-  // ── Estado de inspecciones de estiba ─────────────────────────────────────────
-  List<Map<String, dynamic>> _controlData = [];
-  bool _isLoadingControl = false;
-  String? _controlError;
-
-  // ── Estado de inspecciones de ambiente ───────────────────────────────────────
-  List<Map<String, dynamic>> _environmentInspectionsData = [];
-  bool _isLoadingEnvironmentInspections = false;
-  String? _environmentInspectionsError;
-
-  // ── Estado de limpieza y desinfección ────────────────────────────────────────
-  List<Map<String, dynamic>> _cleaningDisinfectionData = [];
-  bool _isLoadingCleaningDisinfection = false;
-  String? _cleaningDisinfectionError;
-
-  // ── Estado de control de cloro ───────────────────────────────────────────────
-  List<Map<String, dynamic>> _chlorineControlData = [];
-  bool _isLoadingChlorineControl = false;
-  String? _chlorineControlError;
-
-  // ── Estado de control de plagas ──────────────────────────────────────────────
-  List<Map<String, dynamic>> _pestControlData = [];
-  bool _isLoadingPestControl = false;
-  String? _pestControlError;
-
-  // ── Estado de incidentes de salud ────────────────────────────────────────────
-  List<Map<String, dynamic>> _healthIncidentsData = [];
-  bool _isLoadingHealthIncidents = false;
-  String? _healthIncidentsError;
-
-  // ── Estado de mantenimiento ──────────────────────────────────────────────────
-  List<Map<String, dynamic>> _maintenanceControlData = [];
-  bool _isLoadingMaintenanceControl = false;
-  String? _maintenanceControlError;
-
-  // ── Estado de control de personal ────────────────────────────────────────────
-  List<Map<String, dynamic>> _workerControlsData = [];
-  bool _isLoadingWorkerControls = false;
-  String? _workerControlsError;
-
-  // ── Estado de devoluciones ───────────────────────────────────────────────────
-  List<Map<String, dynamic>> _productReturnsData = [];
-  bool _isLoadingProductReturns = false;
-  String? _productReturnsError;
-
   // ── Navegación ───────────────────────────────────────────────────────────────
   /// Opción principal seleccionada (0-3). Null = menú principal.
   int? _selectedOption;
@@ -146,7 +103,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
   /// Subtipo de formulario de control seleccionado (0-8). Null = submenú.
   int? _selectedControlFormType;
 
-  // ── Filtro de fechas ─────────────────────────────────────────────────────────
+  // ── Rango de fechas para historial de salidas ─────────────────────────────
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -158,8 +115,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     final db = ref.read(appDatabaseProvider);
     _producerService = ProducerService(db: db);
     _productionBatchService = ProductionBatchService(db: db);
-
-    // Rango de fechas: último mes
     _endDate = DateTime.now();
     _startDate = DateTime(_endDate.year, _endDate.month - 1, _endDate.day);
   }
@@ -185,8 +140,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         await _loadProductionData();
       } else if (_selectedOption == 2) {
         await _loadExitsData();
-      } else if (_selectedOption == 3 || _selectedOption == 4) {
-        await _loadControlFormsData();
       }
 
       if (mounted) {
@@ -309,7 +262,10 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     try {
       final allowedDnis = await _getAllowedProducerDnis();
       var data =
-          await _exitRegistrationService.getExitRegistrationsForHistorial();
+          await _exitRegistrationService.getExitRegistrationsForHistorial(
+            from: _startDate,
+            to: _endDate,
+          );
       if (allowedDnis != null) {
         data = data.where((item) => allowedDnis.contains(item['dni_productor'])).toList();
       }
@@ -389,383 +345,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     }
   }
 
-  Future<void> _loadControlFormsData() async {
-    if (_isLoadingControl) return;
-    setState(() {
-      _isLoadingControl = true;
-      _controlError = null;
-    });
-    try {
-      final data = await _inspectionService.getInspectionsWithExitDetails();
-      final allowedDnis = await _getAllowedProducerDnis();
-      var formattedData = data.map((item) {
-        final inspection = StowageTransportInspection.fromJson(item);
-        final exitData = item['exit_registration'] as Map<String, dynamic>?;
-        return {
-          'id': inspection.id,
-          'producer_dni': exitData?['dni_productor'],
-          'document_number': exitData?['document_number'],
-          'total_kg': exitData?['total_kg'],
-          'exit_items': exitData?['exit_items'],
-          'inspection_date': inspection.formattedDate,
-          'carrier_name': inspection.carrierName,
-          'vehicle_plate': inspection.vehiclePlate,
-          'is_compliant': inspection.isFullyCompliant,
-          'vehicle_condition': inspection.vehicleCondition.displayName,
-          'sack_clean_condition': inspection.sackCleanCondition.displayName,
-          'sack_tied_condition': inspection.sackTiedCondition.displayName,
-          'observations': inspection.observations,
-        };
-      }).toList();
-      if (allowedDnis != null) {
-        formattedData = formattedData.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
-      }
-      setState(() {
-        _controlData = formattedData;
-        _isLoadingControl = false;
-      });
-    } catch (e) {
-      setState(() {
-        _controlError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingControl = false;
-      });
-    }
-  }
-
-  Future<void> _loadEnvironmentInspectionsData() async {
-    if (_isLoadingEnvironmentInspections) return;
-    setState(() {
-      _isLoadingEnvironmentInspections = true;
-      _environmentInspectionsError = null;
-    });
-    try {
-      final data =
-          await _environmentInspectionService.getInspectionsWithModuleDetails();
-      var formattedData = data.map((item) {
-        final inspection = EnvironmentInspection.fromJson(item);
-        final moduleData = item['coop_module'] as Map<String, dynamic>?;
-        return {
-          'id': inspection.id,
-          'coop_module_id': inspection.coopModuleId,
-          'module_name': moduleData?['name'] ?? 'Módulo desconocido',
-          'inspection_date': inspection.formattedDate,
-          'is_compliant': inspection.isFullyCompliant,
-          'total_items': inspection.totalItems,
-          'compliant_items': inspection.compliantItems,
-          'non_compliant_items': inspection.nonCompliantItems,
-          'compliance_percentage': inspection.compliancePercentage,
-          'area_compliance': inspection.getAreaComplianceMap(),
-          'non_compliant_by_area': inspection.getNonCompliantCountByArea(),
-        };
-      }).toList();
-      final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
-        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
-      }
-      setState(() {
-        _environmentInspectionsData = formattedData;
-        _isLoadingEnvironmentInspections = false;
-      });
-    } catch (e) {
-      setState(() {
-        _environmentInspectionsError =
-            e.toString().replaceFirst('Exception: ', '');
-        _isLoadingEnvironmentInspections = false;
-      });
-    }
-  }
-
-  Future<void> _loadCleaningDisinfectionData() async {
-    if (_isLoadingCleaningDisinfection) return;
-    setState(() {
-      _isLoadingCleaningDisinfection = true;
-      _cleaningDisinfectionError = null;
-    });
-    try {
-      final data = await _cleaningDisinfectionService.getCleaningRecords();
-      final formattedData = <Map<String, dynamic>>[];
-      for (final record in data) {
-        final items =
-            await _cleaningDisinfectionService.getItemsByRecordId(record.id);
-        final itemsByArea = <String, List<CleaningDisinfectionItem>>{};
-        for (final item in items) {
-          if (!itemsByArea.containsKey(item.areaCode)) {
-            itemsByArea[item.areaCode] = [];
-          }
-          itemsByArea[item.areaCode]!.add(item);
-        }
-        formattedData.add({
-          'id': record.id,
-          'coop_module_id': record.coopModuleId,
-          'cleaning_date': record.cleaningDate,
-          'formatted_date': AppDateUtils.formatDDMMYYYY(record.cleaningDate),
-          'module_name': record.moduleName ?? 'Módulo desconocido',
-          'has_observations': record.generalObservations != null &&
-              record.generalObservations!.isNotEmpty,
-          'general_observations': record.generalObservations,
-          'items_by_area': itemsByArea,
-          'total_items': items.length,
-        });
-      }
-      final currentUser = ref.read(currentUserProvider);
-      final filteredData = (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty)
-          ? formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList()
-          : formattedData;
-      setState(() {
-        _cleaningDisinfectionData = filteredData;
-        _isLoadingCleaningDisinfection = false;
-      });
-    } catch (e) {
-      setState(() {
-        _cleaningDisinfectionError =
-            e.toString().replaceFirst('Exception: ', '');
-        _isLoadingCleaningDisinfection = false;
-      });
-    }
-  }
-
-  Future<void> _loadChlorineControlData() async {
-    if (_isLoadingChlorineControl) return;
-    setState(() {
-      _isLoadingChlorineControl = true;
-      _chlorineControlError = null;
-    });
-    try {
-      final controls = await _chlorineControlService.getControls();
-      var formattedData = controls.map((control) {
-        return {
-          'id': control.id,
-          'coop_module_id': control.coopModuleId,
-          'module_name': control.moduleName ?? 'Módulo desconocido',
-          'control_date': control.formattedDate,
-          'control_time': control.formattedTime,
-          'control_datetime': control.formattedDateTime,
-          'm1': control.measurementPoint1,
-          'm2': control.measurementPoint2,
-          'is_m1_safe': control.isM1InSafeRange,
-          'is_m2_safe': control.isM2InSafeRange,
-          'both_safe': control.areBothInSafeRange,
-          'requires_action': control.requiresCorrectiveAction,
-          'safety_warning': control.safetyWarningMessage,
-          'corrective_actions': control.correctiveActions,
-          'observations': control.observations,
-          'responsible_person': control.responsiblePerson,
-        };
-      }).toList();
-      final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
-        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
-      }
-      setState(() {
-        _chlorineControlData = formattedData;
-        _isLoadingChlorineControl = false;
-      });
-    } catch (e) {
-      setState(() {
-        _chlorineControlError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingChlorineControl = false;
-      });
-    }
-  }
-
-  Future<void> _loadPestControlData() async {
-    if (_isLoadingPestControl) return;
-    setState(() {
-      _isLoadingPestControl = true;
-      _pestControlError = null;
-    });
-    try {
-      final pestControlService = PestControlService();
-      final controls = await pestControlService.getPestControls();
-      final formattedDataFutures = controls.map((control) async {
-        final baitRecords =
-            await pestControlService.getBaitRecordsByControlId(control.id);
-        final insectRecords =
-            await pestControlService.getInsectRecordsByControlId(control.id);
-        return {
-          'id': control.id,
-          'coop_module_id': control.coopModuleId,
-          'module_name': control.moduleName ?? 'Módulo desconocido',
-          'control_date': control.formattedDate,
-          'bait_records': baitRecords,
-          'insect_records': insectRecords,
-        };
-      }).toList();
-      var formattedData = await Future.wait(formattedDataFutures);
-      final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
-        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
-      }
-      setState(() {
-        _pestControlData = formattedData;
-        _isLoadingPestControl = false;
-      });
-    } catch (e) {
-      setState(() {
-        _pestControlError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingPestControl = false;
-      });
-    }
-  }
-
-  Future<void> _loadHealthIncidentsData() async {
-    if (_isLoadingHealthIncidents) return;
-    setState(() {
-      _isLoadingHealthIncidents = true;
-      _healthIncidentsError = null;
-    });
-    try {
-      final healthIncidentService = HealthIncidentService();
-      final data = await healthIncidentService.getIncidentsWithModuleDetails();
-      var formattedData = data.map((item) {
-        final incident = HealthIncident.fromJson(item);
-        final moduleData = item['coop_module'] as Map<String, dynamic>?;
-        return {
-          'id': incident.id,
-          'coop_module_id': incident.coopModuleId,
-          'module_name': moduleData?['name'] ?? 'Módulo desconocido',
-          'employee_name': incident.employeeName,
-          'registration_date': incident.formattedRegistrationDate,
-          'work_area': incident.workArea,
-          'symptoms_description': incident.symptomsDescription,
-          'actions_taken': incident.actionsDisplayText,
-          'return_date': incident.formattedReturnDate,
-          'certificate_presented': incident.certificatePresentedText,
-          'has_return_date': incident.returnDate != null,
-        };
-      }).toList();
-      final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
-        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
-      }
-      setState(() {
-        _healthIncidentsData = formattedData;
-        _isLoadingHealthIncidents = false;
-      });
-    } catch (e) {
-      setState(() {
-        _healthIncidentsError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingHealthIncidents = false;
-      });
-    }
-  }
-
-  Future<void> _loadMaintenanceControlData() async {
-    if (_isLoadingMaintenanceControl) return;
-    setState(() {
-      _isLoadingMaintenanceControl = true;
-      _maintenanceControlError = null;
-    });
-    try {
-      final maintenanceService = EquipmentMaintenanceService();
-      final records = await maintenanceService.getRecords(
-        fromDate: _startDate,
-        toDate: _endDate,
-      );
-      var formattedData = records.map((record) {
-        return {
-          'id': record.id,
-          'coop_module_id': record.coopModuleId,
-          'maintenance_date': record.formattedDate,
-          'equipment_name': record.equipmentName,
-          'maintenance_type': record.maintenanceTypeDisplayName,
-          'maintenance_type_code': record.maintenanceType.code,
-          'maintenance_cause': record.maintenanceCause,
-          'materials_used': record.materialsUsed,
-          'has_materials': record.hasMaterials,
-          'duration_hours': record.formattedDuration,
-          'responsible_person': record.responsiblePerson,
-          'module_name': record.moduleName ?? 'Módulo desconocido',
-        };
-      }).toList();
-      final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null && currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
-        formattedData = formattedData.where((item) => currentUser.moduleIds.contains(item['coop_module_id'])).toList();
-      }
-      setState(() {
-        _maintenanceControlData = formattedData;
-        _isLoadingMaintenanceControl = false;
-      });
-    } catch (e) {
-      setState(() {
-        _maintenanceControlError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingMaintenanceControl = false;
-      });
-    }
-  }
-
-Future<void> _loadWorkerControlsData() async {
-    if (_isLoadingWorkerControls) return;
-    setState(() {
-      _isLoadingWorkerControls = true;
-      _workerControlsError = null;
-    });
-    try {
-      final workerControlService = WorkerControlService();
-      final allowedDnis = await _getAllowedProducerDnis();
-      final rawData = await workerControlService.getWorkerControlsForHistorial(
-        AppConfig.current.id,
-      );
-      var formattedData = rawData.map((entry) {
-        final control = entry['control'] as WorkerControl;
-        return {
-          'id': control.id,
-          'producer_dni': entry['producer_dni'],
-          'work_area': control.workArea.displayName,
-          'work_area_code': control.workArea.code,
-          'production_batch_id': control.productionBatchId,
-          'compliance_count': control.complianceCount,
-          'total_criteria': control.totalCriteria,
-          'compliance_percentage': control.compliancePercentage,
-          'is_fully_compliant': control.isFullyCompliant,
-          'observations': control.observations,
-          'created_at': control.createdAt,
-          'formatted_date': AppDateUtils.formatDDMMYYYY(control.createdAt),
-          'workers': control.workersList,
-          // Fallback para registros antiguos sin items
-          'worker_name': control.displayNames,
-        };
-      }).toList();
-      if (allowedDnis != null) {
-        formattedData = formattedData.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
-      }
-      setState(() {
-        _workerControlsData = formattedData;
-        _isLoadingWorkerControls = false;
-      });
-    } catch (e) {
-      setState(() {
-        _workerControlsError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingWorkerControls = false;
-      });
-    }
-  }
-
-  Future<void> _loadProductReturnsData() async {
-    if (_isLoadingProductReturns) return;
-    setState(() {
-      _isLoadingProductReturns = true;
-      _productReturnsError = null;
-    });
-    try {
-      final productReturnService = ProductReturnService();
-      final allowedDnis = await _getAllowedProducerDnis();
-      var returns = await productReturnService.getReturnsHistory();
-      if (allowedDnis != null) {
-        returns = returns.where((item) => allowedDnis.contains(item['producer_dni'])).toList();
-      }
-      setState(() {
-        _productReturnsData = returns;
-        _isLoadingProductReturns = false;
-      });
-    } catch (e) {
-      setState(() {
-        _productReturnsError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingProductReturns = false;
-      });
-    }
-  }
-
   // ── Helpers de navegación ────────────────────────────────────────────────────
 
   String _getTitle() {
@@ -827,34 +406,20 @@ Future<void> _loadWorkerControlsData() async {
         _loadProductionData();
       case 2:
         _loadExitsData();
-      case 3:
-      case 4:
-        _loadControlFormsData();
     }
+  }
+
+  Set<String>? get _allowedModuleIds {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return null;
+    if (currentUser.hasModuleRestriction && currentUser.moduleIds.isNotEmpty) {
+      return currentUser.moduleIds.toSet();
+    }
+    return null;
   }
 
   void _onFormTypeSelected(int index) {
     setState(() => _selectedControlFormType = index);
-    switch (index) {
-      case 0:
-        _loadEnvironmentInspectionsData();
-      case 1:
-        _loadCleaningDisinfectionData();
-      case 2:
-        _loadChlorineControlData();
-      case 3:
-        _loadPestControlData();
-      case 4:
-        _loadHealthIncidentsData();
-      case 5:
-        _loadControlFormsData();
-      case 6:
-        _loadProductReturnsData();
-      case 7:
-        _loadWorkerControlsData();
-      case 8:
-        _loadMaintenanceControlData();
-    }
   }
 
   void _handleBack() {
@@ -862,7 +427,6 @@ Future<void> _loadWorkerControlsData() async {
       // Nivel 3 → Nivel 2
       setState(() {
         _selectedControlFormType = null;
-        _controlData = [];
       });
     } else if (_selectedOption != null) {
       // Nivel 2 → Nivel 1
@@ -1027,55 +591,9 @@ Future<void> _loadWorkerControlsData() async {
 
       // ── Producción ───────────────────────────────────────────────────────────
       case 1:
-        if (_isLoadingProduction) {
-          return const HistorialLoadingWidget();
-        }
-        if (_productionError != null) {
-          return HistorialErrorWidget(
-            error: _productionError!,
-            onRetry: _loadProductionData,
-          );
-        }
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            HistorialDateRangeMessage(
-                startDate: _startDate, endDate: _endDate),
-            SizedBox(height: context.responsiveSpacing),
-            HistorialMobileDataView(
-              data: _productionData,
-              headers: [
-                'Código de Lote',
-                'Productor',
-                'DNI Productor',
-                'Parcela',
-                'Fecha Cosecha',
-                'Fecha Proceso',
-                'Fecha Registro',
-                'Caña (kg)',
-                'Jugo (litros)',
-                'Panela Obtenida (kg)',
-                'Confitillo (kg)',
-                '% Extracción',
-                'Rendimiento (%)',
-              ],
-              keys: [
-                'codigo_lote',
-                'productor',
-                'dni_productor',
-                'parcela',
-                'fecha_cosecha',
-                'fecha_proceso',
-                'fecha_registro',
-                'cana_kg',
-                'jugo_litros',
-                'panela_kg',
-                'confitillo_kg',
-                'porcentaje_extraccion',
-                'eficiencia',
-              ],
-            ),
-          ],
+        return ProductionBatchList(
+          service: _productionBatchService,
+          getAllowedDnis: _getAllowedProducerDnis,
         );
 
       // ── Salidas ──────────────────────────────────────────────────────────────
@@ -1092,8 +610,13 @@ Future<void> _loadWorkerControlsData() async {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            HistorialDateRangeMessage(
-                startDate: _startDate, endDate: _endDate),
+            HistorialPeriodFilter(
+              initial: HistorialPeriodo.esteMes,
+              onChanged: (from, to) {
+                setState(() { _startDate = from; _endDate = to; });
+                _loadExitsData();
+              },
+            ),
             SizedBox(height: context.responsiveSpacing),
             HistorialExitsSection(
               exitsData: _exitsData,
@@ -1141,60 +664,43 @@ Future<void> _loadWorkerControlsData() async {
 
   /// Enrutador de contenido para cada tipo de formulario de control.
   Widget _buildControlFormContent() {
+    final moduleIds = _allowedModuleIds;
     switch (_selectedControlFormType) {
       case 0:
         return EnvironmentInspectionList(
-          isLoading: _isLoadingEnvironmentInspections,
-          error: _environmentInspectionsError,
-          data: _environmentInspectionsData,
+          service: _environmentInspectionService,
+          allowedModuleIds: moduleIds,
         );
       case 1:
         return CleaningDisinfectionList(
-          error: _cleaningDisinfectionError,
-          data: _cleaningDisinfectionData,
+          service: _cleaningDisinfectionService,
+          allowedModuleIds: moduleIds,
         );
       case 2:
         return ChlorineControlList(
-          isLoading: _isLoadingChlorineControl,
-          error: _chlorineControlError,
-          data: _chlorineControlData,
+          service: _chlorineControlService,
+          allowedModuleIds: moduleIds,
         );
       case 3:
         return PestControlList(
-          isLoading: _isLoadingPestControl,
-          error: _pestControlError,
-          data: _pestControlData,
-          onRetry: _loadPestControlData,
+          service: _pestControlService,
+          allowedModuleIds: moduleIds,
         );
       case 4:
         return HealthIncidentsList(
-          isLoading: _isLoadingHealthIncidents,
-          error: _healthIncidentsError,
-          data: _healthIncidentsData,
+          service: _healthIncidentService,
+          allowedModuleIds: moduleIds,
         );
       case 5:
-        return StowageInspectionList(
-          isLoading: _isLoadingControl,
-          error: _controlError,
-          data: _controlData,
-        );
+        return StowageInspectionList(service: _inspectionService);
       case 6:
-        return ProductReturnsList(
-          isLoading: _isLoadingProductReturns,
-          error: _productReturnsError,
-          data: _productReturnsData,
-        );
+        return ProductReturnsList(service: _productReturnService);
       case 7:
-        return WorkerControlList(
-          isLoading: _isLoadingWorkerControls,
-          error: _workerControlsError,
-          data: _workerControlsData,
-        );
+        return WorkerControlList(service: _workerControlService, getAllowedDnis: _getAllowedProducerDnis);
       case 8:
         return MaintenanceControlList(
-          isLoading: _isLoadingMaintenanceControl,
-          error: _maintenanceControlError,
-          data: _maintenanceControlData,
+          service: _maintenanceService,
+          allowedModuleIds: moduleIds,
         );
       default:
         // Formulario no implementado aún

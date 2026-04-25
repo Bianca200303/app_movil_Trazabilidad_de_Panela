@@ -3,6 +3,7 @@
 // =====================================================
 
 import 'package:panela_sys/models/cleaning_disinfection.dart';
+import 'package:panela_sys/models/production_date_group.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
@@ -277,6 +278,47 @@ class CleaningDisinfectionService {
       };
     } catch (e) {
       throw Exception('Error calculating statistics: $e');
+    }
+  }
+
+  Future<List<ProductionDateGroup>> getProductionDateGroups(
+    String moduleId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    try {
+      final fromStr = from.toIso8601String().split('T')[0];
+      final toStr = to.toIso8601String().split('T')[0];
+      final results = await Future.wait([
+        _supabase
+            .from('production_batches')
+            .select('process_date, panela_kg, producers!inner(coop_module_id)')
+            .eq('producers.coop_module_id', moduleId)
+            .gte('process_date', fromStr)
+            .lte('process_date', toStr),
+        _supabase
+            .from('cleaning_disinfections')
+            .select('cleaning_date')
+            .eq('coop_module_id', moduleId)
+            .gte('cleaning_date', fromStr)
+            .lte('cleaning_date', toStr),
+      ]);
+      final batchesByDate = <String, ({int count, double panela})>{};
+      for (final b in results[0] as List) {
+        final d = b['process_date'] as String;
+        final p = (b['panela_kg'] as num?)?.toDouble() ?? 0.0;
+        final c = batchesByDate[d];
+        batchesByDate[d] = c == null ? (count: 1, panela: p) : (count: c.count + 1, panela: c.panela + p);
+      }
+      final recorded = <String>{for (final r in results[1] as List) r['cleaning_date'] as String};
+      return (batchesByDate.entries.map((e) => ProductionDateGroup(
+        date: DateTime.parse(e.key),
+        batchCount: e.value.count,
+        totalPanelaKg: e.value.panela,
+        alreadyRecorded: recorded.contains(e.key),
+      )).toList()..sort((a, b) => b.date.compareTo(a.date)));
+    } catch (e) {
+      throw Exception('Error al cargar fechas de producción: $e');
     }
   }
 }

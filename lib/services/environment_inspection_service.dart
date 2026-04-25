@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
+import 'package:panela_sys/models/production_date_group.dart';
 
 class EnvironmentInspectionService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -130,9 +131,12 @@ class EnvironmentInspectionService {
   }
 
   // Get inspections with module details (for historial display)
-  Future<List<Map<String, dynamic>>> getInspectionsWithModuleDetails() async {
+  Future<List<Map<String, dynamic>>> getInspectionsWithModuleDetails({
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
     try {
-      final response = await _supabase
+      var query = _supabase
           .from('environment_inspections')
           .select('''
             *,
@@ -141,7 +145,16 @@ class EnvironmentInspectionService {
               name
             ),
             environment_inspection_items(*)
-          ''')
+          ''');
+
+      if (fromDate != null) {
+        query = query.gte('inspection_date', fromDate.toIso8601String().split('T')[0]);
+      }
+      if (toDate != null) {
+        query = query.lte('inspection_date', toDate.toIso8601String().split('T')[0]);
+      }
+
+      final response = await query
           .order('inspection_date', ascending: false)
           .order('created_at', ascending: false);
 
@@ -149,6 +162,78 @@ class EnvironmentInspectionService {
     } catch (e) {
       throw Exception(
           'Error al obtener inspecciones con detalles de módulo: $e');
+    }
+  }
+
+  // Get inspection for a specific module and date (duplicate guard)
+  Future<EnvironmentInspection?> getInspectionByModuleAndDate(
+    String moduleId,
+    DateTime date,
+  ) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('environment_inspections')
+          .select('*, environment_inspection_items(*)')
+          .eq('coop_module_id', moduleId)
+          .eq('inspection_date', dateStr)
+          .maybeSingle();
+      if (response == null) return null;
+      return EnvironmentInspection.fromJson(response);
+    } catch (e) {
+      throw Exception('Error al verificar inspección existente: $e');
+    }
+  }
+
+  // Production dates with batch summary for a module in a date range.
+  // Also marks which dates already have an inspection.
+  Future<List<ProductionDateGroup>> getProductionDateGroups(
+    String moduleId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    try {
+      final fromStr = from.toIso8601String().split('T')[0];
+      final toStr = to.toIso8601String().split('T')[0];
+
+      final results = await Future.wait([
+        _supabase
+            .from('production_batches')
+            .select('process_date, panela_kg, producers!inner(coop_module_id)')
+            .eq('producers.coop_module_id', moduleId)
+            .gte('process_date', fromStr)
+            .lte('process_date', toStr),
+        _supabase
+            .from('environment_inspections')
+            .select('inspection_date')
+            .eq('coop_module_id', moduleId)
+            .gte('inspection_date', fromStr)
+            .lte('inspection_date', toStr),
+      ]);
+
+      final batchesByDate = <String, ({int count, double panela})>{};
+      for (final batch in results[0] as List) {
+        final dateStr = batch['process_date'] as String;
+        final panela = (batch['panela_kg'] as num?)?.toDouble() ?? 0.0;
+        final current = batchesByDate[dateStr];
+        batchesByDate[dateStr] = current == null
+            ? (count: 1, panela: panela)
+            : (count: current.count + 1, panela: current.panela + panela);
+      }
+
+      final inspectedDates = <String>{
+        for (final i in results[1] as List) i['inspection_date'] as String,
+      };
+
+      return (batchesByDate.entries.map((e) => ProductionDateGroup(
+        date: DateTime.parse(e.key),
+        batchCount: e.value.count,
+        totalPanelaKg: e.value.panela,
+        alreadyRecorded: inspectedDates.contains(e.key),
+      )).toList()
+        ..sort((a, b) => b.date.compareTo(a.date)));
+    } catch (e) {
+      throw Exception('Error al cargar fechas de producción: $e');
     }
   }
 

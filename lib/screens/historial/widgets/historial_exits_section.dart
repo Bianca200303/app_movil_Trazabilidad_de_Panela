@@ -5,9 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 
-/// Sección de salidas registradas en el historial.
-/// Cada item muestra código de salida, fecha, productor, comprobante, cantidad y documento.
-class HistorialExitsSection extends StatelessWidget {
+class HistorialExitsSection extends StatefulWidget {
   const HistorialExitsSection({
     required this.exitsData,
     this.onAddGR,
@@ -15,203 +13,261 @@ class HistorialExitsSection extends StatelessWidget {
   });
 
   final List<Map<String, dynamic>> exitsData;
-
-  /// Callback invocado cuando el usuario quiere agregar un GR a una salida sin documento.
-  /// Recibe el ID del registro de salida (exit_registration_id).
   final Future<void> Function(String exitRegistrationId)? onAddGR;
+
+  @override
+  State<HistorialExitsSection> createState() => _HistorialExitsSectionState();
+}
+
+class _HistorialExitsSectionState extends State<HistorialExitsSection> {
+  late List<bool> _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = List.filled(widget.exitsData.length, false);
+  }
+
+  @override
+  void didUpdateWidget(HistorialExitsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.exitsData.length != oldWidget.exitsData.length) {
+      _expanded = List.filled(widget.exitsData.length, false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: exitsData.map((item) {
-        final isAutoconsumo = item['is_autoconsumo'] == true;
+      children: List.generate(widget.exitsData.length, (i) {
+        return _buildCard(context, i);
+      }),
+    );
+  }
 
-        // Formato limpio de cantidad (sin decimales innecesarios)
-        final double cantidad = (item['cantidad_mostrada'] is num)
-            ? (item['cantidad_mostrada'] as num).toDouble()
-            : double.tryParse(item['cantidad_mostrada'].toString()) ?? 0.0;
+  Widget _buildCard(BuildContext context, int index) {
+    final item = widget.exitsData[index];
+    final isExpanded = _expanded[index];
+    final isAutoconsumo = item['is_autoconsumo'] == true;
 
-        final String cantidadStr = cantidad % 1 == 0
-            ? cantidad.toInt().toString()
-            : cantidad.toString();
+    final double cantidad = (item['cantidad_mostrada'] is num)
+        ? (item['cantidad_mostrada'] as num).toDouble()
+        : double.tryParse(item['cantidad_mostrada'].toString()) ?? 0.0;
 
-        final String unidadOriginal = item['unidad'].toString().toLowerCase();
-        String unidadFinal = unidadOriginal;
+    final String cantidadStr =
+        cantidad % 1 == 0 ? cantidad.toInt().toString() : cantidad.toString();
 
-        // Pluralización de "saco"
-        if (unidadOriginal.contains('saco')) {
-          unidadFinal = (cantidad == 1.0) ? 'saco' : 'sacos';
-        }
+    final String unidadOriginal = item['unidad'].toString().toLowerCase();
+    String unidadFinal = unidadOriginal;
+    if (unidadOriginal.contains('saco')) {
+      unidadFinal = cantidad == 1.0 ? 'saco' : 'sacos';
+    }
 
-        // --- NUEVA LÓGICA DE CONVERSIÓN VISUAL ---
-        // Si es autoconsumo, ya está en kg. Si son sacos, multiplicamos por 50.
-        final double equivalenteKg = isAutoconsumo ? cantidad : (cantidad * 50);
+    final double equivalenteKg =
+        isAutoconsumo ? cantidad : cantidad * 50;
+    final String textoEquivalencia = isAutoconsumo
+        ? 'Equivale a: $cantidadStr kg'
+        : 'Equivale a: ${equivalenteKg.toStringAsFixed(1)} kg';
 
-        // Texto que mostraremos abajo
-        final String textoEquivalencia = isAutoconsumo
-            ? 'Equivale a: $cantidadStr kg'
-            : 'Equivale a: ${equivalenteKg.toStringAsFixed(1)} kg';
+    final loteProcesoRaw = item['lote_fecha_proceso']?.toString() ?? '';
+    String loteProcesoDiaMes = loteProcesoRaw;
+    if (loteProcesoRaw.length == 10) {
+      final parts = loteProcesoRaw.split('-');
+      if (parts.length == 3) {
+        loteProcesoDiaMes = '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    }
 
-        // Fecha proceso del lote (viene como String 'YYYY-MM-DD')
-        final loteProcesoRaw = item['lote_fecha_proceso']?.toString() ?? '';
-        String loteProcesoDiaMes = loteProcesoRaw;
-        if (loteProcesoRaw.length == 10) {
-          final parts = loteProcesoRaw.split('-');
-          if (parts.length == 3) {
-            loteProcesoDiaMes = '${parts[2]}/${parts[1]}/${parts[0]}';
-          }
-        }
+    final loteKg = item['lote_panela_kg'];
+    final loteKgStr =
+        loteKg != null ? '${(loteKg as num).toStringAsFixed(0)} kg' : 'N/A';
 
-        final loteKg = item['lote_panela_kg'];
-        final loteKgStr = loteKg != null
-            ? '${(loteKg as num).toStringAsFixed(0)} kg'
-            : 'N/A';
-
-        return Container(
-          margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-          padding: context.responsivePadding,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-            border: Border.all(
-              color: AppColors.inputBorder,
-              width: AppDimensions.inputBorderWidth,
+    return Container(
+      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        border: Border.all(
+          color: AppColors.inputBorder,
+          width: AppDimensions.inputBorderWidth,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Header (siempre visible) ──────────────────────────────
+          InkWell(
+            onTap: () => setState(() => _expanded[index] = !isExpanded),
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(AppDimensions.radiusMedium),
+              bottom: isExpanded
+                  ? Radius.zero
+                  : const Radius.circular(AppDimensions.radiusMedium),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── DATOS DEL REGISTRO DE SALIDA ──────────────────────────
-              HistorialInfoRow(
-                label: 'Código salida:',
-                value: item['codigo_salida'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Fecha salida:',
-                value: item['fecha_salida'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Destino:',
-                value: item['destino'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Documento salida:',
-                value: item['documento'].toString(),
-              ),
-              if (item['documento'].toString() == 'N/A' && onAddGR != null)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () =>
-                        onAddGR!(item['exit_registration_id'].toString()),
-                    icon: const Icon(Icons.add_circle_outline, size: 16),
-                    label: const Text('Agregar GR'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-
-              SizedBox(height: context.responsiveSpacing / 2),
-              const Divider(color: AppColors.inputBorder),
-              SizedBox(height: context.responsiveSpacing / 2),
-
-              // ── DATOS DEL ÍTEM ENVIADO ─────────────────────────────────
-              HistorialInfoRow(
-                label: 'Cantidad enviada:',
-                value: '$cantidadStr $unidadFinal',
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Comprobante ítem:',
-                value: (item['item_document_number'] ?? 'No especificado')
-                    .toString(),
-              ),
-
-              SizedBox(height: context.responsiveSpacing / 2),
-              const Divider(color: AppColors.inputBorder),
-              SizedBox(height: context.responsiveSpacing / 2),
-
-              // ── DATOS DEL LOTE DE PRODUCCIÓN ──────────────────────────
-              HistorialInfoRow(
-                label: 'Código lote:',
-                value: item['lote_codigo'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Fecha proceso lote:',
-                value: loteProcesoDiaMes,
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Panela total lote:',
-                value: loteKgStr,
-              ),
-
-              SizedBox(height: context.responsiveSpacing / 2),
-              const Divider(color: AppColors.inputBorder),
-              SizedBox(height: context.responsiveSpacing / 2),
-
-              // ── DATOS DEL PRODUCTOR ────────────────────────────────────
-              HistorialInfoRow(
-                label: 'Productor:',
-                value: item['productor'].toString(),
-              ),
-              SizedBox(height: context.responsiveSpacing / 2),
-              HistorialInfoRow(
-                label: 'Módulo:',
-                value: item['modulo'].toString(),
-              ),
-
-              // Badge AUTOCONSUMO
-              if (isAutoconsumo) ...[
-                SizedBox(height: context.responsiveSpacing / 2),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'AUTOCONSUMO',
-                    style: AppTextStyles.bodyText.copyWith(
-                      color: const Color(0xFF2E7D32),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-
-              // ── FOOTER: EQUIVALENCIA ───────────────────────────────────
-              SizedBox(height: context.responsiveSpacing / 2),
-              const Divider(color: AppColors.inputBorder),
-              SizedBox(height: context.responsiveSpacing / 4),
-              Row(
+            child: Padding(
+              padding: context.responsivePadding,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.scale_outlined,
-                    size: 16,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      textoEquivalencia,
-                      style: AppTextStyles.captionText.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        HistorialInfoRow(
+                          label: 'Productor:',
+                          value: item['productor'].toString(),
+                        ),
+                        SizedBox(height: context.responsiveSpacing / 2),
+                        HistorialInfoRow(
+                          label: 'Código salida:',
+                          value: item['codigo_salida'].toString(),
+                        ),
+                        SizedBox(height: context.responsiveSpacing / 2),
+                        HistorialInfoRow(
+                          label: 'Fecha salida:',
+                          value: item['fecha_salida'].toString(),
+                        ),
+                        SizedBox(height: context.responsiveSpacing / 2),
+                        HistorialInfoRow(
+                          label: 'Cantidad:',
+                          value: '$cantidadStr $unidadFinal',
+                        ),
+                      ],
                     ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.primary,
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        );
-      }).toList(),
+
+          // ── Detalles desplegables ─────────────────────────────────
+          if (isExpanded)
+            Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: AppColors.inputBorder),
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(AppDimensions.radiusMedium),
+                ),
+              ),
+              padding: context.responsivePadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Registro de salida
+                  HistorialInfoRow(
+                    label: 'Destino:',
+                    value: item['destino'].toString(),
+                  ),
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  HistorialInfoRow(
+                    label: 'Documento salida:',
+                    value: item['documento'].toString(),
+                  ),
+                  if (item['documento'].toString() == 'N/A' &&
+                      widget.onAddGR != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => widget.onAddGR!(
+                            item['exit_registration_id'].toString()),
+                        icon: const Icon(Icons.add_circle_outline, size: 16),
+                        label: const Text('Agregar GR'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 4),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  const Divider(color: AppColors.inputBorder),
+                  SizedBox(height: context.responsiveSpacing / 2),
+
+                  // Ítem enviado
+                  HistorialInfoRow(
+                    label: 'Comprobante ítem:',
+                    value: (item['item_document_number'] ?? 'No especificado')
+                        .toString(),
+                  ),
+
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  const Divider(color: AppColors.inputBorder),
+                  SizedBox(height: context.responsiveSpacing / 2),
+
+                  // Lote de producción
+                  HistorialInfoRow(
+                    label: 'Código lote:',
+                    value: item['lote_codigo'].toString(),
+                  ),
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  HistorialInfoRow(
+                    label: 'Fecha proceso lote:',
+                    value: loteProcesoDiaMes,
+                  ),
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  HistorialInfoRow(
+                    label: 'Panela total lote:',
+                    value: loteKgStr,
+                  ),
+
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  const Divider(color: AppColors.inputBorder),
+                  SizedBox(height: context.responsiveSpacing / 2),
+
+                  // Módulo + autoconsumo badge
+                  HistorialInfoRow(
+                    label: 'Módulo:',
+                    value: item['modulo'].toString(),
+                  ),
+                  if (isAutoconsumo) ...[
+                    SizedBox(height: context.responsiveSpacing / 2),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'AUTOCONSUMO',
+                        style: AppTextStyles.bodyText.copyWith(
+                          color: const Color(0xFF2E7D32),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // Footer equivalencia
+                  SizedBox(height: context.responsiveSpacing / 2),
+                  const Divider(color: AppColors.inputBorder),
+                  SizedBox(height: context.responsiveSpacing / 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.scale_outlined,
+                          size: 16, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          textoEquivalencia,
+                          style: AppTextStyles.captionText.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -236,12 +292,7 @@ class HistorialMobileDataView extends StatelessWidget {
   final List<String> headers;
   final List<String> keys;
 
-  /// Callback invocado al presionar el ícono de edición.
-  /// Recibe el mapa completo del item seleccionado.
   final void Function(Map<String, dynamic> item)? onEdit;
-
-  /// Widget adicional renderizado al pie de cada tarjeta.
-  /// Recibe el mapa completo del item.
   final Widget Function(Map<String, dynamic> item)? footerBuilder;
 
   @override
@@ -259,9 +310,7 @@ class HistorialMobileDataView extends StatelessWidget {
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
             border: Border.all(
-              color: isPending
-                  ? const Color(0xFFFF9800)
-                  : AppColors.inputBorder,
+              color: isPending ? const Color(0xFFFF9800) : AppColors.inputBorder,
               width: isPending ? 2 : AppDimensions.inputBorderWidth,
             ),
           ),
@@ -269,16 +318,12 @@ class HistorialMobileDataView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Badge "Por Sincronizar" + botón de edición
               if (isPending || onEdit != null) ...[
                 Row(
                   children: [
                     if (isPending) ...[
-                      const Icon(
-                        Icons.sync_problem,
-                        size: 16,
-                        color: Color(0xFFFF9800),
-                      ),
+                      const Icon(Icons.sync_problem,
+                          size: 16, color: Color(0xFFFF9800)),
                       SizedBox(width: context.responsiveSpacing / 4),
                       Text(
                         'Por Sincronizar',
@@ -296,21 +341,17 @@ class HistorialMobileDataView extends StatelessWidget {
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(
-                                AppDimensions.radiusSmall),
+                            borderRadius:
+                                BorderRadius.circular(AppDimensions.radiusSmall),
                           ),
-                          child: const Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
+                          child: const Icon(Icons.edit_outlined,
+                              size: 18, color: AppColors.primary),
                         ),
                       ),
                   ],
                 ),
                 SizedBox(height: context.responsiveSpacing / 2),
               ],
-
               ...List.generate(headers.length, (index) {
                 return Padding(
                   padding: EdgeInsets.only(
@@ -324,8 +365,6 @@ class HistorialMobileDataView extends StatelessWidget {
                   ),
                 );
               }),
-
-              // Footer adicional (ej. lista de parcelas)
               if (footerBuilder != null) footerBuilder!(item),
             ],
           ),

@@ -5,8 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
+import 'package:panela_sys/core/theme/app_dimensions.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/product_return.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
@@ -26,11 +31,13 @@ class _ComplaintsReturnsRegistrationScreenState
   // ==================== SERVICES ====================
   final _productReturnService = ProductReturnService();
 
-  // ==================== PRODUCTION DATE & BATCHES ====================
-  DateTime _selectedProductionDate = DateTime.now();
-  final _productionDateController = TextEditingController();
+  // ==================== BATCH SEARCH ====================
+  late DateTime _from;
+  late DateTime _to;
   bool _isLoadingBatches = false;
+  bool _searched = false;
   String? _selectedBatchId;
+  Map<String, dynamic>? _selectedBatch;
   List<Map<String, dynamic>> _availableBatches = [];
 
 
@@ -54,16 +61,14 @@ class _ComplaintsReturnsRegistrationScreenState
   @override
   void initState() {
     super.initState();
-    _productionDateController.text =
-        DateFormat('dd/MM/yyyy').format(_selectedProductionDate);
-    _returnDateController.text =
-        DateFormat('dd/MM/yyyy').format(_returnDate);
-    _loadBatchesForDate();
+    final now = DateTime.now();
+    _from = DateTime(now.year, now.month, 1);
+    _to   = now;
+    _returnDateController.text = DateFormat('dd/MM/yyyy').format(_returnDate);
   }
 
   @override
   void dispose() {
-    _productionDateController.dispose();
     _returnDateController.dispose();
     _clientNameController.dispose();
     _quantitySacksController.dispose();
@@ -73,7 +78,7 @@ class _ComplaintsReturnsRegistrationScreenState
     super.dispose();
   }
 
-  // ==================== BATCH LOADING ====================
+  // ==================== BATCH SEARCH ====================
 
   List<String>? get _moduleIds {
     final user = ref.read(currentUserProvider);
@@ -81,51 +86,18 @@ class _ComplaintsReturnsRegistrationScreenState
     return user.moduleIds.isEmpty ? null : user.moduleIds;
   }
 
-  Future<void> _loadBatchesForDate() async {
-    setState(() => _isLoadingBatches = true);
-
+  Future<void> _searchBatches() async {
+    setState(() { _isLoadingBatches = true; _searched = true; _selectedBatchId = null; _selectedBatch = null; });
     try {
-      final batches = await _productReturnService.getBatchesByDate(
-        _selectedProductionDate,
-        moduleIds: _moduleIds,
-      );
-
-      setState(() {
-        _availableBatches = batches;
-        _selectedBatchId = null;
-        _isLoadingBatches = false;
-      });
+      final batches = await _productReturnService.getBatchesByRange(_from, _to, moduleIds: _moduleIds);
+      setState(() { _availableBatches = batches; _isLoadingBatches = false; });
     } catch (e) {
       setState(() => _isLoadingBatches = false);
-      if (mounted) {
-        AppSnackBar.show(
-          context,
-          message: 'Error al cargar lotes: $e',
-        );
-      }
+      if (mounted) AppSnackBar.show(context, message: 'Error al cargar lotes: $e');
     }
   }
 
   // ==================== DATE PICKERS ====================
-
-  Future<void> _pickProductionDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedProductionDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null && picked != _selectedProductionDate) {
-      setState(() {
-        _selectedProductionDate = picked;
-        _productionDateController.text =
-            DateFormat('dd/MM/yyyy').format(picked);
-      });
-
-      await _loadBatchesForDate();
-    }
-  }
 
   Future<void> _pickReturnDate() async {
     final picked = await showDatePicker(
@@ -282,74 +254,72 @@ class _ComplaintsReturnsRegistrationScreenState
                   ),
                   const SizedBox(height: 24),
 
-                  // ==================== SECTION 1: PRODUCTION DATE & BATCH ====================
-                  Text(
-                    'Lote de producción',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  // ==================== SECTION 1: BATCH SEARCH ====================
+                  Text('Lote de producción', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  HistorialPeriodFilter(
+                    initial: HistorialPeriodo.esteMes,
+                    onChanged: (from, to) { _from = from; _to = to; },
                   ),
                   const SizedBox(height: 12),
-
-                  // Production date picker
-                  AppTextField(
-                    label: 'Fecha de producción',
-                    controller: _productionDateController,
-                    readOnly: true,
-                    onTap: _pickProductionDate,
-                    suffixIcon: const Icon(Icons.calendar_today),
-                    validator: (value) => null,
+                  SizedBox(
+                    width: double.infinity,
+                    child: AppButton(
+                      text: _isLoadingBatches ? 'Buscando...' : 'Buscar lotes',
+                      onPressed: _isLoadingBatches ? null : _searchBatches,
+                      type: AppButtonType.secondary,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Batch dropdown with loading state
+                  const SizedBox(height: 12),
                   if (_isLoadingBatches)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  else if (_availableBatches.isEmpty)
+                    const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+                  else if (_searched && _availableBatches.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'No hay lotes disponibles para esta fecha',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                        ),
-                      ),
+                      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
+                      child: const Text('No hay lotes en este período.', style: TextStyle(color: Colors.grey, fontSize: 13)),
                     )
-                  else
+                  else if (_availableBatches.isNotEmpty)
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AppDropdown<String>(
-                          label: 'Lote de producción',
-                          value: _selectedBatchId,
-                          options: _availableBatches.map((batch) {
-                            final producer = batch['producers'] as Map;
-                            final producerName =
-                                '${producer['first_name']} ${producer['last_name']}';
-                            final label =
-                                '$producerName (${batch['panela_kg']} kg)';
-                            return DropdownOption<String>(
-                              value: batch['id'] as String,
-                              label: label,
-                            );
-                          }).toList(),
-                          onChanged: (batchId) {
-                            setState(() {
-                              _selectedBatchId = batchId;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                      ],
+                      mainAxisSize: MainAxisSize.min,
+                      children: _availableBatches.map((batch) {
+                        final producer = batch['producers'] as Map<String, dynamic>;
+                        final producerName = '${producer['first_name']} ${producer['last_name']}';
+                        final batchCode = batch['batch_code'] as String? ?? '';
+                        final kg = batch['panela_kg'];
+                        final processDate = batch['process_date'] as String?;
+                        final isSelected = _selectedBatchId == batch['id'];
+                        return GestureDetector(
+                          onTap: () => setState(() { _selectedBatchId = batch['id'] as String; _selectedBatch = batch; }),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceVariant,
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                              border: Border.all(color: isSelected ? AppColors.primary : AppColors.inputBorder, width: isSelected ? 1.5 : 1),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(producerName, style: AppTextStyles.fieldLabel.copyWith(fontSize: 13)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '$batchCode · ${processDate != null ? AppDateUtils.formatDDMMYYYY(DateTime.tryParse(processDate) ?? DateTime.now()) : '—'} · $kg kg',
+                                        style: AppTextStyles.captionText.copyWith(color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected) const Icon(Icons.check_circle, size: 18, color: AppColors.primary),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
 
                   // Divider

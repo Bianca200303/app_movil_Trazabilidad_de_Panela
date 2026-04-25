@@ -6,17 +6,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/pest_control.dart';
+import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/pest_control_service.dart';
+import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/pest_control/bait_control_step.dart';
 import 'package:panela_sys/widgets/pest_control/insect_control_step.dart';
+import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class PestControlRegistrationScreen extends ConsumerStatefulWidget {
@@ -39,9 +43,13 @@ class _PestControlRegistrationScreenState
 
   // Step 0: Module and Date
   String? _selectedModuleId;
-  DateTime _selectedDate = DateTime.now();
+  DateTime? _selectedDate;
   List<CoopModule> _availableModules = [];
   bool _isLoadingModules = true;
+  List<ProductionDateGroup> _productionDates = [];
+  bool _isLoadingDates = false;
+  late DateTime _filterFrom;
+  late DateTime _filterTo;
 
   // Step 1: Bait Control
   final _baitProductController = TextEditingController();
@@ -70,6 +78,9 @@ class _PestControlRegistrationScreenState
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _filterFrom = DateTime(now.year, now.month, now.day);
+    _filterTo = now;
     _baitProductController.text = 'Panela';
     _baitUnitController.text = 'gr';
     _insectProductController.text = 'Trampa de Luz';
@@ -109,7 +120,10 @@ class _PestControlRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) _selectedModuleId = modules.first.id;
+        if (modules.length == 1) {
+          _selectedModuleId = modules.first.id;
+          _loadProductionDates(_filterFrom, _filterTo);
+        }
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -128,8 +142,25 @@ class _PestControlRegistrationScreenState
   // Navigation
   // =====================================================
 
-  void _nextStep() {
-    if (!_validateCurrentStep()) return;
+  Future<void> _nextStep() async {
+    if (_currentStep == 0) {
+      if (!_validateStep0()) return;
+      final existing = await _pestControlService.getByModuleAndDate(
+        _selectedModuleId!,
+        _selectedDate!,
+      );
+      if (!mounted) return;
+      if (existing != null) {
+        AppSnackBar.show(
+          context,
+          message: 'Ya existe un control de plagas para este módulo en esta fecha',
+          type: SnackBarType.error,
+        );
+        return;
+      }
+    } else if (!_validateCurrentStep()) {
+      return;
+    }
 
     setState(() {
       if (_currentStep < _totalSteps - 1) {
@@ -165,11 +196,11 @@ class _PestControlRegistrationScreenState
 
   bool _validateStep0() {
     if (_selectedModuleId == null) {
-      AppSnackBar.show(
-        context,
-        message: 'Selecciona un módulo',
-        type: SnackBarType.error,
-      );
+      AppSnackBar.show(context, message: 'Selecciona un módulo', type: SnackBarType.error);
+      return false;
+    }
+    if (_selectedDate == null) {
+      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
       return false;
     }
     return true;
@@ -294,22 +325,14 @@ class _PestControlRegistrationScreenState
     );
   }
 
-  // =====================================================
-  // Date Picker
-  // =====================================================
-
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+    if (_selectedModuleId == null) return;
+    setState(() => _isLoadingDates = true);
+    try {
+      final groups = await _pestControlService.getProductionDateGroups(_selectedModuleId!, from, to);
+      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingDates = false);
     }
   }
 
@@ -377,7 +400,7 @@ class _PestControlRegistrationScreenState
 
       final request = CreatePestControlRequest(
         coopModuleId: _selectedModuleId!,
-        controlDate: _selectedDate,
+        controlDate: _selectedDate!,
         cooperativeId: AppConfig.current.id,
         baitRecord: baitRequest,
         insectRecord: insectRequest,
@@ -471,18 +494,29 @@ class _PestControlRegistrationScreenState
                 .map((m) => DropdownOption(value: m.id, label: m.name))
                 .toList(),
             onChanged: (value) {
-              setState(() => _selectedModuleId = value);
+              setState(() { _selectedModuleId = value; _selectedDate = null; _productionDates = []; });
+              if (value != null) _loadProductionDates(_filterFrom, _filterTo);
             },
           ),
-          AppTextField(
-            label: 'Fecha de control',
-            controller: TextEditingController(
-              text: DateFormat('dd/MM/yyyy').format(_selectedDate),
-            ),
-            readOnly: true,
-            onTap: _selectDate,
-            suffixIcon: const Icon(Icons.calendar_today),
+        if (_selectedModuleId != null) ...[
+          FormSection(
+            title: 'Fecha de producción',
+            subtitle: 'Selecciona el día que quieres controlar',
+            children: [
+              ProductionDateSelector(
+                productionDates: _productionDates,
+                isLoadingDates: _isLoadingDates,
+                selectedDate: _selectedDate,
+                blocksAlreadyRecorded: true,
+                onDateSelected: (date) => setState(() => _selectedDate = date),
+                onFilterChanged: (from, to) {
+                  setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
+                  _loadProductionDates(from, to);
+                },
+              ),
+            ],
           ),
+        ],
         SizedBox(height: context.responsiveSpacing),
         AppButton(
           text: 'Continuar',
@@ -534,7 +568,7 @@ class _PestControlRegistrationScreenState
         ),
         _buildSummaryRow(
           'Fecha',
-          DateFormat('dd/MM/yyyy').format(_selectedDate),
+          AppDateUtils.formatDDMMYYYY(_selectedDate!),
         ),
         if (hasBaitData) ...[
           SizedBox(height: context.responsiveSpacing),

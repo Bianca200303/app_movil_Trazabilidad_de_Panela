@@ -46,6 +46,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
   List<bool> _selectedStock = [];
   List<TextEditingController> _quantityControllers = [];
   List<TextEditingController> _itemDocumentControllers = [];
+  List<bool> _expandedItems = [];
 
   // Exit type state (global for all lots)
   bool _isAutoconsumo = false;
@@ -118,6 +119,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
         _itemDocumentControllers = stockData.map((_) {
           return TextEditingController();
         }).toList();
+        _expandedItems = List.filled(stockData.length, false);
         _isLoading = false;
       });
     } catch (e) {
@@ -478,31 +480,55 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                 _buildQuantityAdjustment(i),
                 SizedBox(height: context.responsiveSpacing),
               ],
-            Container(
-              padding: EdgeInsets.all(AppDimensions.paddingMedium),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+            Builder(builder: (_) {
+              final remaining = _calculateRemainingKg();
+              final remainingBags = (remaining / 50).floor();
+              final isOver = remaining < 0;
+              final remainingColor = isOver ? AppColors.error : AppColors.success;
+              return Container(
+                padding: EdgeInsets.all(AppDimensions.paddingMedium),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      'TOTAL DISPONIBLE',
-                      style: AppTextStyles.sectionLabel,
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text('DISPONIBLE', style: AppTextStyles.sectionLabel),
+                          SizedBox(height: AppDimensions.spacingSmall),
+                          Text(
+                            '${_calculateTotalAvailableKg().toStringAsFixed(1)} kg\n(${_calculateTotalAvailableBags()} sacos)',
+                            style: AppTextStyles.bodyTextLarge.copyWith(fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
-                    SizedBox(height: AppDimensions.spacingSmall),
-                    Text(
-                      '${_calculateTotalAvailableKg().toStringAsFixed(1)} kg (${_calculateTotalAvailableBags()} sacos)',
-                      style: AppTextStyles.bodyTextLarge.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Container(width: 1, height: 60, color: AppColors.border),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text('RESTANTE', style: AppTextStyles.sectionLabel.copyWith(color: remainingColor)),
+                          SizedBox(height: AppDimensions.spacingSmall),
+                          Text(
+                            isOver
+                                ? 'Excedido\n${remaining.abs().toStringAsFixed(1)} kg'
+                                : '${remaining.toStringAsFixed(1)} kg\n($remainingBags sacos)',
+                            style: AppTextStyles.bodyTextLarge.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: remainingColor,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
 
             Container(
               padding: EdgeInsets.all(AppDimensions.paddingMedium),
@@ -670,6 +696,16 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     return (_calculateTotalAvailableKg() / 50).floor();
   }
 
+  double _calculateRemainingKg() {
+    double selectedAvailable = 0;
+    for (int i = 0; i < _availableStock.length; i++) {
+      if (_selectedStock[i]) {
+        selectedAvailable += (_availableStock[i]['available_kg'] as num).toDouble();
+      }
+    }
+    return selectedAvailable - _calculateTotalSalidaKg();
+  }
+
   bool _validateQuantities() {
     for (int i = 0; i < _selectedStock.length; i++) {
       if (!_selectedStock[i]) continue;
@@ -722,17 +758,16 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final remainderKg = availableKg - (availableBags * 50.0);
     final controller = _quantityControllers[index];
     final documentController = _itemDocumentControllers[index];
+    final isExpanded = _expandedItems[index];
 
     final currentQty = double.tryParse(controller.text.trim()) ?? 0;
     final requestedKg = _isAutoconsumo ? currentQty : currentQty * 50;
     final isOverLimit = currentQty > 0 && requestedKg > availableKg;
-
     final maxHint = _isAutoconsumo
         ? 'Máx: ${availableKg.toStringAsFixed(1)} kg'
         : 'Máx: ${(availableKg / 50).toStringAsFixed(2)} sacos';
 
     return Container(
-      padding: EdgeInsets.all(AppDimensions.paddingMedium),
       decoration: BoxDecoration(
         border: Border.all(color: isOverLimit ? AppColors.error : AppColors.border),
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
@@ -741,100 +776,158 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${producer['first_name']} ${producer['last_name']}',
-            style: AppTextStyles.fieldLabel,
-          ),
-          if (moduleName != null)
-            Text(
-              'Módulo: $moduleName',
-              style: AppTextStyles.bodyText,
+          // ── Header (siempre visible) ──────────────────────────────
+          InkWell(
+            onTap: () => setState(() => _expandedItems[index] = !isExpanded),
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(AppDimensions.radiusMedium),
+              bottom: isExpanded ? Radius.zero : const Radius.circular(AppDimensions.radiusMedium),
             ),
-          Text(
-            'Lote: ${batch['batch_code']}',
-            style: AppTextStyles.bodyText,
-          ),
-          SizedBox(height: AppDimensions.spacingSmall),
-          Text(
-            _isAutoconsumo
-                ? 'Tipo: Autoconsumo (kilogramos)'
-                : 'Tipo: Acopio por sacos (1 saco = 50kg)',
-            style: AppTextStyles.bodyText.copyWith(
-              color: _isAutoconsumo ? AppColors.warning : AppColors.success,
-            ),
-          ),
-          Text(
-            remainderKg > 0.05
-                ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
-                : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
-            style: AppTextStyles.bodyText,
-          ),
-          Text(
-            'Fecha de proceso: ${_formatDate(batch['process_date'])}',
-            style: AppTextStyles.bodyText,
-          ),
-          SizedBox(height: AppDimensions.spacingMedium),
-          AppTextField(
-            label: _isAutoconsumo ? 'Cantidad en kilogramos' : 'Cantidad en sacos',
-            controller: controller,
-            keyboardType: TextInputType.number,
-            suffixText: _isAutoconsumo ? 'kg' : 'sacos',
-            hintText: maxHint,
-          ),
-          if (!_isAutoconsumo && currentQty > 0)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isOverLimit ? AppColors.errorLight : AppColors.infoLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isOverLimit ? AppColors.error : AppColors.primary,
-                  width: 1.5,
-                ),
-              ),
+            child: Padding(
+              padding: EdgeInsets.all(AppDimensions.paddingMedium),
               child: Row(
                 children: [
-                  Icon(
-                    isOverLimit ? Icons.warning_amber_rounded : Icons.scale_outlined,
-                    color: isOverLimit ? AppColors.error : AppColors.primary,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
-                    style: TextStyle(
-                      color: isOverLimit ? AppColors.error : AppColors.primaryDark,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${producer['first_name']} ${producer['last_name']}',
+                          style: AppTextStyles.fieldLabel,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Lote: ${batch['batch_code']}  •  ${availableKg.toStringAsFixed(1)} kg disponible',
+                          style: AppTextStyles.bodyText,
+                        ),
+                      ],
                     ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.primary,
                   ),
                 ],
               ),
             ),
-          if (!_isAutoconsumo && currentQty == 0 && availableKg < 50)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Puedes usar decimales — ej: ${(availableKg / 50).toStringAsFixed(2)} sacos = ${availableKg.toStringAsFixed(1)} kg',
-                style: const TextStyle(color: AppColors.warning, fontSize: 12),
-              ),
-            ),
-          if (isOverLimit)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Excede el stock disponible (${availableKg.toStringAsFixed(1)} kg)',
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
-              ),
-            ),
-          SizedBox(height: AppDimensions.spacingMedium),
-          AppTextField(
-            label: 'Comprobante de acopio',
-            controller: documentController,
-            hintText: 'Ej: RCP-001, FACT-123',
-            suffixText: 'Opcional',
           ),
+
+          // ── Cantidad (siempre visible) ────────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.paddingMedium,
+              0,
+              AppDimensions.paddingMedium,
+              AppDimensions.paddingMedium,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(height: 1),
+                SizedBox(height: AppDimensions.spacingMedium),
+                AppTextField(
+                  label: _isAutoconsumo ? 'Cantidad en kilogramos' : 'Cantidad en sacos',
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  suffixText: _isAutoconsumo ? 'kg' : 'sacos',
+                  hintText: maxHint,
+                ),
+                if (!_isAutoconsumo && currentQty > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isOverLimit ? AppColors.errorLight : AppColors.infoLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isOverLimit ? AppColors.error : AppColors.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isOverLimit ? Icons.warning_amber_rounded : Icons.scale_outlined,
+                          color: isOverLimit ? AppColors.error : AppColors.primary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
+                          style: TextStyle(
+                            color: isOverLimit ? AppColors.error : AppColors.primaryDark,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (!_isAutoconsumo && currentQty == 0 && availableKg < 50)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Puedes usar decimales — ej: ${(availableKg / 50).toStringAsFixed(2)} sacos = ${availableKg.toStringAsFixed(1)} kg',
+                      style: const TextStyle(color: AppColors.warning, fontSize: 12),
+                    ),
+                  ),
+                if (isOverLimit)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Excede el stock disponible (${availableKg.toStringAsFixed(1)} kg)',
+                      style: const TextStyle(color: AppColors.error, fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // ── Detalles desplegables ─────────────────────────────────
+          if (isExpanded)
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: BorderSide(color: AppColors.border)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(AppDimensions.radiusMedium),
+                ),
+              ),
+              padding: EdgeInsets.all(AppDimensions.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (moduleName != null)
+                    Text('Módulo: $moduleName', style: AppTextStyles.bodyText),
+                  Text(
+                    _isAutoconsumo
+                        ? 'Tipo: Autoconsumo (kilogramos)'
+                        : 'Tipo: Acopio por sacos (1 saco = 50kg)',
+                    style: AppTextStyles.bodyText.copyWith(
+                      color: _isAutoconsumo ? AppColors.warning : AppColors.success,
+                    ),
+                  ),
+                  Text(
+                    remainderKg > 0.05
+                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
+                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+                    style: AppTextStyles.bodyText,
+                  ),
+                  Text(
+                    'Fecha de proceso: ${_formatDate(batch['process_date'])}',
+                    style: AppTextStyles.bodyText,
+                  ),
+                  SizedBox(height: AppDimensions.spacingMedium),
+                  AppTextField(
+                    label: 'Comprobante de acopio',
+                    controller: documentController,
+                    hintText: 'Ej: RCP-001, FACT-123',
+                    suffixText: 'Opcional',
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

@@ -14,7 +14,7 @@ class ProductionCalculator {
 
   /// Sugar cane juice density in kg/L
   /// This is the single source of truth for this constant value
-  static const double sugarCaneDensity = 1.05;
+  static const double sugarCaneDensity = 1.08;
 
   /// Display-friendly version for UI (auto-generated from constant)
   /// Example: "1.05 kg/L"

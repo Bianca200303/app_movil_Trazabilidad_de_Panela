@@ -7,14 +7,25 @@ import 'package:panela_sys/core/theme/app_colors.dart';
 class SelectableExitCard extends StatelessWidget {
   final Map<String, dynamic> exitData;
   final bool isSelected;
-  final VoidCallback onTap;
+  final bool alreadyInspected;
+  final VoidCallback? onTap;
 
   const SelectableExitCard({
     super.key,
     required this.exitData,
     required this.isSelected,
-    required this.onTap,
+    this.alreadyInspected = false,
+    this.onTap,
   });
+
+  String _formatExitDate(dynamic raw) {
+    if (raw == null) return '';
+    final s = raw.toString();
+    // ISO: 2026-04-22 or 2026-04-22T...
+    final parts = s.split('T').first.split('-');
+    if (parts.length == 3) return '${parts[2]}/${parts[1]}/${parts[0]}';
+    return s;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +34,7 @@ class SelectableExitCard extends StatelessWidget {
     final totalKg = (exitData['total_kg'] as num?)?.toDouble() ?? 0.0;
     final exitItems = (exitData['exit_items'] as List?) ?? [];
     final itemCount = exitItems.length;
+    final exitDate = _formatExitDate(exitData['exit_date']);
 
     return GestureDetector(
       onTap: onTap,
@@ -30,9 +42,11 @@ class SelectableExitCard extends StatelessWidget {
         margin: EdgeInsets.only(bottom: context.responsiveSpacing),
         padding: context.responsivePadding,
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : AppColors.surfaceVariant,
+          color: alreadyInspected
+              ? Colors.grey.shade100
+              : isSelected
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.inputBorder,
@@ -43,6 +57,43 @@ class SelectableExitCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Badge ya inspeccionado
+            if (alreadyInspected) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.orange.shade400),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, size: 14, color: Colors.orange.shade700),
+                    const SizedBox(width: 4),
+                    Text('Ya inspeccionado',
+                        style: AppTextStyles.captionText.copyWith(
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w600,
+                        )),
+                  ],
+                ),
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+            ],
+
+            // Fecha de salida
+            if (exitDate.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Fecha de salida:', style: AppTextStyles.fieldLabel),
+                  Text(exitDate, style: AppTextStyles.bodyText),
+                ],
+              ),
+              SizedBox(height: context.responsiveSpacing / 2),
+            ],
+
             // Guía de remisión (si existe)
             if (documentNumber != null && documentNumber.isNotEmpty) ...[
               SizedBox(height: context.responsiveSpacing / 2),

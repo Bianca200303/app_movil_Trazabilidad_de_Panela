@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:panela_sys/widgets/common/app_button.dart';
-import 'package:panela_sys/widgets/common/app_back_button.dart';
-import 'package:panela_sys/widgets/forms/form_section.dart';
-import 'package:panela_sys/widgets/common/app_title.dart';
-import 'package:panela_sys/widgets/forms/app_text_field.dart';
-import 'package:panela_sys/widgets/stowage/selectable_exit_card.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
+import 'package:panela_sys/widgets/common/app_back_button.dart';
+import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/forms/form_section.dart';
+import 'package:panela_sys/widgets/stowage/selectable_exit_card.dart';
 
 class ExitAndDateStep extends StatelessWidget {
   final String? selectedExitId;
   final List<Map<String, dynamic>> availableExits;
+  final Set<String> inspectedExitIds;
   final bool isLoadingExits;
   final TextEditingController inspectionDateController;
+  final void Function(DateTime start, DateTime end) onRangeChanged;
   final ValueChanged<String?> onExitChanged;
-  final VoidCallback onDateTap;
   final VoidCallback onContinue;
   final VoidCallback onBack;
 
@@ -22,10 +22,11 @@ class ExitAndDateStep extends StatelessWidget {
     super.key,
     required this.selectedExitId,
     required this.availableExits,
+    required this.inspectedExitIds,
     required this.isLoadingExits,
     required this.inspectionDateController,
+    required this.onRangeChanged,
     required this.onExitChanged,
-    required this.onDateTap,
     required this.onContinue,
     required this.onBack,
   });
@@ -35,38 +36,24 @@ class ExitAndDateStep extends StatelessWidget {
     return FormGroup(
       spacing: context.responsiveSpacing,
       children: [
-        // Back button
-        AppBackButton(
-          onPressed: onBack,
-          isExpanded: false,
-        ),
+        AppBackButton(onPressed: onBack, isExpanded: false),
 
         FormSection(
-          subtitle: 'Selecciona primero la fecha de inspección',
+          title: 'Buscar salidas',
           children: [
-            SizedBox(height: context.responsiveSpacing),
-
-            // Inspection date picker (prominente)
-            AppTextField(
-              controller: inspectionDateController,
-              label: 'Fecha de inspección',
-              readOnly: true,
-              onTap: onDateTap,
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.calendar_today),
-                onPressed: onDateTap,
-              ),
+            SizedBox(height: context.responsiveSpacing * 0.5),
+            HistorialPeriodFilter(
+              initial: HistorialPeriodo.esteMes,
+              onChanged: onRangeChanged,
             ),
           ],
         ),
 
         FormSection(
           title: 'Salidas registradas',
-          subtitle: 'Selecciona la salida a inspeccionar',
+          subtitle: 'Toca la salida que quieres inspeccionar',
           children: [
             SizedBox(height: context.responsiveSpacing),
-
-            // Loading state
             if (isLoadingExits)
               const Center(
                 child: Column(
@@ -78,8 +65,6 @@ class ExitAndDateStep extends StatelessWidget {
                   ],
                 ),
               )
-
-            // No exits message
             else if (availableExits.isEmpty)
               Center(
                 child: Padding(
@@ -87,43 +72,34 @@ class ExitAndDateStep extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 48,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
                       SizedBox(height: context.responsiveSpacing),
                       Text(
-                        'No hay salidas registradas para esta fecha',
-                        style: AppTextStyles.bodyText.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                        'No hay salidas en este período',
+                        style: AppTextStyles.bodyText.copyWith(color: Colors.grey[600]),
                         textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
               )
-
-            // Exit cards
             else
               ...availableExits.map((exitData) {
                 final exitId = exitData['id'] as String;
                 final isSelected = selectedExitId == exitId;
-
+                final alreadyInspected = inspectedExitIds.contains(exitId);
                 return SelectableExitCard(
                   exitData: exitData,
                   isSelected: isSelected,
-                  onTap: () {
-                    // Toggle selection
-                    onExitChanged(isSelected ? null : exitId);
-                  },
+                  alreadyInspected: alreadyInspected,
+                  onTap: alreadyInspected
+                      ? null
+                      : () => onExitChanged(isSelected ? null : exitId),
                 );
               }),
           ],
         ),
 
-        // Continue button
         SizedBox(height: context.responsiveSpacing),
         AppButton(
           text: 'CONTINUAR',

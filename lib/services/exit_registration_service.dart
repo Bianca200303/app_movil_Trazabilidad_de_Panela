@@ -126,6 +126,45 @@ class ExitRegistrationService {
     }
   }
 
+  // Get exit registrations with items by date range (for inspection selection)
+  Future<List<Map<String, dynamic>>> getExitRegistrationsWithItemsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    try {
+      final startStr = startDate.toIso8601String().split('T')[0];
+      final endStr = endDate.toIso8601String().split('T')[0];
+
+      final response = await _supabase
+          .from('exit_registrations')
+          .select('''
+            *,
+            exit_items(
+              *,
+              production_batch:production_batches(
+                id,
+                batch_code,
+                process_date,
+                producer:producers(
+                  id,
+                  first_name,
+                  last_name,
+                  dni
+                )
+              )
+            )
+          ''')
+          .gte('exit_date', startStr)
+          .lte('exit_date', endStr)
+          .order('exit_date', ascending: false)
+          .order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to fetch exits with items by date range: $e');
+    }
+  }
+
   // Create new exit registration
   Future<ExitRegistration> createExitRegistration(CreateExitRegistrationRequest request) async {
     try {
@@ -421,13 +460,16 @@ class ExitRegistrationService {
   }
 
   // Get exit registrations for historial with producer info
-  Future<List<Map<String, dynamic>>> getExitRegistrationsForHistorial() async {
+  Future<List<Map<String, dynamic>>> getExitRegistrationsForHistorial({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     try {
-      // Calculate date range: last month
       final today = DateTime.now();
-      final oneMonthAgo = DateTime(today.year, today.month - 1, today.day);
-      final todayStr = today.toIso8601String().split('T')[0];
-      final oneMonthAgoStr = oneMonthAgo.toIso8601String().split('T')[0];
+      final fromDate = from ?? DateTime(today.year, today.month - 1, today.day);
+      final toDate = to ?? today;
+      final todayStr = toDate.toIso8601String().split('T')[0];
+      final oneMonthAgoStr = fromDate.toIso8601String().split('T')[0];
 
       final response = await _supabase
           .from('exit_registrations')

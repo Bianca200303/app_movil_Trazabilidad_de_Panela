@@ -1,215 +1,334 @@
 import 'package:flutter/material.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
+import 'package:panela_sys/services/worker_control_service.dart';
+
+String _fmtKg(double v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
 
 const _criteriaLabels = [
-  'Uniforme completo',
-  'Sin maquillaje',
-  'Uñas cortas y limpias',
-  'Uñas sin esmalte',
-  'Manos limpias',
-  'Sin joyas ni perfume',
-  'Cabello cubierto',
-  'Sin barba',
-  'Sin heridas o cortes',
+  'Uniforme completo', 'Sin maquillaje', 'Uñas cortas y limpias',
+  'Uñas sin esmalte', 'Manos limpias', 'Sin joyas ni perfume',
+  'Cabello cubierto', 'Sin barba', 'Sin heridas o cortes',
 ];
 
 List<String> _failedCriteria(WorkerEvaluation w) {
   final values = [
-    w.uniformComplete,
-    w.noMakeup,
-    w.nailsShortClean,
-    w.nailsNoPolish,
-    w.handsClean,
-    w.noJewelry,
-    w.hairCovered,
-    w.noBeard,
-    w.noWounds,
+    w.uniformComplete, w.noMakeup, w.nailsShortClean, w.nailsNoPolish,
+    w.handsClean, w.noJewelry, w.hairCovered, w.noBeard, w.noWounds,
   ];
-  return [
-    for (int i = 0; i < values.length; i++)
-      if (!values[i]) _criteriaLabels[i],
-  ];
+  return [for (int i = 0; i < values.length; i++) if (!values[i]) _criteriaLabels[i]];
 }
 
-/// Lista de controles de personal operario.
-class WorkerControlList extends StatelessWidget {
-  const WorkerControlList({
-    required this.isLoading,
-    required this.error,
-    required this.data,
-    super.key,
+// ── Batch group ──────────────────────────────────────────────────────────────
+
+class _BatchGroup {
+  final String batchId;
+  final String producerName;
+  final String? processDate;
+  final String? moduleName;
+  final double? panelaKg;
+  final double? confitilloKg;
+  final List<WorkerControl> controls;
+
+  _BatchGroup({
+    required this.batchId,
+    required this.producerName,
+    this.processDate,
+    this.moduleName,
+    this.panelaKg,
+    this.confitilloKg,
+    required this.controls,
   });
 
-  final bool isLoading;
-  final String? error;
-  final List<Map<String, dynamic>> data;
+  int get totalWorkers => controls.fold(0, (s, c) => s + c.workersList.length);
+  bool get isFullyCompliant => controls.every((c) => c.isFullyCompliant);
+}
+
+// ── List widget ───────────────────────────────────────────────────────────────
+
+class WorkerControlList extends StatefulWidget {
+  const WorkerControlList({required this.service, required this.getAllowedDnis, super.key});
+  final WorkerControlService service;
+  final Future<Set<String>?> Function() getAllowedDnis;
+
+  @override
+  State<WorkerControlList> createState() => _WorkerControlListState();
+}
+
+class _WorkerControlListState extends State<WorkerControlList> {
+  late DateTime _from;
+  late DateTime _to;
+  bool _isLoading = false;
+  String? _error;
+  List<_BatchGroup> _groups = [];
+  final Set<String> _expanded = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final (from, to) = historialPeriodoRange(HistorialPeriodo.esteMes);
+    _from = from;
+    _to = to;
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final rawData = await widget.service.getWorkerControlsForHistorialByRange(
+        AppConfig.current.id, _from, _to,
+      );
+      final allowedDnis = await widget.getAllowedDnis();
+
+      final filtered = allowedDnis != null
+          ? rawData.where((e) => allowedDnis.contains(e['producer_dni'])).toList()
+          : rawData;
+
+      // Group by production_batch_id
+      final map = <String, _BatchGroup>{};
+      for (final entry in filtered) {
+        final control = entry['control'] as WorkerControl;
+        final batchId = control.productionBatchId;
+        if (!map.containsKey(batchId)) {
+          map[batchId] = _BatchGroup(
+            batchId: batchId,
+            producerName: (entry['producer_name'] as String?) ?? '—',
+            processDate: entry['process_date'] as String?,
+            moduleName: entry['module_name'] as String?,
+            panelaKg: (entry['panela_kg'] as num?)?.toDouble(),
+            confitilloKg: (entry['confitillo_kg'] as num?)?.toDouble(),
+            controls: [],
+          );
+        }
+        map[batchId]!.controls.add(control);
+      }
+
+      setState(() { _groups = map.values.toList(); _isLoading = false; });
+    } catch (e) {
+      setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _isLoading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const HistorialLoadingWidget(
-        message: 'Cargando controles de personal...',
-      );
-    }
-
-    if (error != null) {
-      return HistorialErrorWidget(error: error!);
-    }
-
-    if (data.isEmpty) {
-      return const Center(
-        child: Text(
-          'No hay controles de personal registrados',
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: data
-          .map((control) => _WorkerControlCard(control: control))
-          .toList(),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HistorialPeriodFilter(
+          onChanged: (from, to) { _from = from; _to = to; _load(); },
+        ),
+        SizedBox(height: context.responsiveSpacing),
+        if (!_isLoading && _error == null)
+          Padding(
+            padding: EdgeInsets.only(bottom: context.responsiveSpacing / 2),
+            child: Text(
+              '${_groups.length} lote${_groups.length != 1 ? 's' : ''} evaluado${_groups.length != 1 ? 's' : ''}',
+              style: AppTextStyles.captionText,
+            ),
+          ),
+        if (_isLoading)
+          const HistorialLoadingWidget(message: 'Cargando controles de personal...')
+        else if (_error != null)
+          HistorialErrorWidget(error: _error!, onRetry: _load)
+        else if (_groups.isEmpty)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(context.responsiveSpacing * 2),
+              child: Text('No hay controles en este período.', style: AppTextStyles.captionText, textAlign: TextAlign.center),
+            ),
+          )
+        else
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _groups.map((g) => _BatchCard(
+              group: g,
+              isExpanded: _expanded.contains(g.batchId),
+              onToggle: () => setState(() {
+                _expanded.contains(g.batchId) ? _expanded.remove(g.batchId) : _expanded.add(g.batchId);
+              }),
+            )).toList(),
+          ),
+      ],
     );
   }
 }
 
-class _WorkerControlCard extends StatelessWidget {
-  const _WorkerControlCard({required this.control});
+// ── Card por lote ─────────────────────────────────────────────────────────────
 
-  final Map<String, dynamic> control;
+class _BatchCard extends StatelessWidget {
+  const _BatchCard({required this.group, required this.isExpanded, required this.onToggle});
+  final _BatchGroup group;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final isFullyCompliant = control['is_fully_compliant'] as bool;
-    final compliancePercentage = control['compliance_percentage'] as double;
-    final complianceCount = control['compliance_count'] as int;
-    final totalCriteria = control['total_criteria'] as int;
-    final workArea = control['work_area'] as String;
-    final formattedDate = control['formatted_date'] as String;
-    final observations = control['observations'] as String?;
-    final workers = control['workers'] as List<WorkerEvaluation>? ?? [];
-    final workerNameFallback = control['worker_name'] as String? ?? '';
+    final allOk = group.isFullyCompliant;
+    final badgeColor = allOk ? AppColors.success : Colors.orange[700]!;
+    final bgColor = allOk ? Colors.green[50]! : Colors.orange[50]!;
+    final processDate = group.processDate != null
+        ? AppDateUtils.formatDDMMYYYY(DateTime.parse(group.processDate!))
+        : null;
 
-    final badgeColor = isFullyCompliant ? AppColors.success : Colors.orange[700]!;
-    final bgColor = isFullyCompliant ? Colors.green[50]! : Colors.orange[50]!;
+    return GestureDetector(
+      onTap: onToggle,
+      child: Container(
+        margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: context.responsivePadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(allOk ? Icons.check_circle : Icons.warning_amber_rounded,
+                          color: badgeColor, size: 18),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          group.moduleName != null
+                              ? '${group.producerName}  ·  ${group.moduleName}'
+                              : group.producerName,
+                          style: AppTextStyles.fieldLabel.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          size: 18, color: AppColors.textSecondary),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          [
+                            if (processDate != null) processDate,
+                            if (group.panelaKg != null)
+                              'Panela: ${_fmtKg(group.panelaKg!)} kg'
+                              '${group.confitilloKg != null && group.confitilloKg! > 0 ? ' · Conf: ${_fmtKg(group.confitilloKg!)} kg' : ''}',
+                          ].join('  ·  '),
+                          style: AppTextStyles.captionText,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${group.controls.length} área${group.controls.length != 1 ? 's' : ''}  ·  ${group.totalWorkers} trabajador${group.totalWorkers != 1 ? 'es' : ''}',
+                          style: AppTextStyles.captionText.copyWith(
+                              color: badgeColor, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Detalle expandible
+            if (isExpanded) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: context.responsivePadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: group.controls.map((c) => _AreaSection(control: c)).toList(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sección por área ──────────────────────────────────────────────────────────
+
+class _AreaSection extends StatelessWidget {
+  const _AreaSection({required this.control});
+  final WorkerControl control;
+
+  @override
+  Widget build(BuildContext context) {
+    final areaOk = control.isFullyCompliant;
+    final color = areaOk ? AppColors.success : Colors.orange[700]!;
 
     return Container(
       margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         border: Border.all(color: AppColors.inputBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ──────────────────────────────────────────────────────────
-          Padding(
-            padding: context.responsivePadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Fila 1: estado + ícono
-                Row(
-                  children: [
-                    Icon(
-                      isFullyCompliant
-                          ? Icons.check_circle
-                          : Icons.warning_amber_rounded,
-                      color: badgeColor,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isFullyCompliant ? 'CUMPLE TOTALMENTE' : 'INCUMPLIMIENTOS',
-                      style: AppTextStyles.fieldLabel.copyWith(
-                        color: badgeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+          Row(
+            children: [
+              Icon(areaOk ? Icons.check_circle_outline : Icons.cancel_outlined,
+                  size: 16, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(control.workArea.displayName,
+                    style: AppTextStyles.fieldLabel.copyWith(fontSize: 13)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 4),
-                // Fila 2: fecha (izq) + chip porcentaje (der)
-                Row(
-                  children: [
-                    Text(formattedDate, style: AppTextStyles.captionText),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${compliancePercentage.toStringAsFixed(0)}%  $complianceCount/$totalCriteria',
-                        style: AppTextStyles.captionText.copyWith(
-                          color: badgeColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '${control.compliancePercentage.toStringAsFixed(0)}%  ${control.complianceCount}/${control.totalCriteria}',
+                  style: AppTextStyles.captionText.copyWith(color: color, fontWeight: FontWeight.w700),
                 ),
-                SizedBox(height: context.responsiveSpacing / 2),
-                HistorialInfoRow(label: 'Área:', value: workArea),
-              ],
-            ),
+              ),
+            ],
           ),
-
-          const Divider(height: 1, thickness: 1),
-
-          // ── Trabajadores ─────────────────────────────────────────────────────
-          Padding(
-            padding: context.responsivePadding,
-            child: workers.isNotEmpty
-                ? _WorkersList(workers: workers)
-                : _LegacyWorkerRow(name: workerNameFallback),
-          ),
-
-          // ── Observaciones ────────────────────────────────────────────────────
-          if (observations != null && observations.isNotEmpty)
-            _ObservationsBox(observations: observations),
+          if (control.workersList.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...control.workersList.map((w) => _WorkerRow(worker: w)),
+          ],
+          if (control.observations?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            HistorialInfoRow(label: 'Obs:', value: control.observations!),
+          ],
         ],
       ),
     );
   }
 }
 
-/// Lista de trabajadores con estado individual (registros nuevos).
-class _WorkersList extends StatelessWidget {
-  const _WorkersList({required this.workers});
+// ── Fila de trabajador ────────────────────────────────────────────────────────
 
-  final List<WorkerEvaluation> workers;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${workers.length} ${workers.length == 1 ? 'trabajador evaluado' : 'trabajadores evaluados'}',
-          style: AppTextStyles.fieldLabel,
-        ),
-        const SizedBox(height: 8),
-        ...workers.map((w) => _WorkerRow(worker: w)),
-      ],
-    );
-  }
-}
-
-/// Fila individual por trabajador.
 class _WorkerRow extends StatelessWidget {
   const _WorkerRow({required this.worker});
-
   final WorkerEvaluation worker;
 
   @override
@@ -221,109 +340,36 @@ class _WorkerRow extends StatelessWidget {
     final failed = isOk ? <String>[] : _failedCriteria(worker);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                isOk ? Icons.check_circle_outline : Icons.cancel_outlined,
-                size: 18,
-                color: color,
-              ),
-              const SizedBox(width: 8),
+              Icon(isOk ? Icons.check_circle_outline : Icons.cancel_outlined,
+                  size: 16, color: color),
+              const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  worker.workerName,
-                  style: AppTextStyles.bodyText.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                child: Text(worker.workerName,
+                    style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w500)),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  '$count/$total',
-                  style: AppTextStyles.captionText.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                child: Text('$count/$total',
+                    style: AppTextStyles.captionText.copyWith(color: color, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
           if (failed.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(left: 26, top: 3),
-              child: Text(
-                failed.join(' · '),
-                style: AppTextStyles.captionText.copyWith(
-                  color: Colors.orange[800],
-                ),
-              ),
+              padding: const EdgeInsets.only(left: 22, top: 2),
+              child: Text(failed.join(' · '),
+                  style: TextStyle(fontSize: 11, color: Colors.orange[800])),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Fila de compatibilidad para registros antiguos (sin worker_control_items).
-class _LegacyWorkerRow extends StatelessWidget {
-  const _LegacyWorkerRow({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.person_outline, size: 18, color: Colors.grey),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(name, style: AppTextStyles.bodyText),
-        ),
-      ],
-    );
-  }
-}
-
-class _ObservationsBox extends StatelessWidget {
-  const _ObservationsBox({required this.observations});
-
-  final String observations;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.fromLTRB(
-        context.responsivePadding.left,
-        0,
-        context.responsivePadding.right,
-        context.responsivePadding.bottom,
-      ),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.orange[100],
-        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-        border: Border.all(color: Colors.orange[200]!),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline, size: 15, color: Colors.orange[900]),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              observations,
-              style: TextStyle(fontSize: 12, color: Colors.orange[900]),
-            ),
-          ),
         ],
       ),
     );

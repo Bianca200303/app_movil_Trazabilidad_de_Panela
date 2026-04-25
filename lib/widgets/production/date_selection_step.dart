@@ -66,8 +66,21 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
   }
 
   bool get _canContinue {
-    return widget.harvestDateController.text.isNotEmpty &&
-           widget.processingDateController.text.isNotEmpty;
+    if (widget.harvestDateController.text.isEmpty ||
+        widget.processingDateController.text.isEmpty) {
+      return false;
+    }
+    return _dateOrderError == null;
+  }
+
+  String? get _dateOrderError {
+    final harvest = AppDateUtils.parseDDMMYYYY(widget.harvestDateController.text);
+    final process = AppDateUtils.parseDDMMYYYY(widget.processingDateController.text);
+    if (harvest == null || process == null) return null;
+    if (harvest.isAfter(process)) {
+      return 'La fecha de corte no puede ser posterior a la fecha de proceso.';
+    }
+    return null;
   }
 
   Future<void> _selectDate(TextEditingController controller) async {
@@ -121,6 +134,13 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
             onPressed: () => _selectDate(widget.processingDateController),
           ),
         ),
+        if (_dateOrderError != null) ...[
+          SizedBox(height: context.responsiveSpacing),
+          Text(
+            _dateOrderError!,
+            style: AppTextStyles.bodyText.copyWith(color: Colors.red),
+          ),
+        ],
         SizedBox(height: context.responsiveSpacing * 1.5),
         AppButton(
           text: 'CONTINUAR',

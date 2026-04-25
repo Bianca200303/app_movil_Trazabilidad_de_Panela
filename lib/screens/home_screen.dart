@@ -102,10 +102,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
 
                             AppButton(
-                              text: 'Formulario de control Módulo',
-                              icon: Icons.assignment_outlined,
-                              type: AppButtonType.option,
-                              onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+                              text: 'Registro de salida',
+                              icon: Icons.signpost,
+                              type: exitsEnabled ? AppButtonType.optionActive : AppButtonType.option,
+                              onPressed: exitsEnabled
+                                  ? () => context.go(AppRoutes.kardexExit.path)
+                                  : null,
                             ),
 
                             AppButton(
@@ -116,12 +118,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
 
                             AppButton(
-                              text: 'Registro de salida',
-                              icon: Icons.signpost,
-                              type: exitsEnabled ? AppButtonType.optionActive : AppButtonType.option,
-                              onPressed: exitsEnabled
-                                  ? () => context.go(AppRoutes.kardexExit.path)
-                                  : null,
+                              text: 'Formulario de control Módulo',
+                              icon: Icons.assignment_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
                             ),
                           ],
 

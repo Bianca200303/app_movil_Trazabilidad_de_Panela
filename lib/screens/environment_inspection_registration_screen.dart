@@ -29,51 +29,42 @@ class _EnvironmentInspectionRegistrationScreenState
       EnvironmentInspectionService();
   final CoopModulesService _modulesService = CoopModulesService();
 
-  int _currentStep = 0; // 0-9 (10 steps total)
+  int _currentStep = 0;
 
   // Step 0: Module and date
   String? _selectedModuleId;
+  DateTime? _selectedDate;
   List<CoopModule> _availableModules = [];
   bool _isLoadingModules = false;
-  final TextEditingController _inspectionDateController =
-      TextEditingController();
+  bool _isCheckingStep0 = false;
 
-  // Steps 1-8: Checklist data
-  // Structure: areaCode -> itemCode -> ItemData
+  // Steps 1-8: Checklist data — areaCode -> itemCode -> ItemData
   final Map<String, Map<String, ItemChecklistData>> _checklistData = {};
 
   // Saving state
   bool _isSaving = false;
 
-  // Scroll controller to reset position on step change
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _inspectionDateController.text = AppDateUtils.getCurrentDDMMYYYY();
     _loadModules();
     _initializeChecklistData();
   }
 
   @override
   void dispose() {
-    _inspectionDateController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _scrollToTop() {
-    if (_scrollController.hasClients) {
-      _scrollController.jumpTo(0);
-    }
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   Future<void> _loadModules() async {
-    setState(() {
-      _isLoadingModules = true;
-    });
-
+    setState(() => _isLoadingModules = true);
     try {
       final currentUser = ref.read(currentUserProvider);
       final allModules = await _modulesService.getModules();
@@ -86,30 +77,22 @@ class _EnvironmentInspectionRegistrationScreenState
         _isLoadingModules = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoadingModules = false;
-      });
+      setState(() => _isLoadingModules = false);
       if (mounted) {
-        AppSnackBar.show(
-          context,
-          message: 'Error al cargar módulos: $e',
-          type: SnackBarType.error,
-        );
+        AppSnackBar.show(context,
+            message: 'Error al cargar módulos: $e', type: SnackBarType.error);
       }
     }
   }
 
   void _initializeChecklistData() {
-    // Initialize all areas with default values
     for (final areaCode in EnvironmentInspectionAreas.all) {
       _checklistData[areaCode] = {};
-      final items =
-          EnvironmentInspectionItemTemplates.getItemsForArea(areaCode);
-      for (final item in items) {
+      for (final item in EnvironmentInspectionItemTemplates.getItemsForArea(areaCode)) {
         _checklistData[areaCode]![item['code']!] = ItemChecklistData(
           itemCode: item['code']!,
           itemDescription: item['description']!,
-          condition: InspectionCondition.compliant, // Default to compliant
+          condition: InspectionCondition.compliant,
           correctiveActions: '',
           observations: '',
         );
@@ -117,68 +100,85 @@ class _EnvironmentInspectionRegistrationScreenState
     }
   }
 
-  bool _validateStep() {
-    if (_currentStep == 0) {
-      // Validate module and date selection
-      if (_selectedModuleId == null) {
-        AppSnackBar.show(
-          context,
-          message: 'Selecciona un módulo',
-          type: SnackBarType.error,
-        );
-        return false;
-      }
-      if (_inspectionDateController.text.trim().isEmpty) {
-        AppSnackBar.show(
-          context,
-          message: 'Selecciona la fecha de inspección',
-          type: SnackBarType.error,
-        );
-        return false;
-      }
-      return true;
-    }
+  Future<void> _handleStep0Continue() async {
+    // Button is disabled unless both are selected — these are safety guards only
+    if (_selectedModuleId == null || _selectedDate == null) return;
 
-    // Steps 1-8: Optional warning for NC items without corrective actions
+    setState(() => _isCheckingStep0 = true);
+    try {
+      final existing = await _inspectionService.getInspectionByModuleAndDate(
+        _selectedModuleId!,
+        _selectedDate!,
+      );
+      if (!mounted) return;
+
+      if (existing != null) {
+        setState(() => _isCheckingStep0 = false);
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Inspección ya registrada'),
+            content: const Text(
+              'Ya existe una inspección para este módulo en esta fecha. '
+              'Puedes verla en el historial.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('ENTENDIDO'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isCheckingStep0 = false;
+          _currentStep = 1;
+        });
+        _scrollToTop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCheckingStep0 = false);
+        AppSnackBar.show(context,
+            message: 'Error al verificar: $e', type: SnackBarType.error);
+      }
+    }
+  }
+
+  bool _validateStep() {
     if (_currentStep >= 1 && _currentStep <= 8) {
       final areaCode = EnvironmentInspectionAreas.all[_currentStep - 1];
-      final areaData = _checklistData[areaCode]!;
-
-      final ncWithoutActions = areaData.values
+      final ncWithoutActions = _checklistData[areaCode]!
+          .values
           .where((item) =>
               item.condition == InspectionCondition.nonCompliant &&
               item.correctiveActions.trim().isEmpty)
-          .toList();
-
-      if (ncWithoutActions.isNotEmpty) {
+          .length;
+      if (ncWithoutActions > 0) {
         AppSnackBar.show(
           context,
-          message:
-              'Hay ${ncWithoutActions.length} ítems NC sin acciones correctivas',
+          message: 'Hay $ncWithoutActions ítems NC sin acciones correctivas',
           type: SnackBarType.warning,
         );
       }
-      return true;
     }
-
-    // Step 9: Final review, no validation needed
     return true;
   }
 
   void _nextStep() {
     if (!_validateStep()) return;
-
     setState(() {
-      if (_currentStep < 9) {
-        _currentStep++;
-      }
+      if (_currentStep < 9) _currentStep++;
     });
     _scrollToTop();
   }
 
   void _previousStep() {
     if (_currentStep == 0) {
-      // Show exit confirmation
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -201,29 +201,19 @@ class _EnvironmentInspectionRegistrationScreenState
         ),
       );
     } else {
-      setState(() {
-        _currentStep--;
-      });
+      setState(() => _currentStep--);
       _scrollToTop();
     }
   }
 
   Future<void> _submitForm() async {
     if (!await AppConfirmDialog.show(context)) return;
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      // Parse inspection date
-      final inspectionDate =
-          AppDateUtils.parseDDMMYYYY(_inspectionDateController.text);
-
-      // Build list of all items
       final items = <CreateEnvironmentInspectionItemRequest>[];
       for (final areaCode in EnvironmentInspectionAreas.all) {
-        final areaData = _checklistData[areaCode]!;
-        for (final item in areaData.values) {
+        for (final item in _checklistData[areaCode]!.values) {
           items.add(CreateEnvironmentInspectionItemRequest(
             areaCode: areaCode,
             itemCode: item.itemCode,
@@ -239,59 +229,48 @@ class _EnvironmentInspectionRegistrationScreenState
         }
       }
 
-      // Create request (created_by is auto-populated by database trigger)
-      final request = CreateEnvironmentInspectionRequest(
-        coopModuleId: _selectedModuleId!,
-        inspectionDate: inspectionDate,
-        cooperativeId: AppConfig.current.id,
-        items: items,
+      await _inspectionService.createInspection(
+        CreateEnvironmentInspectionRequest(
+          coopModuleId: _selectedModuleId!,
+          inspectionDate: _selectedDate,
+          cooperativeId: AppConfig.current.id,
+          items: items,
+        ),
       );
 
-      // Submit to service
-      await _inspectionService.createInspection(request);
-
-      // Show success message
       if (mounted) {
-        AppSnackBar.show(
-          context,
-          message: 'Inspección registrada exitosamente',
-          type: SnackBarType.success,
-        );
+        AppSnackBar.show(context,
+            message: 'Inspección registrada exitosamente',
+            type: SnackBarType.success);
         context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
-        AppSnackBar.show(
-          context,
-          message: 'Error al guardar la inspección: $e',
-          type: SnackBarType.error,
-        );
+        AppSnackBar.show(context,
+            message: 'Error al guardar la inspección: $e',
+            type: SnackBarType.error);
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   Widget _buildCurrentStep() {
     switch (_currentStep) {
       case 0:
-        // Module and date selection
         return ModuleAndDateStep(
           availableModules: _availableModules,
           isLoadingModules: _isLoadingModules,
           selectedModuleId: _selectedModuleId,
-          inspectionDateController: _inspectionDateController,
-          onModuleChanged: (moduleId) {
-            setState(() {
-              _selectedModuleId = moduleId;
-            });
-          },
-          onContinue: _nextStep,
+          selectedDate: _selectedDate,
+          onModuleChanged: (moduleId) => setState(() {
+            _selectedModuleId = moduleId;
+            _selectedDate = null;
+          }),
+          onDateSelected: (date) => setState(() => _selectedDate = date),
+          onContinue: _handleStep0Continue,
           onBack: _previousStep,
+          isChecking: _isCheckingStep0,
         );
 
       case 1:
@@ -302,30 +281,25 @@ class _EnvironmentInspectionRegistrationScreenState
       case 6:
       case 7:
       case 8:
-        // Area checklist steps (8 areas)
         final areaCode = EnvironmentInspectionAreas.all[_currentStep - 1];
         return AreaChecklistStep(
           areaCode: areaCode,
           itemsData: _checklistData[areaCode]!,
-          onItemChanged: (itemCode, updatedData) {
-            setState(() {
-              _checklistData[areaCode]![itemCode] = updatedData;
-            });
-          },
+          onItemChanged: (itemCode, updatedData) => setState(() {
+            _checklistData[areaCode]![itemCode] = updatedData;
+          }),
           onContinue: _nextStep,
           onBack: _previousStep,
         );
 
       case 9:
-        // Final review and submit
         final selectedModule = _availableModules.firstWhere(
-          (module) => module.id == _selectedModuleId,
+          (m) => m.id == _selectedModuleId,
           orElse: () => CoopModule(id: '', name: 'Desconocido'),
         );
-
         return ReviewSummaryStep(
           moduleName: selectedModule.name,
-          inspectionDate: _inspectionDateController.text,
+          inspectionDate: AppDateUtils.formatDDMMYYYY(_selectedDate!),
           checklistData: _checklistData,
           isSaving: _isSaving,
           onSubmit: _submitForm,
@@ -336,7 +310,6 @@ class _EnvironmentInspectionRegistrationScreenState
         return const Center(child: Text('Paso inválido'));
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -354,9 +327,7 @@ class _EnvironmentInspectionRegistrationScreenState
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: context.responsiveCardWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: context.responsiveCardWidth),
                   child: AppCard(
                     padding: context.responsivePadding,
                     child: Column(

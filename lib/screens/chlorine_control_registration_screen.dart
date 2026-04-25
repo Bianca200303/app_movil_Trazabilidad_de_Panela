@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/chlorine_residual_control.dart';
 import 'package:panela_sys/models/coop_module.dart';
+import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/widgets/forms/form_section.dart';
+import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -41,8 +44,12 @@ class _ChlorineControlRegistrationScreenState
   final _responsibleFocusNode = FocusNode();
 
   // Date and time
-  DateTime _controlDate = DateTime.now();
-  TimeOfDay _controlTime = const TimeOfDay(hour: 6, minute: 0); // Default 6:00 AM
+  DateTime? _controlDate;
+  TimeOfDay _controlTime = const TimeOfDay(hour: 6, minute: 0);
+  List<ProductionDateGroup> _productionDates = [];
+  bool _isLoadingDates = false;
+  late DateTime _filterFrom;
+  late DateTime _filterTo;
 
   // Text controllers
   final _m1Controller = TextEditingController();
@@ -54,6 +61,9 @@ class _ChlorineControlRegistrationScreenState
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _filterFrom = DateTime(now.year, now.month, now.day);
+    _filterTo = now;
     _loadModules();
     _loadProducers();
   }
@@ -106,7 +116,10 @@ class _ChlorineControlRegistrationScreenState
           : allModules;
       setState(() {
         _availableModules = modules;
-        if (modules.length == 1) _selectedModuleId = modules.first.id;
+        if (modules.length == 1) {
+          _selectedModuleId = modules.first.id;
+          _loadProductionDates(_filterFrom, _filterTo);
+        }
         _isLoadingModules = false;
       });
     } catch (e) {
@@ -155,18 +168,14 @@ class _ChlorineControlRegistrationScreenState
   // Date and Time Pickers
   // =====================================================
 
-  Future<void> _selectDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _controlDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-
-    if (date != null) {
-      setState(() {
-        _controlDate = date;
-      });
+  Future<void> _loadProductionDates(DateTime from, DateTime to) async {
+    if (_selectedModuleId == null) return;
+    setState(() => _isLoadingDates = true);
+    try {
+      final groups = await _chlorineService.getProductionDateGroups(_selectedModuleId!, from, to);
+      if (mounted) setState(() { _productionDates = groups; _isLoadingDates = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingDates = false);
     }
   }
 
@@ -195,11 +204,12 @@ class _ChlorineControlRegistrationScreenState
 
     // Validate module selection
     if (_selectedModuleId == null) {
-      AppSnackBar.show(
-        context,
-        message: 'Selecciona un módulo',
-        type: SnackBarType.error,
-      );
+      AppSnackBar.show(context, message: 'Selecciona un módulo', type: SnackBarType.error);
+      return;
+    }
+
+    if (_controlDate == null) {
+      AppSnackBar.show(context, message: 'Selecciona la fecha de producción', type: SnackBarType.error);
       return;
     }
 
@@ -221,7 +231,7 @@ class _ChlorineControlRegistrationScreenState
       // Check for duplicate record
       final existingControl = await _chlorineService.getByModuleAndDateTime(
         moduleId: _selectedModuleId!,
-        date: _controlDate,
+        date: _controlDate!,
         time: timeString,
       );
 
@@ -243,7 +253,7 @@ class _ChlorineControlRegistrationScreenState
       // Create request
       final request = CreateChlorineResidualControlRequest(
         coopModuleId: _selectedModuleId!,
-        controlDate: _controlDate,
+        controlDate: _controlDate!,
         controlTime: timeString,
         measurementPoint1: m1,
         measurementPoint2: m2,
@@ -394,21 +404,28 @@ class _ChlorineControlRegistrationScreenState
                       onChanged: (value) {
                         setState(() {
                           _selectedModuleId = value;
+                          _controlDate = null;
+                          _productionDates = [];
                         });
+                        if (value != null) _loadProductionDates(_filterFrom, _filterTo);
                       },
                       isLoading: _isLoadingModules,
                     ),
 
                     // Control date
-                    AppTextField(
-                      label: 'Fecha del control',
-                      controller: TextEditingController(
-                        text: DateFormat('dd/MM/yyyy').format(_controlDate),
+                    if (_selectedModuleId != null) ...[
+                      const SizedBox(height: 8),
+                      ProductionDateSelector(
+                        productionDates: _productionDates,
+                        isLoadingDates: _isLoadingDates,
+                        selectedDate: _controlDate,
+                        onDateSelected: (date) => setState(() => _controlDate = date),
+                        onFilterChanged: (from, to) {
+                          setState(() { _filterFrom = from; _filterTo = to; _productionDates = []; });
+                          _loadProductionDates(from, to);
+                        },
                       ),
-                      readOnly: true,
-                      onTap: _selectDate,
-                      suffixIcon: const Icon(Icons.calendar_today),
-                    ),
+                    ],
 
                     // Control time
                     GestureDetector(

@@ -1866,6 +1866,17 @@ class $ProductionBatchesTable extends ProductionBatches
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _observationsMeta = const VerificationMeta(
+    'observations',
+  );
+  @override
+  late final GeneratedColumn<String> observations = GeneratedColumn<String>(
+    'observations',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -1932,6 +1943,7 @@ class $ProductionBatchesTable extends ProductionBatches
     latitude,
     longitude,
     locationText,
+    observations,
     syncStatus,
     remoteId,
     createdAt,
@@ -2110,6 +2122,15 @@ class $ProductionBatchesTable extends ProductionBatches
         ),
       );
     }
+    if (data.containsKey('observations')) {
+      context.handle(
+        _observationsMeta,
+        observations.isAcceptableOrUnknown(
+          data['observations']!,
+          _observationsMeta,
+        ),
+      );
+    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -2215,6 +2236,10 @@ class $ProductionBatchesTable extends ProductionBatches
         DriftSqlType.string,
         data['${effectivePrefix}location_text'],
       ),
+      observations: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observations'],
+      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sync_status'],
@@ -2261,6 +2286,7 @@ class ProductionBatchLocal extends DataClass
   final double? latitude;
   final double? longitude;
   final String? locationText;
+  final String? observations;
 
   /// Sync status: 0=pending, 1=synced, 2=modified
   final int syncStatus;
@@ -2292,6 +2318,7 @@ class ProductionBatchLocal extends DataClass
     this.latitude,
     this.longitude,
     this.locationText,
+    this.observations,
     required this.syncStatus,
     this.remoteId,
     required this.createdAt,
@@ -2329,6 +2356,9 @@ class ProductionBatchLocal extends DataClass
     }
     if (!nullToAbsent || locationText != null) {
       map['location_text'] = Variable<String>(locationText);
+    }
+    if (!nullToAbsent || observations != null) {
+      map['observations'] = Variable<String>(observations);
     }
     map['sync_status'] = Variable<int>(syncStatus);
     if (!nullToAbsent || remoteId != null) {
@@ -2373,6 +2403,9 @@ class ProductionBatchLocal extends DataClass
       locationText: locationText == null && nullToAbsent
           ? const Value.absent()
           : Value(locationText),
+      observations: observations == null && nullToAbsent
+          ? const Value.absent()
+          : Value(observations),
       syncStatus: Value(syncStatus),
       remoteId: remoteId == null && nullToAbsent
           ? const Value.absent()
@@ -2414,6 +2447,7 @@ class ProductionBatchLocal extends DataClass
       latitude: serializer.fromJson<double?>(json['latitude']),
       longitude: serializer.fromJson<double?>(json['longitude']),
       locationText: serializer.fromJson<String?>(json['locationText']),
+      observations: serializer.fromJson<String?>(json['observations']),
       syncStatus: serializer.fromJson<int>(json['syncStatus']),
       remoteId: serializer.fromJson<String?>(json['remoteId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -2442,6 +2476,7 @@ class ProductionBatchLocal extends DataClass
       'latitude': serializer.toJson<double?>(latitude),
       'longitude': serializer.toJson<double?>(longitude),
       'locationText': serializer.toJson<String?>(locationText),
+      'observations': serializer.toJson<String?>(observations),
       'syncStatus': serializer.toJson<int>(syncStatus),
       'remoteId': serializer.toJson<String?>(remoteId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -2468,6 +2503,7 @@ class ProductionBatchLocal extends DataClass
     Value<double?> latitude = const Value.absent(),
     Value<double?> longitude = const Value.absent(),
     Value<String?> locationText = const Value.absent(),
+    Value<String?> observations = const Value.absent(),
     int? syncStatus,
     Value<String?> remoteId = const Value.absent(),
     DateTime? createdAt,
@@ -2495,6 +2531,7 @@ class ProductionBatchLocal extends DataClass
     latitude: latitude.present ? latitude.value : this.latitude,
     longitude: longitude.present ? longitude.value : this.longitude,
     locationText: locationText.present ? locationText.value : this.locationText,
+    observations: observations.present ? observations.value : this.observations,
     syncStatus: syncStatus ?? this.syncStatus,
     remoteId: remoteId.present ? remoteId.value : this.remoteId,
     createdAt: createdAt ?? this.createdAt,
@@ -2544,6 +2581,9 @@ class ProductionBatchLocal extends DataClass
       locationText: data.locationText.present
           ? data.locationText.value
           : this.locationText,
+      observations: data.observations.present
+          ? data.observations.value
+          : this.observations,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -2574,6 +2614,7 @@ class ProductionBatchLocal extends DataClass
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('locationText: $locationText, ')
+          ..write('observations: $observations, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -2602,6 +2643,7 @@ class ProductionBatchLocal extends DataClass
     latitude,
     longitude,
     locationText,
+    observations,
     syncStatus,
     remoteId,
     createdAt,
@@ -2629,6 +2671,7 @@ class ProductionBatchLocal extends DataClass
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
           other.locationText == this.locationText &&
+          other.observations == this.observations &&
           other.syncStatus == this.syncStatus &&
           other.remoteId == this.remoteId &&
           other.createdAt == this.createdAt &&
@@ -2654,6 +2697,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
   final Value<double?> latitude;
   final Value<double?> longitude;
   final Value<String?> locationText;
+  final Value<String?> observations;
   final Value<int> syncStatus;
   final Value<String?> remoteId;
   final Value<DateTime> createdAt;
@@ -2677,6 +2721,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.locationText = const Value.absent(),
+    this.observations = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2701,6 +2746,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.locationText = const Value.absent(),
+    this.observations = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -2734,6 +2780,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Expression<double>? latitude,
     Expression<double>? longitude,
     Expression<String>? locationText,
+    Expression<String>? observations,
     Expression<int>? syncStatus,
     Expression<String>? remoteId,
     Expression<DateTime>? createdAt,
@@ -2760,6 +2807,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (locationText != null) 'location_text': locationText,
+      if (observations != null) 'observations': observations,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (remoteId != null) 'remote_id': remoteId,
       if (createdAt != null) 'created_at': createdAt,
@@ -2786,6 +2834,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Value<double?>? latitude,
     Value<double?>? longitude,
     Value<String?>? locationText,
+    Value<String?>? observations,
     Value<int>? syncStatus,
     Value<String?>? remoteId,
     Value<DateTime>? createdAt,
@@ -2810,6 +2859,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationText: locationText ?? this.locationText,
+      observations: observations ?? this.observations,
       syncStatus: syncStatus ?? this.syncStatus,
       remoteId: remoteId ?? this.remoteId,
       createdAt: createdAt ?? this.createdAt,
@@ -2878,6 +2928,9 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     if (locationText.present) {
       map['location_text'] = Variable<String>(locationText.value);
     }
+    if (observations.present) {
+      map['observations'] = Variable<String>(observations.value);
+    }
     if (syncStatus.present) {
       map['sync_status'] = Variable<int>(syncStatus.value);
     }
@@ -2914,6 +2967,7 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('locationText: $locationText, ')
+          ..write('observations: $observations, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -6220,6 +6274,7 @@ typedef $$ProductionBatchesTableCreateCompanionBuilder =
       Value<double?> latitude,
       Value<double?> longitude,
       Value<String?> locationText,
+      Value<String?> observations,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6245,6 +6300,7 @@ typedef $$ProductionBatchesTableUpdateCompanionBuilder =
       Value<double?> latitude,
       Value<double?> longitude,
       Value<String?> locationText,
+      Value<String?> observations,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6347,6 +6403,11 @@ class $$ProductionBatchesTableFilterComposer
 
   ColumnFilters<String> get locationText => $composableBuilder(
     column: $table.locationText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get observations => $composableBuilder(
+    column: $table.observations,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6470,6 +6531,11 @@ class $$ProductionBatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get observations => $composableBuilder(
+    column: $table.observations,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -6578,6 +6644,11 @@ class $$ProductionBatchesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get observations => $composableBuilder(
+    column: $table.observations,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => column,
@@ -6651,6 +6722,7 @@ class $$ProductionBatchesTableTableManager
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
                 Value<String?> locationText = const Value.absent(),
+                Value<String?> observations = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6674,6 +6746,7 @@ class $$ProductionBatchesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 locationText: locationText,
+                observations: observations,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,
@@ -6699,6 +6772,7 @@ class $$ProductionBatchesTableTableManager
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
                 Value<String?> locationText = const Value.absent(),
+                Value<String?> observations = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6722,6 +6796,7 @@ class $$ProductionBatchesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 locationText: locationText,
+                observations: observations,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,

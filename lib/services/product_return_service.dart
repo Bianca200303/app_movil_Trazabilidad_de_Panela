@@ -105,9 +105,106 @@ class ProductReturnService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getBatchesByRange(
+    DateTime from,
+    DateTime to, {
+    List<String>? moduleIds,
+  }) async {
+    try {
+      var query = _supabase
+          .from('production_batches')
+          .select('''
+            id,
+            batch_code,
+            process_date,
+            panela_kg,
+            confitillo_kg,
+            producers!inner(
+              first_name,
+              last_name,
+              dni,
+              appagrop_code,
+              coop_module_id
+            )
+          ''')
+          .gte('process_date', DateFormat('yyyy-MM-dd').format(from))
+          .lte('process_date', DateFormat('yyyy-MM-dd').format(to))
+          .eq('cooperative_id', AppConfig.current.id);
+
+      if (moduleIds != null && moduleIds.isNotEmpty) {
+        query = query.filter('producers.coop_module_id', 'in', '(${moduleIds.join(',')})');
+      }
+
+      final response = await query.order('process_date', ascending: false);
+      return List<Map<String, dynamic>>.from(response as List);
+    } catch (e) {
+      throw Exception('Error al cargar lotes: $e');
+    }
+  }
+
   /// Get returns history with production batch details
   /// For history screen: combines return + batch + producer data
   /// Shows last 3 months of returns sorted by most recent first
+  Future<List<Map<String, dynamic>>> getReturnsHistoryByRange(DateTime from, DateTime to) async {
+    try {
+      final response = await _supabase
+          .from('product_returns')
+          .select('''
+            id,
+            client_name,
+            return_date,
+            quantity_kg,
+            quantity_sacks,
+            return_reason,
+            observations,
+            created_at,
+            registered_by_user:users!product_returns_created_by_fkey(first_name, last_name),
+            production_batches!inner(
+              batch_code,
+              process_date,
+              panela_kg,
+              producers!inner(
+                first_name,
+                last_name,
+                dni,
+                appagrop_code,
+                coop_modules(name)
+              )
+            )
+          ''')
+          .eq('cooperative_id', AppConfig.current.id)
+          .gte('return_date', from.toIso8601String().split('T')[0])
+          .lte('return_date', to.toIso8601String().split('T')[0])
+          .order('return_date', ascending: false);
+
+      return (response as List).map((item) {
+        final batch = item['production_batches'];
+        final producer = batch['producers'];
+        final regUser = item['registered_by_user'] as Map<String, dynamic>?;
+        return {
+          'id': item['id'],
+          'client_name': item['client_name'],
+          'return_date': DateTime.parse(item['return_date']),
+          'quantity_kg': (item['quantity_kg'] as num).toDouble(),
+          'quantity_sacks': item['quantity_sacks'] as int,
+          'return_reason': item['return_reason'],
+          'observations': item['observations'],
+          'batch_code': batch['batch_code'],
+          'batch_panela_kg': batch['panela_kg'],
+          'process_date': DateTime.parse(batch['process_date']),
+          'producer_name': '${producer['first_name']} ${producer['last_name']}',
+          'producer_dni': producer['dni'],
+          'appagrop_code': producer['appagrop_code'],
+          'module_name': (producer['coop_modules'] as Map<String, dynamic>?)?['name'],
+          'registered_by': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
+          'created_at': DateTime.parse(item['created_at']),
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('Error al cargar historial: $e');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getReturnsHistory() async {
     try {
       // Get last 3 months of data

@@ -36,6 +36,8 @@ class CreateProductionBatchRequest {
   final double? latitude;
   final double? longitude;
   final String? locationText;
+  final String? cooperativeId;
+  final String? observations;
 
   CreateProductionBatchRequest({
     this.batchCode,
@@ -61,6 +63,8 @@ class CreateProductionBatchRequest {
     this.latitude,
     this.longitude,
     this.locationText,
+    this.cooperativeId,
+    this.observations,
   });
 }
 
@@ -144,6 +148,7 @@ class ProductionBatchService {
           latitude: drift.Value(request.latitude),
           longitude: drift.Value(request.longitude),
           locationText: drift.Value(request.locationText),
+          observations: drift.Value(request.observations),
           producerLocalId: producerLocalId,
           plotLocalId: drift.Value(plotLocalId),
           cooperativeId: AppConfig.current.id,
@@ -209,6 +214,8 @@ class ProductionBatchService {
             latitude: request.latitude,
             longitude: request.longitude,
             locationText: request.locationText,
+            cooperativeId: request.cooperativeId,
+            observations: request.observations,
           );
 
           final remoteBatch = await createOnline(remoteRequest);
@@ -268,8 +275,8 @@ class ProductionBatchService {
         throw Exception('Usuario no autenticado');
       }
 
-      // Get cooperative ID from configuration
-      final cooperativeId = AppConfig.current.id;
+      // Bug B fix: use cooperativeId from request (sync path) or current config (direct path)
+      final cooperativeId = request.cooperativeId ?? AppConfig.current.id;
 
       // Use pre-generated batch code or generate new one
       final batchCode = request.batchCode ?? BatchCodeGenerator.generate(
@@ -316,6 +323,9 @@ class ProductionBatchService {
       }
       if (request.locationText != null) {
         insertData['location_text'] = request.locationText!;
+      }
+      if (request.observations != null && request.observations!.isNotEmpty) {
+        insertData['observations'] = request.observations!;
       }
 
       DebugLogger.debug('ProductionBatchService', 'createOnline',
@@ -477,24 +487,24 @@ class ProductionBatchService {
   /// - Offline disabled: fetch from Supabase only
   /// - Offline enabled + no connection: fetch local pending only
   /// - Offline enabled + connected: fetch local pending + remote (combined)
-  Future<List<Map<String, dynamic>>> getProductionBatchesForHistorial() async {
-    // If offline not enabled, use original Supabase-only behavior
+  Future<List<Map<String, dynamic>>> getProductionBatchesForHistorial({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     if (!OfflineConfig.instance.features.production || _db == null) {
-      return await _getProductionFromSupabase();
+      return await _getProductionFromSupabase(from: from, to: to);
     }
 
     final isConnected = await NetworkDetector().isConnected;
 
     if (!isConnected) {
-      // OFFLINE: Return only local pending batches
       DebugLogger.info('ProductionBatchService', 'getProductionBatchesForHistorial',
           'Offline mode: returning local pending batches only');
       return await _getLocalPendingBatches();
     } else {
-      // ONLINE: Combine local pending + remote
       DebugLogger.info('ProductionBatchService', 'getProductionBatchesForHistorial',
           'Online mode: returning combined local + remote batches');
-      return await _getCombinedBatches();
+      return await _getCombinedBatches(from: from, to: to);
     }
   }
 
@@ -503,18 +513,22 @@ class ProductionBatchService {
     DebugLogger.info('ProductionBatchService', '_getLocalPendingBatches',
         'Fetching local pending batches for historial');
 
-    final pending = await _db!.productionBatchesDao.getPending();
+    final pending = await _db!.productionBatchesDao.getPending(AppConfig.current.id);
     final results = <Map<String, dynamic>>[];
 
     for (final batch in pending) {
-      // Get producer name
       final producer = await _db.producersDao.getById(batch.producerLocalId);
 
-      // Get plot name if exists
       String? plotName;
       if (batch.plotLocalId != null) {
         final plot = await _db.plotsDao.getById(batch.plotLocalId!);
         plotName = plot?.name;
+      }
+
+      String moduleName = '';
+      if (producer != null && producer.coopModuleId.isNotEmpty) {
+        final module = await _db.coopModulesDao.getById(producer.coopModuleId);
+        moduleName = module?.name ?? '';
       }
 
       results.add({
@@ -524,6 +538,7 @@ class ProductionBatchService {
             ? '${producer.firstName} ${producer.lastName}'
             : 'Desconocido',
         'dni_productor': producer?.dni ?? '',
+        'modulo': moduleName,
         'parcela': plotName ?? 'No especificada',
         'fecha_cosecha': batch.harvestDate,
         'fecha_proceso': batch.processDate,
@@ -534,7 +549,7 @@ class ProductionBatchService {
         'porcentaje_extraccion': batch.porcentajeExtraccion ?? 0.0,
         'eficiencia': batch.efficiencyPercentage,
         'fecha_registro': batch.createdAt,
-        'syncStatus': batch.syncStatus, // For badge
+        'syncStatus': batch.syncStatus,
       });
     }
 
@@ -545,80 +560,56 @@ class ProductionBatchService {
   }
 
   /// Get combined batches: local pending + remote (online mode)
-  Future<List<Map<String, dynamic>>> _getCombinedBatches() async {
-    DebugLogger.info('ProductionBatchService', '_getCombinedBatches',
-        'Fetching combined local + remote batches for historial');
-
+  Future<List<Map<String, dynamic>>> _getCombinedBatches({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     final results = <Map<String, dynamic>>[];
-
-    // 1. Get local pending batches FIRST (appear at top)
     final localPending = await _getLocalPendingBatches();
     results.addAll(localPending);
-
-    DebugLogger.debug('ProductionBatchService', '_getCombinedBatches',
-        'Added ${localPending.length} local pending batches');
-
-    // 2. Get ALL remote batches from Supabase
-    final remoteBatches = await _getProductionFromSupabase();
-
-    // 3. Add ALL remote (no filtering - remote is source of truth)
+    final remoteBatches = await _getProductionFromSupabase(from: from, to: to);
     for (final remote in remoteBatches) {
-      results.add({
-        ...remote,
-        'syncStatus': SyncStatus.synced.value, // Mark as synced
-      });
+      results.add({ ...remote, 'syncStatus': SyncStatus.synced.value });
     }
-
-    DebugLogger.info('ProductionBatchService', '_getCombinedBatches',
-        'Returning ${results.length} total (${localPending.length} pending + ${remoteBatches.length} remote)');
-
     return results;
   }
 
-  /// Get production batches from Supabase (original behavior)
-  Future<List<Map<String, dynamic>>> _getProductionFromSupabase() async {
+  Future<List<Map<String, dynamic>>> _getProductionFromSupabase({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     try {
-      // Calculate date range: last month
       final today = DateTime.now();
-      final oneMonthAgo = DateTime(today.year, today.month - 1, today.day);
-      final todayStr = today.toIso8601String().split('T')[0];
-      final oneMonthAgoStr = oneMonthAgo.toIso8601String().split('T')[0];
+      final fromStr = (from ?? DateTime(today.year, today.month - 1, today.day))
+          .toIso8601String().split('T')[0];
+      final toStr = (to ?? today).toIso8601String().split('T')[0];
 
       final response = await _supabase
           .from('production_batches')
           .select('''
-            id,
-            batch_code,
-            harvest_date,
-            process_date,
-            cane_kg,
-            juice_liters,
-            panela_kg,
-            confitillo_kg,
-            porcentaje_extraccion,
-            efficiency_percentage,
-            created_at,
+            id, batch_code, harvest_date, process_date,
+            cane_kg, juice_liters, panela_kg, confitillo_kg,
+            porcentaje_extraccion, efficiency_percentage, created_at,
             producers!inner(
-              first_name,
-              last_name,
-              dni
+              first_name, last_name, dni,
+              coop_modules( name )
             ),
-            plots(
-              name,
-              code
-            )
+            plots( name, code )
           ''')
-          .gte('process_date', oneMonthAgoStr)
-          .lte('process_date', todayStr)
-          .order('created_at', ascending: false);
+          .gte('process_date', fromStr)
+          .lte('process_date', toStr)
+          .order('process_date', ascending: false);
 
       return (response as List).map((item) {
         final plot = item['plots'];
+        final producer = item['producers'];
+        final module = producer['coop_modules'];
         return {
           'id': item['id'],
           'codigo_lote': item['batch_code'],
-          'productor': '${item['producers']['first_name']} ${item['producers']['last_name']}',
-          'dni_productor': item['producers']['dni'],
+          'productor': '${producer['first_name']} ${producer['last_name']}',
+          'dni_productor': producer['dni'],
+          'modulo': module?['name'] ?? '',
           'parcela': plot != null ? '${plot['name']} (${plot['code']})' : 'No especificada',
           'fecha_cosecha': DateTime.parse(item['harvest_date']).toLocal(),
           'fecha_proceso': DateTime.parse(item['process_date']).toLocal(),

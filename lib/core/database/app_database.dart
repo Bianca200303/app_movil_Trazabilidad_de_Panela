@@ -62,7 +62,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// Migration strategy for handling schema version changes
   ///
@@ -74,6 +74,7 @@ class AppDatabase extends _$AppDatabase {
   /// - v5: Add regulator unit tracking (regulator_quantity_value, regulator_quantity_unit)
   /// - v6: Add cane_density to production_batches for per-batch density tracking
   /// - v7: Add location fields (latitude, longitude, locationText) to production_batches
+  /// - v8: Add observations to production_batches
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
@@ -95,6 +96,9 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(productionBatches, productionBatches.latitude);
             await m.addColumn(productionBatches, productionBatches.longitude);
             await m.addColumn(productionBatches, productionBatches.locationText);
+          }
+          if (from <= 7) {
+            await m.addColumn(productionBatches, productionBatches.observations);
           }
         },
       );

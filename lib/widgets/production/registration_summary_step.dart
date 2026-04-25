@@ -21,6 +21,8 @@ import 'package:panela_sys/core/production_calculator.dart';
 import 'package:panela_sys/core/batch_code_generator.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
+import 'package:panela_sys/core/offline/network_detector.dart';
+import 'package:panela_sys/widgets/common/app_snackbar.dart';
 
 class RegistrationSummaryStep extends StatefulWidget {
   final AppDatabase db;
@@ -45,6 +47,7 @@ class RegistrationSummaryStep extends StatefulWidget {
   final double? locationLatitude;
   final double? locationLongitude;
   final String? locationText;
+  final TextEditingController observationsController;
 
   const RegistrationSummaryStep({
     super.key,
@@ -70,6 +73,7 @@ class RegistrationSummaryStep extends StatefulWidget {
     this.locationLatitude,
     this.locationLongitude,
     this.locationText,
+    required this.observationsController,
   });
 
   @override
@@ -331,7 +335,9 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
   }
 
   Future<void> _saveProductionBatch() async {
+    if (_isSaving) return;
     if (!await AppConfirmDialog.show(context)) return;
+    if (!mounted || _isSaving) return;
     setState(() {
       _isSaving = true;
     });
@@ -375,13 +381,21 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         latitude: widget.locationLatitude,
         longitude: widget.locationLongitude,
         locationText: widget.locationText,
+        observations: widget.observationsController.text.trim().isEmpty
+            ? null
+            : widget.observationsController.text.trim(),
       );
 
       await _productionBatchService.createProductionBatch(request);
+      final isOnline = await NetworkDetector().isConnected;
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lote de producción registrado exitosamente')),
+        AppSnackBar.show(
+          context,
+          message: isOnline
+              ? 'Lote de producción registrado exitosamente.'
+              : 'Lote guardado localmente. Se sincronizará cuando recupere conexión.',
+          type: isOnline ? SnackBarType.success : SnackBarType.info,
         );
         Navigator.push(
           context,
@@ -397,17 +411,18 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
       _generateBatchCode();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al registrar lote: $e'),
-            backgroundColor: AppColors.error,
-          ),
+        AppSnackBar.show(
+          context,
+          message: 'Error al registrar lote: $e',
+          type: SnackBarType.error,
         );
       }
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -426,6 +441,20 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         ),
         SizedBox(height: context.responsiveSpacing * 0.5),
         ..._buildSummaryRows(context),
+        SizedBox(height: context.responsiveSpacing),
+        Text(
+          'Observaciones (opcional)',
+          style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: context.responsiveSpacing * 0.5),
+        TextField(
+          controller: widget.observationsController,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Ingrese observaciones sobre este lote...',
+            border: OutlineInputBorder(),
+          ),
+        ),
         SizedBox(height: context.responsiveSpacing * 1.5),
         AppButton(
           text: _isSaving ? 'GUARDANDO...' : 'GUARDAR LOTE',

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/network_detector.dart';
 import 'package:panela_sys/core/offline/offline_config.dart';
@@ -56,7 +57,7 @@ final syncPendingCountProvider = StreamProvider<int>((ref) async* {
     }
 
     if (OfflineConfig.instance.features.production) {
-      final productionCount = await db.productionBatchesDao.countPending();
+      final productionCount = await db.productionBatchesDao.countPending(AppConfig.current.id);
 
       count += productionCount;
 

@@ -48,6 +48,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   final TextEditingController _regulatorQuantityController = TextEditingController();
   final TextEditingController _regulatorUnitController = TextEditingController();
   final TextEditingController _finalPHController = TextEditingController();
+  final TextEditingController _observationsController = TextEditingController();
 
   // Variables for batch certificates selection
   List<BatchCert> _certificates = [];
@@ -62,6 +63,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
 
   // Current step in the registration process
   int _currentStep = 0;
+  static const int _totalSteps = 8;
 
   // Scroll controller to reset position on step change
   final ScrollController _scrollController = ScrollController();
@@ -91,6 +93,14 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     // Read initial values without watch (avoids build-scope conflicts)
     _density = ref.read(caneDensityProvider);
     _isAdminSistema = ref.read(currentUserProvider)?.isAdminSistema == true;
+
+    // Role guard: productores cannot register production
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser?.isProductor == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go(AppRoutes.home.path);
+      });
+    }
 
     // Initialize density controller with current density value
     _densityController.text = _density.toStringAsFixed(2);
@@ -142,6 +152,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     _regulatorQuantityController.dispose();
     _regulatorUnitController.dispose();
     _finalPHController.dispose();
+    _observationsController.dispose();
     super.dispose();
   }
 
@@ -159,9 +170,19 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
             constraints: BoxConstraints(
               maxWidth: context.responsiveCardWidth,
             ),
-            child: AppCard(
-              padding: context.responsivePadding,
-              child: _buildCurrentStep(_density, _isAdminSistema),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _StepProgressIndicator(
+                  currentStep: _currentStep + 1,
+                  totalSteps: _totalSteps,
+                ),
+                SizedBox(height: context.responsiveSpacing),
+                AppCard(
+                  padding: context.responsivePadding,
+                  child: _buildCurrentStep(_density, _isAdminSistema),
+                ),
+              ],
             ),
           ),
         ),
@@ -282,6 +303,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           locationLatitude: _locationLatitude,
           locationLongitude: _locationLongitude,
           locationText: _locationText,
+          observationsController: _observationsController,
           onBack: () => _previousStep(),
         );
       default:
@@ -457,7 +479,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   void _validateResultsAndNextStep() {
     final juiceLiters = double.tryParse(_juiceQuantityController.text);
     final panelaKg = double.tryParse(_panelaQuantityController.text);
-    final confitilloKg = double.tryParse(_confitilloQuantityController.text);
+    final confitilloKg = double.tryParse(_confitilloQuantityController.text) ?? 0.0;
 
     if (juiceLiters == null || juiceLiters <= 0) {
       _showResultsError('Ingresa los litros de jugo (mayor a 0)');
@@ -467,9 +489,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
       _showResultsError('Ingresa los kg de panela (mayor o igual a 0)');
       return;
     }
-    if (confitilloKg == null || confitilloKg < 0) {
-      _showResultsError('Ingresa los kg de confitillo (mayor o igual a 0)');
+    if (confitilloKg < 0) {
+      _showResultsError('Los kg de confitillo no pueden ser negativos');
       return;
+    }
+    if (_confitilloQuantityController.text.isEmpty) {
+      _confitilloQuantityController.text = '0';
     }
     if (panelaKg >= juiceLiters) {
       _showResultsError(
@@ -489,4 +514,42 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     );
   }
 
+}
+
+class _StepProgressIndicator extends StatelessWidget {
+  final int currentStep;
+  final int totalSteps;
+
+  const _StepProgressIndicator({
+    required this.currentStep,
+    required this.totalSteps,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = currentStep / totalSteps;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            'Paso $currentStep de $totalSteps',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            backgroundColor: Theme.of(context).dividerColor,
+          ),
+        ),
+      ],
+    );
+  }
 }

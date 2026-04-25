@@ -41,7 +41,7 @@ class CarrierStep extends StatelessWidget {
             SizedBox(height: context.responsiveSpacing),
 
             AppTextField(
-              label: 'Nombre del transportista',
+              label: 'Nombre del transportista o Razón social',
               controller: carrierNameController,
             ),
 

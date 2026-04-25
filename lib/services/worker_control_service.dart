@@ -89,11 +89,25 @@ class WorkerControlService {
   Future<List<Map<String, dynamic>>> getWorkerControlsForHistorial(
     String cooperativeId,
   ) async {
+    return getWorkerControlsForHistorialByRange(
+      cooperativeId,
+      DateTime(DateTime.now().year, DateTime.now().month, 1),
+      DateTime.now(),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getWorkerControlsForHistorialByRange(
+    String cooperativeId,
+    DateTime from,
+    DateTime to,
+  ) async {
     try {
       final response = await _supabase
           .from('worker_controls')
-          .select('*, worker_control_items(*), production_batches!inner(producers!inner(dni))')
+          .select('*, worker_control_items(*), production_batches!inner(process_date, panela_kg, confitillo_kg, producers!inner(first_name, last_name, dni, coop_modules(name)))')
           .eq('cooperative_id', cooperativeId)
+          .gte('created_at', from.toIso8601String().split('T')[0])
+          .lte('created_at', '${to.toIso8601String().split('T')[0]}T23:59:59')
           .order('created_at', ascending: false);
 
       return (response as List).map((json) {
@@ -103,6 +117,13 @@ class WorkerControlService {
         return {
           'control': control,
           'producer_dni': producer?['dni'] as String?,
+          'producer_name': producer != null
+              ? '${producer['first_name']} ${producer['last_name']}'
+              : null,
+          'module_name': (producer?['coop_modules'] as Map?)?['name'] as String?,
+          'process_date': batch?['process_date'] as String?,
+          'panela_kg': batch?['panela_kg'],
+          'confitillo_kg': batch?['confitillo_kg'],
         };
       }).toList();
     } catch (e) {
@@ -122,6 +143,53 @@ class WorkerControlService {
       return WorkerControl.fromJson(response);
     } catch (e) {
       throw Exception('Error al obtener control: $e');
+    }
+  }
+
+  /// Returns existing controls grouped by batch_id for the given batch IDs.
+  Future<Map<String, List<WorkerControl>>> getControlsByBatchIds(
+    String cooperativeId,
+    List<String> batchIds,
+  ) async {
+    if (batchIds.isEmpty) return {};
+    try {
+      final response = await _supabase
+          .from('worker_controls')
+          .select('*, worker_control_items(*)')
+          .eq('cooperative_id', cooperativeId)
+          .filter('production_batch_id', 'in', '(${batchIds.join(',')})');
+      final result = <String, List<WorkerControl>>{};
+      for (final json in response as List) {
+        final control = WorkerControl.fromJson(json as Map<String, dynamic>);
+        result.putIfAbsent(control.productionBatchId, () => []).add(control);
+      }
+      return result;
+    } catch (e) {
+      throw Exception('Error al obtener controles por lotes: $e');
+    }
+  }
+
+  /// Updates header + replaces all worker_control_items for an existing record.
+  Future<void> updateWorkerControlFull(
+    String id,
+    CreateWorkerControlRequest request,
+  ) async {
+    try {
+      final headerData = request.toHeaderJson();
+      headerData['worker_name'] =
+          'Registro Grupal (${request.workers.length} operarios)';
+      await _supabase.from('worker_controls').update(headerData).eq('id', id);
+      await _supabase
+          .from('worker_control_items')
+          .delete()
+          .eq('worker_control_id', id);
+      if (request.workers.isNotEmpty) {
+        await _supabase
+            .from('worker_control_items')
+            .insert(request.workers.map((w) => w.toJson(id)).toList());
+      }
+    } catch (e) {
+      throw Exception('Error al actualizar control: $e');
     }
   }
 

@@ -87,17 +87,21 @@ class StowageTransportInspectionService {
   }
 
   // Get inspections with exit registration details (including items and producers)
-  Future<List<Map<String, dynamic>>> getInspectionsWithExitDetails() async {
+  Future<List<Map<String, dynamic>>> getInspectionsWithExitDetails({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     try {
-      final response = await _supabase
+      var filterQuery = _supabase
           .from('stowage_transport_inspections')
           .select('''
             *,
+            registered_by_user:users!stowage_transport_inspections_created_by_fkey(first_name, last_name),
             exit_registration:exit_registrations(
               id,
+              exit_code,
               document_number,
               total_kg,
-              dni_productor,
               exit_items(
                 bags_count,
                 quantity_kg,
@@ -111,11 +115,16 @@ class StowageTransportInspectionService {
                 )
               )
             )
-          ''')
+          ''');
+
+      if (from != null) filterQuery = filterQuery.gte('inspection_date', from.toIso8601String().substring(0, 10));
+      if (to != null)   filterQuery = filterQuery.lte('inspection_date', to.toIso8601String().substring(0, 10));
+
+      final result = await filterQuery
           .order('inspection_date', ascending: false)
           .order('created_at', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response);
+      return List<Map<String, dynamic>>.from(result);
     } catch (e) {
       throw Exception('Failed to fetch inspections with exit details: $e');
     }
