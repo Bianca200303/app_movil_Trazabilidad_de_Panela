@@ -45,6 +45,7 @@ class _StowageTransportInspectionRegistrationScreenState
   bool _isSaving = false;
   List<Map<String, dynamic>> _availableExits = [];
   Set<String> _inspectedExitIds = {};
+  Map<String, String> _exitToInspectionId = {};
 
   // Form controllers - Page 1: General data
   String? _selectedExitId;
@@ -111,12 +112,16 @@ class _StowageTransportInspectionRegistrationScreenState
       final exits = await _exitService.getExitRegistrationsWithItemsByDateRange(start, end);
       final inspected = await _supabase
           .from('stowage_transport_inspections')
-          .select('exit_registration_id');
+          .select('id, exit_registration_id');
       setState(() {
         _availableExits = exits;
         _inspectedExitIds = (inspected as List)
             .map((e) => e['exit_registration_id'] as String)
             .toSet();
+        _exitToInspectionId = {
+          for (final e in inspected as List)
+            e['exit_registration_id'] as String: e['id'] as String,
+        };
         _isLoadingExits = false;
       });
     } catch (e) {
@@ -234,7 +239,39 @@ class _StowageTransportInspectionRegistrationScreenState
         createdBy: userDNI,
       );
 
-      await _inspectionService.createInspection(request);
+      final existingId = _exitToInspectionId[_selectedExitId!];
+      if (existingId != null) {
+        await _inspectionService.updateInspection(
+          existingId,
+          UpdateStowageTransportInspectionRequest(
+            inspectionDate: inspectionDate,
+            carrierName: request.carrierName,
+            carrierRuc: request.carrierRuc,
+            carrierLicense: request.carrierLicense,
+            vehicleBrand: request.vehicleBrand,
+            vehiclePlate: request.vehiclePlate,
+            vehicleCondition: request.vehicleCondition,
+            hasSpareTire: request.hasSpareTire,
+            hasValidSoat: request.hasValidSoat,
+            hasTechnicalReview: request.hasTechnicalReview,
+            hasFirstAidKit: request.hasFirstAidKit,
+            hasFireExtinguisher: request.hasFireExtinguisher,
+            hasGps: request.hasGps,
+            hasCleaningSupplies: request.hasCleaningSupplies,
+            floorsClean: request.floorsClean,
+            wallsClean: request.wallsClean,
+            ceilingsClean: request.ceilingsClean,
+            noStrangeOdors: request.noStrangeOdors,
+            tarpClean: request.tarpClean,
+            palletsClean: request.palletsClean,
+            sackCleanCondition: request.sackCleanCondition,
+            sackTiedCondition: request.sackTiedCondition,
+            observations: request.observations,
+          ),
+        );
+      } else {
+        await _inspectionService.createInspection(request);
+      }
 
       if (mounted) {
         AppSnackBar.show(

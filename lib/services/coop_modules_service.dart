@@ -82,7 +82,7 @@ class CoopModulesService {
     try {
       final response = await _supabase
           .from('coop_modules')
-          .select('id, name')
+          .select('id, name, default_density')
           .eq('is_active', true)
           .order('name', ascending: true);
 
@@ -179,7 +179,7 @@ class CoopModulesService {
             'name': trimmed,
             'cooperative_id': AppConfig.current.id,
           })
-          .select('id, name')
+          .select('id, name, default_density')
           .single();
 
         final module = CoopModule.fromJson(response);
@@ -211,7 +211,7 @@ class CoopModulesService {
           .from('coop_modules')
           .update({'name': trimmed})
           .eq('id', id)
-          .select('id, name')
+          .select('id, name, default_density')
           .single();
 
       final module = CoopModule.fromJson(response);
@@ -277,7 +277,7 @@ class CoopModulesService {
     try {
       final response = await _supabase
           .from('coop_modules')
-          .select('id, name')
+          .select('id, name, default_density')
           .eq('id', moduleId)
           .eq('is_active', true)
           .maybeSingle();
@@ -298,6 +298,21 @@ class CoopModulesService {
       DebugLogger.error('CoopModulesService', 'getModuleById',
           'Failed to fetch module from Supabase: $e');
       throw Exception('Failed to fetch module: $e');
+    }
+  }
+
+  /// Returns the configured default density for a module.
+  /// Falls back to null if unavailable (caller should use global density).
+  Future<double?> getModuleDensity(String moduleId) async {
+    try {
+      final response = await _supabase
+          .from('coop_modules')
+          .select('default_density')
+          .eq('id', moduleId)
+          .single();
+      return (response['default_density'] as num?)?.toDouble();
+    } catch (_) {
+      return null;
     }
   }
 }

@@ -92,9 +92,7 @@ class ExitAndDateStep extends StatelessWidget {
                   exitData: exitData,
                   isSelected: isSelected,
                   alreadyInspected: alreadyInspected,
-                  onTap: alreadyInspected
-                      ? null
-                      : () => onExitChanged(isSelected ? null : exitId),
+                  onTap: () => onExitChanged(isSelected ? null : exitId),
                 );
               }),
           ],

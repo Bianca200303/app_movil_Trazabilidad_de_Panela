@@ -17,6 +17,7 @@ import 'package:panela_sys/models/batch_cert.dart';
 import 'package:panela_sys/services/batch_cert_service.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
+import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/models/producer.dart';
 import 'package:panela_sys/models/plot.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
@@ -412,6 +413,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     // System defaults as fallback
     double extractionPercentage = 62.5;
     double cachazaPercentage = 2.5;
+    double? moduleDensity;
 
     try {
       // Load producer
@@ -419,9 +421,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         final producer = await ProducerService().getProducerById(producerId);
         if (producer != null) {
           _selectedProducer = producer;
-          // Use producer defaults as second priority
           extractionPercentage = producer.defaultExtractionPercentage;
           cachazaPercentage = producer.defaultCachazaPercentage;
+
+          // Load module density for this producer's module
+          final density = await CoopModulesService().getModuleDensity(producer.coopModuleId);
+          if (density != null && density > 0) moduleDensity = density;
         }
       }
 
@@ -430,7 +435,6 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         final plot = await PlotService().getPlotById(plotId);
         if (plot != null) {
           _selectedPlot = plot;
-          // Use plot defaults as first priority (if they exist)
           if (plot.defaultExtractionPercentage != null) {
             extractionPercentage = plot.defaultExtractionPercentage!;
           }
@@ -443,10 +447,13 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
       // On error, use system defaults (already set above)
     }
 
-    // Update controllers with hierarchical defaults
     setState(() {
       _extractionPercentageController.text = extractionPercentage.toString();
       _cachazaPercentageController.text = cachazaPercentage.toString();
+      if (moduleDensity != null) {
+        _density = moduleDensity!;
+        _densityController.text = moduleDensity!.toStringAsFixed(2);
+      }
     });
   }
 
