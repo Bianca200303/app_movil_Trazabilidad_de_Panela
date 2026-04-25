@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
@@ -38,8 +39,7 @@ class _HealthAccidentTrackingRegistrationScreenState
   final TextEditingController _employeeNameController =
       TextEditingController();
   final TextEditingController _workAreaController = TextEditingController();
-  final TextEditingController _registrationDateController =
-      TextEditingController();
+  DateTime? _registrationDate;
 
   // Step 1: Incident description
   final TextEditingController _symptomsController = TextEditingController();
@@ -63,9 +63,7 @@ class _HealthAccidentTrackingRegistrationScreenState
   void initState() {
     super.initState();
     _loadModules();
-    // Set default registration date to today
-    _registrationDateController.text =
-        DateFormat('dd/MM/yyyy').format(DateTime.now());
+    _registrationDate = DateTime.now();
     // Show confirmation dialog immediately after the first frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _showConfirmationDialog();
@@ -149,11 +147,24 @@ class _HealthAccidentTrackingRegistrationScreenState
     );
   }
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _registrationDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      locale: const Locale('es'),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _registrationDate = picked);
+  }
+
   @override
   void dispose() {
     _employeeNameController.dispose();
     _workAreaController.dispose();
-    _registrationDateController.dispose();
     _symptomsController.dispose();
     _otherActionController.dispose();
     _returnDateController.dispose();
@@ -186,12 +197,32 @@ class _HealthAccidentTrackingRegistrationScreenState
     }
   }
 
-  void _goToNextStep() {
-    if (_currentStep < 4) {
-      setState(() {
-        _currentStep++;
-      });
+  Future<void> _goToNextStep() async {
+    if (_currentStep == 0 && _selectedModuleId != null && _registrationDate != null &&
+        _employeeNameController.text.trim().isNotEmpty) {
+      final date = _registrationDate!;
+      final hasExisting = await _incidentService.hasIncidentForEmployeeOnDate(
+          _selectedModuleId!, _employeeNameController.text.trim(), date);
+      if (!mounted) return;
+      if (hasExisting) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Ya hay un registro este día', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            content: Text(
+              'Ya existe un incidente registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(date)}.\n\n¿Deseas registrar otro igualmente?',
+              style: const TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
+            ],
+          ),
+        );
+        if (proceed != true || !mounted) return;
+      }
     }
+    if (_currentStep < 4) setState(() => _currentStep++);
   }
 
   void _goToPreviousStep() {
@@ -211,9 +242,7 @@ class _HealthAccidentTrackingRegistrationScreenState
     });
 
     try {
-      // Parse registration date
-      final registrationDate =
-          DateFormat('dd/MM/yyyy').parse(_registrationDateController.text);
+      final registrationDate = _registrationDate!;
 
       // Parse return date if provided
       DateTime? returnDate;
@@ -274,7 +303,8 @@ class _HealthAccidentTrackingRegistrationScreenState
           selectedModuleId: _selectedModuleId,
           employeeNameController: _employeeNameController,
           workAreaController: _workAreaController,
-          registrationDateController: _registrationDateController,
+          registrationDate: _registrationDate,
+          onDateTap: _pickDate,
           onNext: _goToNextStep,
           onBack: _goToPreviousStep,
           onModuleChanged: (value) {
@@ -348,7 +378,7 @@ class _HealthAccidentTrackingRegistrationScreenState
                   .name,
           employeeName: _employeeNameController.text,
           workArea: _workAreaController.text,
-          registrationDate: _registrationDateController.text,
+          registrationDate: _registrationDate != null ? AppDateUtils.formatDDMMYYYY(_registrationDate!) : '',
           symptomsDescription: _symptomsController.text,
           actionRest: _actionRest,
           actionMedicalAttention: _actionMedicalAttention,

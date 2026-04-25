@@ -127,6 +127,22 @@ class HealthIncidentService {
     }
   }
 
+  Future<bool> hasIncidentForEmployeeOnDate(String moduleId, String employeeName, DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T')[0];
+      final response = await _supabase
+          .from('health_incidents')
+          .select('id')
+          .eq('coop_module_id', moduleId)
+          .eq('registration_date', dateStr)
+          .ilike('employee_name', employeeName.trim())
+          .limit(1);
+      return (response as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // Delete incident
   Future<void> deleteIncident(String id) async {
     try {

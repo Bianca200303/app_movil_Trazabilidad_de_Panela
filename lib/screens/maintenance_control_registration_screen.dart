@@ -275,6 +275,11 @@ class _MaintenanceControlRegistrationScreenState
                 key: _formKey,
                 child: FormGroup(
                   children: [
+                    AppBackButton(
+                      onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+                      isExpanded: false,
+                    ),
+                    SizedBox(height: context.responsiveSpacing),
                     const AppTitle(
                       title: 'Mantenimiento hornilla/maquinaria/equipos',
                     ),

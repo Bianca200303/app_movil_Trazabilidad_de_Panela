@@ -323,6 +323,9 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final availableBags = (availableKg / 50).floor();
     final remainderKg = availableKg - (availableBags * 50.0);
     final isLowStock = availableKg < 50;
+    final isExpanded = _expandedItems[index];
+
+    const styleNormal = TextStyle(fontSize: 14, color: Colors.black);
 
     return Container(
       decoration: BoxDecoration(
@@ -330,67 +333,141 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         color: AppColors.surface,
       ),
-      child: Padding(
-        padding: EdgeInsets.all(AppDimensions.paddingMedium),
-        child: CheckboxListTile(
-          title: Text(
-            '${producer['first_name']} ${producer['last_name']}',
-            style: AppTextStyles.fieldLabel,
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        children: [
+          // ── Header compacto: checkbox + nombre + módulo/kg ────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (moduleName != null)
-                Text(
-                  'Módulo: $moduleName',
-                  style: AppTextStyles.bodyText,
+              // Checkbox zone
+              InkWell(
+                onTap: () => setState(() {
+                  _selectedStock[index] = !_selectedStock[index];
+                  _updateControllerValue(index);
+                }),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppDimensions.radiusMedium),
+                  bottomLeft: Radius.circular(AppDimensions.radiusMedium),
                 ),
-              Text(
-                'Lote: ${batch['batch_code']}',
-                style: AppTextStyles.bodyText,
-              ),
-              Text(
-                remainderKg > 0.05
-                    ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
-                    : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
-                style: AppTextStyles.bodyText,
-              ),
-              Text(
-                'Fecha de proceso: ${_formatDate(batch['process_date'])}',
-                style: AppTextStyles.bodyText,
-              ),
-              if (isLowStock) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.warningLight,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.warning),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+                  child: Checkbox(
+                    value: _selectedStock[index],
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _selectedStock[index] = value!;
+                        _updateControllerValue(index);
+                      });
+                    },
+                    activeColor: AppColors.primary,
                   ),
-                  child: const Text(
-                    'Stock bajo — menos de 1 saco',
-                    style: TextStyle(
-                      color: AppColors.warning,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                ),
+              ),
+              // Nombre + expand zone
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _expandedItems[index] = !isExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppDimensions.paddingMedium,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${producer['first_name']} ${producer['last_name']}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (moduleName != null)
+                              Text(
+                                moduleName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            Text(
+                              '${availableKg.toStringAsFixed(1)} kg',
+                              style: const TextStyle(fontSize: 13, color: Colors.black),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          isExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ],
           ),
-          value: _selectedStock[index],
-          onChanged: (bool? value) {
-            setState(() {
-              _selectedStock[index] = value!;
-              _updateControllerValue(index);
-            });
-          },
-          controlAffinity: ListTileControlAffinity.leading,
-          activeColor: AppColors.primary,
-          contentPadding: EdgeInsets.zero,
-        ),
+
+          // ── Detalles desplegables ─────────────────────────────────
+          if (isExpanded)
+            Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.border)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(AppDimensions.radiusMedium),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimensions.paddingMedium,
+                AppDimensions.paddingSmall,
+                AppDimensions.paddingMedium,
+                AppDimensions.paddingMedium,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lote: ${batch['batch_code']}', style: styleNormal),
+                  Text(
+                    remainderKg > 0.05
+                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
+                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+                    style: styleNormal,
+                  ),
+                  Text(
+                    'Fecha de proceso: ${_formatDate(batch['process_date'])}',
+                    style: styleNormal,
+                  ),
+                  if (isLowStock) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.warningLight,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.warning),
+                      ),
+                      child: const Text(
+                        'Stock bajo — menos de 1 saco',
+                        style: TextStyle(
+                          color: AppColors.warning,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -561,7 +638,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                         children: [
                           Expanded(
                             child: Text(
-                              '${p['first_name']} ${p['last_name']}\n${b['batch_code']}',
+                              '${p['first_name']} ${p['last_name']}',
                               style: AppTextStyles.bodyText,
                             ),
                           ),
@@ -617,17 +694,6 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                 _scrollController.jumpTo(0);
               }
             }),
-            SizedBox(height: AppDimensions.spacingSmall),
-            AppButton(
-              text: 'Registrar sin documento',
-              type: AppButtonType.secondary,
-              onPressed: () {
-                if (_validateQuantities()) {
-                  _completeRegistration();
-                }
-              },
-              isLoading: _isSubmitting,
-            ),
           ],
         ),
       ],
@@ -763,9 +829,9 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final currentQty = double.tryParse(controller.text.trim()) ?? 0;
     final requestedKg = _isAutoconsumo ? currentQty : currentQty * 50;
     final isOverLimit = currentQty > 0 && requestedKg > availableKg;
-    final maxHint = _isAutoconsumo
-        ? 'Máx: ${availableKg.toStringAsFixed(1)} kg'
-        : 'Máx: ${(availableKg / 50).toStringAsFixed(2)} sacos';
+
+    const styleNormal = TextStyle(fontSize: 14, color: Colors.black);
+    const styleBold = TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w600);
 
     return Container(
       decoration: BoxDecoration(
@@ -776,33 +842,36 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header (siempre visible) ──────────────────────────────
+          // ── Header: nombre + módulo/kg (siempre visible) ─────────
           InkWell(
             onTap: () => setState(() => _expandedItems[index] = !isExpanded),
-            borderRadius: BorderRadius.vertical(
-              top: const Radius.circular(AppDimensions.radiusMedium),
-              bottom: isExpanded ? Radius.zero : const Radius.circular(AppDimensions.radiusMedium),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppDimensions.radiusMedium),
             ),
             child: Padding(
-              padding: EdgeInsets.all(AppDimensions.paddingMedium),
+              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${producer['first_name']} ${producer['last_name']}',
-                          style: AppTextStyles.fieldLabel,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Lote: ${batch['batch_code']}  •  ${availableKg.toStringAsFixed(1)} kg disponible',
-                          style: AppTextStyles.bodyText,
-                        ),
-                      ],
+                    child: Text(
+                      '${producer['first_name']} ${producer['last_name']}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (moduleName != null)
+                        Text(moduleName, style: styleBold),
+                      Text('${availableKg.toStringAsFixed(1)} kg disp.', style: styleNormal),
+                    ],
+                  ),
+                  const SizedBox(width: 6),
                   Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
                     color: AppColors.primary,
@@ -812,9 +881,44 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
             ),
           ),
 
-          // ── Cantidad (siempre visible) ────────────────────────────
+          // ── Detalles desplegables (van ENCIMA de los inputs) ─────
+          if (isExpanded)
+            Container(
+              decoration: BoxDecoration(
+                border: Border.symmetric(horizontal: BorderSide(color: AppColors.border)),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingMedium,
+                vertical: AppDimensions.paddingSmall,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lote: ${batch['batch_code']}', style: styleNormal),
+                  Text('Fecha de proceso: ${_formatDate(batch['process_date'])}', style: styleNormal),
+                  Text(
+                    _isAutoconsumo
+                        ? 'Tipo: Autoconsumo (kilogramos)'
+                        : 'Tipo: Acopio por sacos (1 saco = 50 kg)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _isAutoconsumo ? AppColors.warning : AppColors.success,
+                    ),
+                  ),
+                  Text(
+                    remainderKg > 0.05
+                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
+                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+                    style: styleNormal,
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Inputs: cantidad + equivale + comprobante (siempre) ──
           Padding(
-            padding: EdgeInsets.fromLTRB(
+            padding: const EdgeInsets.fromLTRB(
               AppDimensions.paddingMedium,
               0,
               AppDimensions.paddingMedium,
@@ -824,13 +928,15 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Divider(height: 1),
-                SizedBox(height: AppDimensions.spacingMedium),
+                const SizedBox(height: AppDimensions.spacingMedium),
                 AppTextField(
                   label: _isAutoconsumo ? 'Cantidad en kilogramos' : 'Cantidad en sacos',
                   controller: controller,
                   keyboardType: TextInputType.number,
                   suffixText: _isAutoconsumo ? 'kg' : 'sacos',
-                  hintText: maxHint,
+                  hintText: _isAutoconsumo
+                      ? 'Máx: ${availableKg.toStringAsFixed(1)} kg'
+                      : 'Máx: ${(availableKg / 50).toStringAsFixed(2)} sacos',
                 ),
                 if (!_isAutoconsumo && currentQty > 0) ...[
                   const SizedBox(height: 8),
@@ -855,7 +961,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                         Text(
                           'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
                           style: TextStyle(
-                            color: isOverLimit ? AppColors.error : AppColors.primaryDark,
+                            color: isOverLimit ? AppColors.error : Colors.black,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -880,54 +986,16 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                       style: const TextStyle(color: AppColors.error, fontSize: 12),
                     ),
                   ),
+                const SizedBox(height: AppDimensions.spacingMedium),
+                AppTextField(
+                  label: 'Comprobante de acopio',
+                  controller: documentController,
+                  hintText: 'Ej: RCP-001, FACT-123',
+                  suffixText: 'Opcional',
+                ),
               ],
             ),
           ),
-
-          // ── Detalles desplegables ─────────────────────────────────
-          if (isExpanded)
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border(top: BorderSide(color: AppColors.border)),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(AppDimensions.radiusMedium),
-                ),
-              ),
-              padding: EdgeInsets.all(AppDimensions.paddingMedium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (moduleName != null)
-                    Text('Módulo: $moduleName', style: AppTextStyles.bodyText),
-                  Text(
-                    _isAutoconsumo
-                        ? 'Tipo: Autoconsumo (kilogramos)'
-                        : 'Tipo: Acopio por sacos (1 saco = 50kg)',
-                    style: AppTextStyles.bodyText.copyWith(
-                      color: _isAutoconsumo ? AppColors.warning : AppColors.success,
-                    ),
-                  ),
-                  Text(
-                    remainderKg > 0.05
-                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
-                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
-                    style: AppTextStyles.bodyText,
-                  ),
-                  Text(
-                    'Fecha de proceso: ${_formatDate(batch['process_date'])}',
-                    style: AppTextStyles.bodyText,
-                  ),
-                  SizedBox(height: AppDimensions.spacingMedium),
-                  AppTextField(
-                    label: 'Comprobante de acopio',
-                    controller: documentController,
-                    hintText: 'Ej: RCP-001, FACT-123',
-                    suffixText: 'Opcional',
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );

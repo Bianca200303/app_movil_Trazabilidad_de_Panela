@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
+import 'package:panela_sys/core/theme/app_dimensions.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/widgets/widgets.dart';
-import 'package:intl/intl.dart';
+
 
 class IdentificationDataStep extends StatelessWidget {
   final List<CoopModule> availableModules;
   final String? selectedModuleId;
   final TextEditingController employeeNameController;
   final TextEditingController workAreaController;
-  final TextEditingController registrationDateController;
+  final DateTime? registrationDate;
+  final VoidCallback onDateTap;
   final VoidCallback onNext;
   final VoidCallback onBack;
   final ValueChanged<String?> onModuleChanged;
@@ -20,34 +25,19 @@ class IdentificationDataStep extends StatelessWidget {
     required this.selectedModuleId,
     required this.employeeNameController,
     required this.workAreaController,
-    required this.registrationDateController,
+    required this.registrationDate,
+    required this.onDateTap,
     required this.onNext,
     required this.onBack,
     required this.onModuleChanged,
   });
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: registrationDateController.text.isEmpty
-          ? DateTime.now()
-          : DateFormat('dd/MM/yyyy').parse(registrationDateController.text),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      locale: const Locale('es', 'ES'),
-    );
-
-    if (picked != null) {
-      registrationDateController.text = DateFormat('dd/MM/yyyy').format(picked);
-    }
-  }
 
   bool _validate() {
     return selectedModuleId != null &&
         selectedModuleId!.isNotEmpty &&
         employeeNameController.text.trim().isNotEmpty &&
         workAreaController.text.trim().isNotEmpty &&
-        registrationDateController.text.trim().isNotEmpty;
+        registrationDate != null;
   }
 
   @override
@@ -103,19 +93,46 @@ class IdentificationDataStep extends StatelessWidget {
               hintText: 'Ej: Área de producción',
             ),
             SizedBox(height: context.responsiveSpacing),
-            AppTextField(
-              label: 'Fecha de registro',
-              controller: registrationDateController,
-              readOnly: true,
-              onTap: () => _selectDate(context),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Selecciona la fecha de registro';
-                }
-                return null;
-              },
-              hintText: 'DD/MM/AAAA',
-              suffixIcon: const Icon(Icons.calendar_today),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Fecha de registro', style: AppTextStyles.fieldLabel),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: onDateTap,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingMedium,
+                      vertical: AppDimensions.paddingMedium,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.inputBorder),
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined, size: 20, color: AppColors.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            registrationDate != null
+                                ? AppDateUtils.formatDDMMYYYY(registrationDate!)
+                                : 'Selecciona una fecha',
+                            style: AppTextStyles.bodyText.copyWith(
+                              color: registrationDate != null
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -134,7 +151,7 @@ class IdentificationDataStep extends StatelessWidget {
             if (workAreaController.text.trim().isEmpty) {
               missingFields.add('Área de trabajo');
             }
-            if (registrationDateController.text.trim().isEmpty) {
+            if (registrationDate == null) {
               missingFields.add('Fecha de registro');
             }
 
