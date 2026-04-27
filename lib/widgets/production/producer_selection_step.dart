@@ -11,8 +11,10 @@ import 'package:panela_sys/core/routes.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/models/producer.dart';
 import 'package:panela_sys/models/plot.dart';
+import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
+import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
@@ -55,9 +57,12 @@ class ProducerSelectionStep extends ConsumerStatefulWidget {
 class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   late final ProducerService _producerService;
   late final PlotService _plotService;
+  late final CoopModulesService _modulesService;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   List<Producer> _producers = [];
   List<Plot> _plots = [];
+  List<CoopModule> _assignedModules = [];
+  String? _selectedModuleId;
   bool _isLoadingProducers = false;
   bool _isLoadingPlots = false;
   String? _errorMessage;
@@ -65,6 +70,15 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   String? _locationError;
   bool _isEditingLocation = false;
   final TextEditingController _manualLocationController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Producer> get _filteredProducers {
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return _producers;
+    return _producers.where((p) =>
+      p.fullName.toLowerCase().contains(q) || p.dni.contains(q),
+    ).toList();
+  }
 
   @override
   void initState() {
@@ -74,8 +88,17 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     final db = ref.read(appDatabaseProvider);
     _producerService = ProducerService(db: db);
     _plotService = PlotService(db: db);
+    _modulesService = CoopModulesService(db: db);
 
-    _loadProducers();
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser != null && currentUser.moduleIds.length > 1) {
+      _loadAssignedModules(currentUser.moduleIds);
+    } else {
+      if (currentUser != null && currentUser.moduleIds.length == 1) {
+        _selectedModuleId = currentUser.moduleIds.first;
+      }
+      _loadProducers();
+    }
     // Restaurar parcelas si ya hay productor seleccionado (usuario regresó)
     if (widget.producerController.text.isNotEmpty) {
       _loadPlotsForProducer(widget.producerController.text, clearSelection: false);
@@ -95,6 +118,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   @override
   void dispose() {
     _manualLocationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -122,6 +146,27 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     widget.onLocationChanged(result);
   }
 
+  Future<void> _loadAssignedModules(List<String> moduleIds) async {
+    try {
+      final all = await _modulesService.getModules();
+      setState(() {
+        _assignedModules = all.where((m) => moduleIds.contains(m.id)).toList();
+      });
+    } catch (_) {}
+  }
+
+  void _onModuleChanged(String? moduleId) {
+    _searchController.clear();
+    setState(() {
+      _selectedModuleId = moduleId;
+      widget.producerController.clear();
+      widget.plotController.clear();
+      _producers = [];
+      _plots = [];
+    });
+    if (moduleId != null) _loadProducers();
+  }
+
   Future<void> _loadProducers() async {
     setState(() {
       _isLoadingProducers = true;
@@ -130,12 +175,14 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
 
     try {
       var producers = await _producerService.getProducersForDropdown();
-      // Restrict to assigned modules for adminModulo
       final currentUser = ref.read(currentUserProvider);
       if (currentUser?.hasModuleRestriction == true && currentUser!.moduleIds.isNotEmpty) {
         producers = producers
             .where((p) => currentUser.moduleIds.contains(p.coopModuleId))
             .toList();
+      }
+      if (_selectedModuleId != null) {
+        producers = producers.where((p) => p.coopModuleId == _selectedModuleId).toList();
       }
       setState(() {
         _producers = producers;
@@ -239,6 +286,159 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     }
   }
 
+  Widget _buildProducerSearch() {
+    final selected = widget.producerController.text.isNotEmpty
+        ? _producers.where((p) => p.id == widget.producerController.text).firstOrNull
+        : null;
+
+    if (selected != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFF2E7D32), width: 2),
+          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFFF1F8E9),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Color(0xFF2E7D32), size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selected.fullName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.black,
+                    ),
+                  ),
+                  Text(
+                    'DNI: ${selected.dni}',
+                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                _onProducerChanged(null);
+              },
+              child: const Text(
+                'Cambiar',
+                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final filtered = _filteredProducers;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(color: Colors.black, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Buscar por nombre o DNI',
+            hintStyle: const TextStyle(color: Colors.black54),
+            prefixIcon: const Icon(Icons.search, color: Colors.black54),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: Colors.black54),
+                    onPressed: () => setState(() => _searchController.clear()),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${filtered.length} productor${filtered.length == 1 ? '' : 'es'}',
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 240),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFBDBDBD)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: filtered.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: Text(
+                      'No se encontraron productores',
+                      style: TextStyle(color: Colors.black, fontSize: 14),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                  itemBuilder: (context, i) {
+                    final p = filtered[i];
+                    return InkWell(
+                      onTap: () {
+                        _searchController.clear();
+                        _onProducerChanged(p.id);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 20, color: Colors.black54),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.fullName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  Text(
+                                    'DNI: ${p.dni}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.black),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right, color: Colors.black38, size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Form(
@@ -263,7 +463,28 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: context.responsiveSpacing * 1.5),
-        if (_isLoadingProducers)
+        if (_assignedModules.length > 1) ...[
+          AppDropdown<String>(
+            label: 'Seleccione el módulo',
+            value: _selectedModuleId,
+            hintText: 'Seleccionar módulo',
+            options: _assignedModules
+                .map((m) => DropdownOption(value: m.id, label: m.name))
+                .toList(),
+            onChanged: _onModuleChanged,
+          ),
+          SizedBox(height: context.responsiveSpacing),
+        ],
+        if (_assignedModules.length > 1 && _selectedModuleId == null)
+          Text(
+            'Seleccione un módulo para ver sus productores',
+            style: AppTextStyles.bodyText.copyWith(
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          )
+        else if (_isLoadingProducers)
           const Center(
             child: CircularProgressIndicator(),
           )
@@ -288,18 +509,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         else
           Column(
             children: [
-              AppDropdown<String>(
-                label: 'Seleccione el productor',
-                value: widget.producerController.text.isNotEmpty ? widget.producerController.text : null,
-                hintText: 'Seleccionar productor',
-                options: _producers
-                    .map((producer) => DropdownOption(
-                          value: producer.id,
-                          label: '${producer.fullName} (${producer.dni})',
-                        ))
-                    .toList(),
-                onChanged: _onProducerChanged,
-              ),
+              _buildProducerSearch(),
               if (widget.producerController.text.isNotEmpty) ...[
                 SizedBox(height: context.responsiveSpacing),
                 if (_isLoadingPlots)

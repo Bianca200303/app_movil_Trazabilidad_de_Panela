@@ -67,7 +67,8 @@ app.*.map.json
 # Signing keys
 android/key.properties
 
-#..\supabase db reset
+#
+
 #..\supabase functions serve
 
 
