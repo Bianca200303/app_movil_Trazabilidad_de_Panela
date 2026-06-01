@@ -167,7 +167,10 @@ class CleaningDisinfectionService {
     }
   }
 
-  Future<List<String>> getAreasCoveredOnDate(String moduleId, DateTime date) async {
+  Future<List<String>> getAreasCoveredOnDate(
+    String moduleId,
+    DateTime date,
+  ) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final records = await _supabase
@@ -260,13 +263,13 @@ class CleaningDisinfectionService {
       final otherProductCount =
           allItems.where((item) => item.usesOtherProduct).length;
 
-      // Cleaning type counts
+      // Cleaning type counts from parent records
       final dailyCount =
-          allItems.where((item) => item.isDailyCleaning).length;
+          records.where((r) => r.cleaningTypes.contains(CleaningType.daily)).length;
       final generalCount =
-          allItems.where((item) => item.isGeneralCleaning).length;
+          records.where((r) => r.cleaningTypes.contains(CleaningType.general)).length;
       final deepCount =
-          allItems.where((item) => item.isDeepCleaning).length;
+          records.where((r) => r.cleaningTypes.contains(CleaningType.deep)).length;
 
       // Area cleaning frequency
       final areaFrequency = <String, int>{};

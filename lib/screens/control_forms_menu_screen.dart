@@ -29,8 +29,8 @@ class ControlFormsMenuScreen extends ConsumerWidget {
     return AppScaffold(
       hasTopLabel: true,
       topLabelText: isModulo
-          ? 'Formulario de control Módulo'
-          : 'Formulario de control Producción',
+          ? 'Control HSS'
+          : 'Control BPM',
       child: Center(
         child: SingleChildScrollView(
           padding: context.responsiveHorizontalPadding.copyWith(
@@ -100,16 +100,6 @@ class ControlFormsMenuScreen extends ConsumerWidget {
                           ? () => context.go(AppRoutes.healthAccidentTrackingRegistration.path)
                           : null,
                     ),
-                    AppButton(
-                      text: 'Mantenimiento hornilla/maquinaria/equipos',
-                      icon: Icons.build_outlined,
-                      type: isOnline && features.enableMaintenanceControl
-                          ? AppButtonType.optionActive
-                          : AppButtonType.option,
-                      onPressed: isOnline && features.enableMaintenanceControl
-                          ? () => context.go(AppRoutes.maintenanceControlRegistration.path)
-                          : null,
-                    ),
                   ] else ...[
                     AppButton(
                       text: 'Inspección de estiba y transporte',
@@ -139,6 +129,16 @@ class ControlFormsMenuScreen extends ConsumerWidget {
                           : AppButtonType.option,
                       onPressed: isOnline && features.enableWorkerControl
                           ? () => context.go(AppRoutes.workerControlRegistration.path)
+                          : null,
+                    ),
+                    AppButton(
+                      text: 'Mantenimiento hornilla/maquinaria/equipos',
+                      icon: Icons.build_outlined,
+                      type: isOnline && features.enableMaintenanceControl
+                          ? AppButtonType.optionActive
+                          : AppButtonType.option,
+                      onPressed: isOnline && features.enableMaintenanceControl
+                          ? () => context.go(AppRoutes.maintenanceControlRegistration.path)
                           : null,
                     ),
                   ],

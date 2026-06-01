@@ -24,8 +24,8 @@ class HistorialMainMenu extends ConsumerWidget {
     {'title': 'Productores registrados', 'icon': Icons.person, 'index': 0},
     {'title': 'Producción registrada', 'icon': Icons.shopping_bag, 'index': 1},
     {'title': 'Salidas registradas', 'icon': Icons.signpost, 'index': 2},
-    {'title': 'Formulario de control Producción', 'icon': Icons.assignment_turned_in_outlined, 'index': 4},
-    {'title': 'Formulario de control Módulo', 'icon': Icons.assignment_outlined, 'index': 3},
+    {'title': 'Control BPM', 'icon': Icons.assignment_turned_in_outlined, 'index': 4},
+    {'title': 'Control HSS', 'icon': Icons.assignment_outlined, 'index': 3},
   ];
 
   @override

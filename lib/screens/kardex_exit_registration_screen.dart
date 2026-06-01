@@ -6,12 +6,15 @@ import 'package:panela_sys/widgets/common/app_scaffold.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
+import 'package:panela_sys/widgets/common/step_progress_indicator.dart';
+import 'package:panela_sys/widgets/common/app_search_field.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/font_size_config.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:go_router/go_router.dart';
@@ -56,6 +59,10 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
   String? _errorMessage;
   bool _isSubmitting = false;
 
+  // Search
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   // Remission document number
   final TextEditingController _documentController = TextEditingController();
 
@@ -78,6 +85,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     for (final controller in _itemDocumentControllers) {
       controller.dispose();
     }
+    _searchController.dispose();
     _documentController.dispose();
     _exitDateController.dispose();
     _scrollController.dispose();
@@ -107,9 +115,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
         _selectedStock = List.filled(stockData.length, false);
         _quantityControllers = stockData.map((stock) {
           final availableKg = (stock['available_kg'] as num).toDouble();
-          final bags = (availableKg / 50).floor();
-
-       final controller = TextEditingController(text: bags.toString());
+          final controller = TextEditingController(text: _kgToBagsText(availableKg));
           // ESTO ES LO NUEVO: Escucha cada vez que se teclea un número
           controller.addListener(() {
             if (mounted) setState(() {}); 
@@ -188,18 +194,42 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
   }
 
   Widget _buildCurrentStep() {
-    switch (_currentStep) {
-      case 1:
-        return _buildProducerSelection();
-      case 2:
-        return _buildAdjustQuantity();
-      case 3:
-        return _buildExitDocument();
-      default:
-        return _buildProducerSelection();
-    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        StepProgressIndicator(currentStep: _currentStep, totalSteps: 3),
+        SizedBox(height: AppDimensions.spacingMedium),
+        switch (_currentStep) {
+          1 => _buildProducerSelection(),
+          2 => _buildAdjustQuantity(),
+          3 => _buildExitDocument(),
+          _ => _buildProducerSelection(),
+        },
+      ],
+    );
   }
 
+
+  // Convierte kg a texto de sacos con decimales si hay fracción (ej: 415 kg → "8.3")
+  String _kgToBagsText(double availableKg) {
+    final bags = availableKg / 50;
+    if (bags % 1 == 0) return bags.toInt().toString();
+    return bags.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  }
+
+  String _producerName(int index) {
+    final producer = _availableStock[index]['production_batch']['producer'];
+    return '${producer['first_name']} ${producer['last_name']}';
+  }
+
+  List<int> get _filteredIndices {
+    if (_searchQuery.isEmpty) return List.generate(_availableStock.length, (i) => i);
+    final query = _searchQuery.toLowerCase();
+    return [
+      for (int i = 0; i < _availableStock.length; i++)
+        if (_producerName(i).toLowerCase().contains(query)) i,
+    ];
+  }
 
   Widget _buildProducerSelection() {
     if (_isLoading) {
@@ -259,16 +289,47 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
           title: 'REGISTRO DE SALIDA',
         ),
         FormSection(
-          subtitle: 'Seleccione el tipo de salida y los lotes disponibles',
+          subtitle: 'Seleccione el tipo de salida y busque el lote del productor',
           children: [
             SizedBox(height: context.responsiveSpacing),
-            // Exit type switch (global for all lots)
             _buildExitTypeSwitch(),
             SizedBox(height: AppDimensions.spacingLarge),
-            for (int i = 0; i < _availableStock.length; i++) ...[
-              _buildStockCheckbox(i),
-              if (i < _availableStock.length - 1) SizedBox(height: context.responsiveSpacing),
-            ],
+            AppSearchField(
+              controller: _searchController,
+              hintText: 'Buscar productor...',
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+            SizedBox(height: context.responsiveSpacing),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: context.screenSize.height * 0.45,
+              ),
+              child: _filteredIndices.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: AppDimensions.spacingLarge),
+                      child: Center(
+                        child: Text(
+                          'No se encontró ningún productor con ese nombre',
+                          style: AppTextStyles.bodyText,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _filteredIndices.length,
+                      itemBuilder: (context, i) {
+                        final originalIndex = _filteredIndices[i];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: i < _filteredIndices.length - 1
+                                ? context.responsiveSpacing
+                                : 0,
+                          ),
+                          child: _buildStockCheckbox(originalIndex),
+                        );
+                      },
+                    ),
+            ),
             SizedBox(height: AppDimensions.spacingLarge),
             Container(
               padding: EdgeInsets.all(AppDimensions.paddingMedium),
@@ -325,7 +386,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final isLowStock = availableKg < 50;
     final isExpanded = _expandedItems[index];
 
-    const styleNormal = TextStyle(fontSize: 14, color: Colors.black);
+    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: Colors.black);
 
     return Container(
       decoration: BoxDecoration(
@@ -371,43 +432,51 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                     padding: const EdgeInsets.symmetric(
                       vertical: AppDimensions.paddingMedium,
                     ),
-                    child: Row(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            '${producer['first_name']} ${producer['last_name']}',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        // Fila 1: nombre + icono expand
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (moduleName != null)
-                              Text(
-                                moduleName,
+                            Expanded(
+                              child: Text(
+                                '${producer['first_name']} ${producer['last_name']}',
                                 style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: FontSizeConfig.smallSize,
+                                  fontWeight: FontWeight.bold,
                                   color: Colors.black,
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            Text(
-                              '${availableKg.toStringAsFixed(1)} kg',
-                              style: const TextStyle(fontSize: 13, color: Colors.black),
+                            ),
+                            const SizedBox(width: AppDimensions.spacingXSmall),
+                            Icon(
+                              isExpanded ? Icons.expand_less : Icons.expand_more,
+                              color: AppColors.primary,
                             ),
                           ],
                         ),
-                        const SizedBox(width: 6),
-                        Icon(
-                          isExpanded ? Icons.expand_less : Icons.expand_more,
-                          color: AppColors.primary,
+                        const SizedBox(height: AppDimensions.spacingXSmall),
+                        // Fila 2: fecha (flexible) + kg
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _formatDate(batch['process_date']),
+                                style: styleNormal,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${availableKg.toStringAsFixed(1)} kg',
+                              style: styleNormal,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
                       ],
                     ),
                   ),
@@ -435,14 +504,12 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Lote: ${batch['batch_code']}', style: styleNormal),
+                  if (moduleName != null)
+                    Text('Módulo: $moduleName', style: styleNormal),
                   Text(
                     remainderKg > 0.05
-                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
-                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
-                    style: styleNormal,
-                  ),
-                  Text(
-                    'Fecha de proceso: ${_formatDate(batch['process_date'])}',
+                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg'
+                        : 'Disponible: $availableBags sacos',
                     style: styleNormal,
                   ),
                   if (isLowStock) ...[
@@ -458,7 +525,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                         'Stock bajo — menos de 1 saco',
                         style: TextStyle(
                           color: AppColors.warning,
-                          fontSize: 11,
+                          fontSize: FontSizeConfig.captionSize,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -473,6 +540,10 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
   }
 
   Widget _buildExitTypeSwitch() {
+    final buttonHeight = context.isVerySmallScreen
+        ? AppDimensions.buttonHeight
+        : AppDimensions.buttonHeightLarge;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -480,9 +551,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
           children: [
             Text(
               'Tipo de salida',
-              style: AppTextStyles.bodyText.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
             ),
             Text(
               ' *',
@@ -493,42 +562,31 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-            color: AppColors.surface,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Acopio',
-                  style: AppTextStyles.bodyText.copyWith(
-                    color: Colors.black,
-                    fontWeight: _isAutoconsumo ? FontWeight.normal : FontWeight.w600,
-                  ),
-                ),
+        const SizedBox(height: AppDimensions.spacingSmall),
+        Row(
+          children: [
+            Expanded(
+              child: _ExitTypeButton(
+                label: 'ACOPIO',
+                icon: Icons.warehouse_outlined,
+                isSelected: !_isAutoconsumo,
+                selectedColor: AppColors.primary,
+                height: buttonHeight,
+                onTap: () => _handleExitTypeChange(false),
               ),
-              Switch(
-                value: _isAutoconsumo,
-                onChanged: _handleExitTypeChange,
-                activeColor: AppColors.warning,
+            ),
+            const SizedBox(width: AppDimensions.spacingSmall),
+            Expanded(
+              child: _ExitTypeButton(
+                label: 'AUTOCONSUMO',
+                icon: Icons.store_outlined,
+                isSelected: _isAutoconsumo,
+                selectedColor: AppColors.warning,
+                height: buttonHeight,
+                onTap: () => _handleExitTypeChange(true),
               ),
-              Expanded(
-                child: Text(
-                  'Autoconsumo',
-                  textAlign: TextAlign.right,
-                  style: AppTextStyles.bodyText.copyWith(
-                    color: Colors.black,
-                    fontWeight: _isAutoconsumo ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -568,12 +626,13 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                 ),
-                child: Row(
+                child: IntrinsicHeight(
+                  child: Row(
                   children: [
                     Expanded(
                       child: Column(
                         children: [
-                          Text('DISPONIBLE', style: AppTextStyles.sectionLabel),
+                          Text('DISPONIBLE', style: AppTextStyles.sectionLabel.copyWith(color: AppColors.textPrimary)),
                           SizedBox(height: AppDimensions.spacingSmall),
                           Text(
                             '${_calculateTotalAvailableKg().toStringAsFixed(1)} kg\n(${_calculateTotalAvailableBags()} sacos)',
@@ -583,7 +642,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 60, color: AppColors.border),
+                    Container(width: 1, color: AppColors.border),
                     Expanded(
                       child: Column(
                         children: [
@@ -603,6 +662,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                       ),
                     ),
                   ],
+                  ),
                 ),
               );
             }),
@@ -741,12 +801,9 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final availableKg = (stock['available_kg'] as num).toDouble();
 
     if (_isAutoconsumo) {
-      // For autoconsumo, use kg
       controller.text = availableKg.toStringAsFixed(1);
     } else {
-      // For normal exit, use bags
-      final availableBags = (availableKg / 50).floor();
-      controller.text = availableBags.toString();
+      controller.text = _kgToBagsText(availableKg);
     }
   }
 
@@ -830,12 +887,11 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final requestedKg = _isAutoconsumo ? currentQty : currentQty * 50;
     final isOverLimit = currentQty > 0 && requestedKg > availableKg;
 
-    const styleNormal = TextStyle(fontSize: 14, color: Colors.black);
-    const styleBold = TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.w600);
+    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: Colors.black);
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: isOverLimit ? AppColors.error : AppColors.border),
+        border: Border.all(color: isOverLimit ? AppColors.error : Colors.black, width: isOverLimit ? 1.0 : 1.5),
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         color: AppColors.surface,
       ),
@@ -850,31 +906,47 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
             ),
             child: Padding(
               padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${producer['first_name']} ${producer['last_name']}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  // Fila 1: nombre + icono expand
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (moduleName != null)
-                        Text(moduleName, style: styleBold),
-                      Text('${availableKg.toStringAsFixed(1)} kg disp.', style: styleNormal),
+                      Expanded(
+                        child: Text(
+                          '${producer['first_name']} ${producer['last_name']}',
+                          style: const TextStyle(
+                            fontSize: FontSizeConfig.smallSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.spacingXSmall),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: AppColors.primary,
+                      ),
                     ],
                   ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.primary,
+                  const SizedBox(height: AppDimensions.spacingXSmall),
+                  // Fila 2: fecha (flexible) + kg
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _formatDate(batch['process_date']),
+                          style: styleNormal,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text('${availableKg.toStringAsFixed(1)} kg disp.', style: styleNormal),
+                    ],
                   ),
                 ],
               ),
@@ -895,21 +967,12 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Lote: ${batch['batch_code']}', style: styleNormal),
-                  Text('Fecha de proceso: ${_formatDate(batch['process_date'])}', style: styleNormal),
-                  Text(
-                    _isAutoconsumo
-                        ? 'Tipo: Autoconsumo (kilogramos)'
-                        : 'Tipo: Acopio por sacos (1 saco = 50 kg)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _isAutoconsumo ? AppColors.warning : AppColors.success,
-                    ),
-                  ),
+                  if (moduleName != null)
+                    Text('Módulo: $moduleName', style: styleNormal),
                   Text(
                     remainderKg > 0.05
-                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg  •  ${availableKg.toStringAsFixed(1)} kg total'
-                        : 'Disponible: $availableBags sacos  •  ${availableKg.toStringAsFixed(1)} kg',
+                        ? 'Disponible: $availableBags sacos + ${remainderKg.toStringAsFixed(1)} kg'
+                        : 'Disponible: $availableBags sacos',
                     style: styleNormal,
                   ),
                 ],
@@ -934,17 +997,18 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                   controller: controller,
                   keyboardType: TextInputType.number,
                   suffixText: _isAutoconsumo ? 'kg' : 'sacos',
-                  hintText: _isAutoconsumo
-                      ? 'Máx: ${availableKg.toStringAsFixed(1)} kg'
-                      : 'Máx: ${(availableKg / 50).toStringAsFixed(2)} sacos',
+                  hintText: _isAutoconsumo ? 'Ej: 25.5' : 'Ej: 5',
                 ),
                 if (!_isAutoconsumo && currentQty > 0) ...[
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingMedium,
+                      vertical: AppDimensions.paddingSmall,
+                    ),
                     decoration: BoxDecoration(
                       color: isOverLimit ? AppColors.errorLight : AppColors.infoLight,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                       border: Border.all(
                         color: isOverLimit ? AppColors.error : AppColors.primary,
                         width: 1.5,
@@ -955,27 +1019,29 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                         Icon(
                           isOverLimit ? Icons.warning_amber_rounded : Icons.scale_outlined,
                           color: isOverLimit ? AppColors.error : AppColors.primary,
-                          size: 22,
+                          size: AppDimensions.iconMedium,
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
-                          style: TextStyle(
-                            color: isOverLimit ? AppColors.error : Colors.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(width: AppDimensions.spacingSmall),
+                        Expanded(
+                          child: Text(
+                            'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
+                            style: TextStyle(
+                              color: isOverLimit ? AppColors.error : Colors.black,
+                              fontSize: FontSizeConfig.smallSize,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-                if (!_isAutoconsumo && currentQty == 0 && availableKg < 50)
+                if (!_isAutoconsumo && availableKg % 50 != 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'Puedes usar decimales — ej: ${(availableKg / 50).toStringAsFixed(2)} sacos = ${availableKg.toStringAsFixed(1)} kg',
-                      style: const TextStyle(color: AppColors.warning, fontSize: 12),
+                      'Incluye fracción: máximo ${_kgToBagsText(availableKg)} sacos (${availableKg.toStringAsFixed(1)} kg)',
+                      style: const TextStyle(color: AppColors.warning, fontSize: FontSizeConfig.captionSize),
                     ),
                   ),
                 if (isOverLimit)
@@ -983,7 +1049,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'Excede el stock disponible (${availableKg.toStringAsFixed(1)} kg)',
-                      style: const TextStyle(color: AppColors.error, fontSize: 12),
+                      style: const TextStyle(color: AppColors.error, fontSize: FontSizeConfig.captionSize),
                     ),
                   ),
                 const SizedBox(height: AppDimensions.spacingMedium),
@@ -1026,14 +1092,15 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
             ),
             SizedBox(height: context.responsiveSpacing),
             AppTextField(
-              label: 'Número de documento (opcional)',
+              label: 'Guía de remisión (opcional)',
               controller: _documentController,
-              hintText: 'Ej: RCP-001, FACT-123',
+              hintText: 'Ej: 001-0042',
             ),
             SizedBox(height: AppDimensions.spacingLarge),
-            _buildContinueButton(() {
-              _completeRegistration();
-            }),
+            _buildContinueButton(
+              _completeRegistration,
+              text: 'REGISTRAR SALIDA',
+            ),
           ],
         ),
       ],
@@ -1098,7 +1165,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
           productionBatchId: batch['id'],
           quantityKg: quantityKg,
           isAutoconsumo: _isAutoconsumo,
-          bagsCount: _isAutoconsumo ? 0 : quantity.round(),
+          bagsCount: _isAutoconsumo ? 0.0 : quantityKg / 50,
           itemDocumentNumber: documentController.text.trim().isEmpty
               ? null
               : documentController.text.trim(),
@@ -1163,13 +1230,71 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     }
   }
 
-  Widget _buildContinueButton(VoidCallback onPressed) {
+  Widget _buildContinueButton(VoidCallback onPressed, {String text = 'CONTINUAR'}) {
     return AppButton(
-      text: 'CONTINUAR',
+      text: text,
       type: AppButtonType.primary,
       onPressed: onPressed,
       isLoading: _isSubmitting,
     );
   }
+}
 
+class _ExitTypeButton extends StatelessWidget {
+  const _ExitTypeButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.selectedColor,
+    required this.height,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final Color selectedColor;
+  final double height;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: height,
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : AppColors.surface,
+          border: Border.all(
+            color: isSelected ? selectedColor : AppColors.border,
+            width: isSelected ? 2.0 : 1.5,
+          ),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: AppDimensions.iconSmall,
+                color: isSelected ? AppColors.textWhite : AppColors.textPrimary,
+              ),
+              const SizedBox(width: AppDimensions.spacingSmall),
+              Text(
+                label,
+                style: AppTextStyles.bodyText.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? AppColors.textWhite : AppColors.textPrimary,
+                  fontSize: FontSizeConfig.captionSize,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

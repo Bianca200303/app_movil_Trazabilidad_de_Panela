@@ -244,6 +244,7 @@ class CleaningDisinfection {
   final String cooperativeId;
   final String coopModuleId;
   final DateTime cleaningDate;
+  final List<CleaningType> cleaningTypes;
   final String? generalObservations;
   final String createdBy;
   final DateTime createdAt;
@@ -258,6 +259,7 @@ class CleaningDisinfection {
     required this.cooperativeId,
     required this.coopModuleId,
     required this.cleaningDate,
+    required this.cleaningTypes,
     this.generalObservations,
     required this.createdBy,
     required this.createdAt,
@@ -267,11 +269,15 @@ class CleaningDisinfection {
   });
 
   factory CleaningDisinfection.fromJson(Map<String, dynamic> json) {
+    final rawTypes = json['cleaning_types'] as List<dynamic>? ?? ['daily'];
     return CleaningDisinfection(
       id: json['id'] as String,
       cooperativeId: json['cooperative_id'] as String,
       coopModuleId: json['coop_module_id'] as String,
       cleaningDate: DateTime.parse(json['cleaning_date'] as String),
+      cleaningTypes: rawTypes
+          .map((t) => CleaningType.fromString(t as String))
+          .toList(),
       generalObservations: json['general_observations'] as String?,
       createdBy: json['created_by'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -287,6 +293,7 @@ class CleaningDisinfection {
       'cooperative_id': cooperativeId,
       'coop_module_id': coopModuleId,
       'cleaning_date': DateFormat('yyyy-MM-dd').format(cleaningDate),
+      'cleaning_types': cleaningTypes.map((t) => t.name).toList(),
       'general_observations': generalObservations,
       'created_by': createdBy,
       'created_at': createdAt.toIso8601String(),
@@ -307,11 +314,6 @@ class CleaningDisinfectionItem {
   final String pointCode;
   final String pointDescription;
 
-  // Cleaning types (DEFAULT TRUE in DB)
-  final bool isDailyCleaning;
-  final bool isGeneralCleaning;
-  final bool isDeepCleaning;
-
   // Products used (DEFAULT TRUE in DB)
   final bool usesChlorine;
   final bool usesDetergent;
@@ -327,9 +329,6 @@ class CleaningDisinfectionItem {
     required this.areaCode,
     required this.pointCode,
     required this.pointDescription,
-    this.isDailyCleaning = true,
-    this.isGeneralCleaning = true,
-    this.isDeepCleaning = true,
     this.usesChlorine = true,
     this.usesDetergent = true,
     this.usesOtherProduct = true,
@@ -345,9 +344,6 @@ class CleaningDisinfectionItem {
       areaCode: json['area_code'] as String,
       pointCode: json['point_code'] as String,
       pointDescription: json['point_description'] as String,
-      isDailyCleaning: json['is_daily_cleaning'] as bool? ?? true,
-      isGeneralCleaning: json['is_general_cleaning'] as bool? ?? true,
-      isDeepCleaning: json['is_deep_cleaning'] as bool? ?? true,
       usesChlorine: json['uses_chlorine'] as bool? ?? true,
       usesDetergent: json['uses_detergent'] as bool? ?? true,
       usesOtherProduct: json['uses_other_product'] as bool? ?? true,
@@ -364,9 +360,6 @@ class CleaningDisinfectionItem {
       'area_code': areaCode,
       'point_code': pointCode,
       'point_description': pointDescription,
-      'is_daily_cleaning': isDailyCleaning,
-      'is_general_cleaning': isGeneralCleaning,
-      'is_deep_cleaning': isDeepCleaning,
       'uses_chlorine': usesChlorine,
       'uses_detergent': usesDetergent,
       'uses_other_product': usesOtherProduct,
@@ -386,14 +379,12 @@ class CreateCleaningDisinfectionItemRequest {
   final String areaCode;
   final String pointCode;
   final String pointDescription;
-  final CleaningType cleaningType;
   final Set<CleaningProduct> cleaningProducts;
 
   CreateCleaningDisinfectionItemRequest({
     required this.areaCode,
     required this.pointCode,
     required this.pointDescription,
-    required this.cleaningType,
     required this.cleaningProducts,
   });
 
@@ -402,11 +393,6 @@ class CreateCleaningDisinfectionItemRequest {
       'area_code': areaCode,
       'point_code': pointCode,
       'point_description': pointDescription,
-      // Convert cleaning type to booleans
-      'is_daily_cleaning': cleaningType == CleaningType.daily,
-      'is_general_cleaning': cleaningType == CleaningType.general,
-      'is_deep_cleaning': cleaningType == CleaningType.deep,
-      // Convert products set to booleans
       'uses_chlorine': cleaningProducts.contains(CleaningProduct.chlorine),
       'uses_detergent': cleaningProducts.contains(CleaningProduct.detergent),
       'uses_other_product': cleaningProducts.contains(CleaningProduct.other),
@@ -418,6 +404,7 @@ class CreateCleaningDisinfectionItemRequest {
 class CreateCleaningDisinfectionRequest {
   final String coopModuleId;
   final DateTime cleaningDate;
+  final Set<CleaningType> cleaningTypes;
   final String cooperativeId;
   final List<CreateCleaningDisinfectionItemRequest> items;
   final String? generalObservations;
@@ -425,6 +412,7 @@ class CreateCleaningDisinfectionRequest {
   CreateCleaningDisinfectionRequest({
     required this.coopModuleId,
     required this.cleaningDate,
+    required this.cleaningTypes,
     required this.cooperativeId,
     required this.items,
     this.generalObservations,
@@ -434,6 +422,7 @@ class CreateCleaningDisinfectionRequest {
     return {
       'coop_module_id': coopModuleId,
       'cleaning_date': DateFormat('yyyy-MM-dd').format(cleaningDate),
+      'cleaning_types': cleaningTypes.map((t) => t.name).toList(),
       'cooperative_id': cooperativeId,
       'general_observations': generalObservations,
     };

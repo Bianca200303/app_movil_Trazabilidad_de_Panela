@@ -41,7 +41,7 @@ class _CleaningDisinfectionRegistrationScreenState
   bool _isCheckingDate = false;
   bool _duplicateWarningAcknowledged = false;
   final Set<String> _selectedAreas = {};
-  CleaningType? _cleaningType;
+  final Set<CleaningType> _cleaningTypes = {};
   final Set<CleaningProduct> _selectedProducts = {};
 
   // Steps 1-N: Points per area (only selected areas)
@@ -137,7 +137,7 @@ class _CleaningDisinfectionRegistrationScreenState
           context: context,
           builder: (context) => AlertDialog(
             title: const Text(
-              'Ya hay un registro este día',
+              'Ya hay un registro de limpieza este día',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             content: Column(
@@ -235,10 +235,10 @@ class _CleaningDisinfectionRegistrationScreenState
       return false;
     }
 
-    if (_cleaningType == null) {
+    if (_cleaningTypes.isEmpty) {
       AppSnackBar.show(
         context,
-        message: 'Selecciona el tipo de limpieza',
+        message: 'Selecciona al menos un tipo de limpieza',
         type: SnackBarType.error,
       );
       return false;
@@ -325,8 +325,6 @@ class _CleaningDisinfectionRegistrationScreenState
                 areaCode: areaCode,
                 pointCode: pointCode,
                 pointDescription: point['description']!,
-                // Type and products are the same for all (from step 0 config)
-                cleaningType: _cleaningType!,
                 cleaningProducts: _selectedProducts,
               ),
             );
@@ -337,6 +335,7 @@ class _CleaningDisinfectionRegistrationScreenState
       final request = CreateCleaningDisinfectionRequest(
         coopModuleId: _selectedModuleId!,
         cleaningDate: _selectedDate!,
+        cleaningTypes: _cleaningTypes,
         cooperativeId: AppConfig.current.id,
         items: items,
         generalObservations: _observationsController.text.trim().isEmpty
@@ -552,19 +551,25 @@ class _CleaningDisinfectionRegistrationScreenState
             );
           }),
 
-          // Cleaning type (radio buttons)
+          // Cleaning type (checkboxes — multiple allowed)
           const SizedBox(height: 16),
           Text('Tipo de limpieza:', style: AppTextStyles.fieldLabel),
           const SizedBox(height: 8),
           ...CleaningType.values.map((type) {
-            return RadioListTile<CleaningType>(
+            return CheckboxListTile(
               title: Text(type.getDisplayName()),
-              value: type,
-              groupValue: _cleaningType,
-              onChanged: (value) {
-                setState(() => _cleaningType = value);
+              value: _cleaningTypes.contains(type),
+              onChanged: (checked) {
+                setState(() {
+                  if (checked == true) {
+                    _cleaningTypes.add(type);
+                  } else {
+                    _cleaningTypes.remove(type);
+                  }
+                });
               },
               dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
             );
           }),
 

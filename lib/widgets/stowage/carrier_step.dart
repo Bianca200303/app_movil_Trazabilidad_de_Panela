@@ -59,6 +59,7 @@ class CarrierStep extends StatelessWidget {
             AppTextField(
               label: 'Licencia de conducir',
               controller: carrierLicenseController,
+              maxLength: 20,
             ),
           ],
         ),

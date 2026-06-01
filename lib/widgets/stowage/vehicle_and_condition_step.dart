@@ -47,6 +47,7 @@ class VehicleAndConditionStep extends StatelessWidget {
             AppTextField(
               label: 'Marca del vehículo',
               controller: vehicleBrandController,
+              maxLength: 20,
             ),
 
             SizedBox(height: context.responsiveSpacing),

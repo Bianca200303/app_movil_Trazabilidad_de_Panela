@@ -10,6 +10,17 @@ import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.da
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 
+Color _cleaningTypeColor(CleaningType type) {
+  switch (type) {
+    case CleaningType.daily:
+      return const Color(0xFF1565C0);
+    case CleaningType.general:
+      return const Color(0xFFE65100);
+    case CleaningType.deep:
+      return const Color(0xFF6A1B9A);
+  }
+}
+
 class CleaningDisinfectionList extends StatefulWidget {
   const CleaningDisinfectionList({
     required this.service,
@@ -62,6 +73,7 @@ class _CleaningDisinfectionListState extends State<CleaningDisinfectionList> {
           'cleaning_date': record.cleaningDate,
           'formatted_date': AppDateUtils.formatDDMMYYYY(record.cleaningDate),
           'module_name': record.moduleName ?? 'Módulo desconocido',
+          'cleaning_types': record.cleaningTypes,
           'has_observations': record.generalObservations != null && record.generalObservations!.isNotEmpty,
           'general_observations': record.generalObservations,
           'items_by_area': itemsByArea,
@@ -138,9 +150,9 @@ class _CleaningCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final recordId = data['id'] as String;
     final moduleName = data['module_name'] as String;
     final formattedDate = data['formatted_date'] as String;
+    final cleaningTypes = data['cleaning_types'] as List<CleaningType>;
     final hasObservations = data['has_observations'] as bool;
     final generalObservations = data['general_observations'] as String?;
     final itemsByArea = data['items_by_area'] as Map<String, List<CleaningDisinfectionItem>>;
@@ -173,7 +185,26 @@ class _CleaningCard extends StatelessWidget {
                       children: [
                         Text(moduleName, style: AppTextStyles.cardTitle),
                         const SizedBox(height: 4),
-                        Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: cleaningTypes.map((t) {
+                            final c = _cleaningTypeColor(t);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: c.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                t.getDisplayName(),
+                                style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Fecha de limpieza', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
                         Text(formattedDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold, fontSize: 13)),
                       ],
                     ),
@@ -191,8 +222,8 @@ class _CleaningCard extends StatelessWidget {
                   ),
                   if (hasObservations)
                     Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                      padding: EdgeInsets.only(left: context.responsiveSpacing / 2),
+                      child: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
                     ),
                 ],
               ),
@@ -207,10 +238,10 @@ class _CleaningCard extends StatelessWidget {
                 children: [
                   if (hasObservations && generalObservations != null) ...[
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: context.responsivePadding,
                       decoration: BoxDecoration(
                         color: Colors.orange[50],
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                         border: Border.all(color: Colors.orange[200]!),
                       ),
                       child: Column(
@@ -228,31 +259,26 @@ class _CleaningCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: context.responsiveSpacing),
                   ],
                   Text('Detalles de limpieza:', style: AppTextStyles.fieldLabel),
-                  const SizedBox(height: 12),
+                  SizedBox(height: context.responsiveSpacing / 2),
                   ...itemsByArea.entries.map((entry) {
                     final areaCode = entry.key;
                     final items = entry.value;
                     final areaName = CleaningAreas.getDisplayName(areaCode);
                     final firstItem = items.first;
-                    final cleaningTypes = <String>[
-                      if (firstItem.isDailyCleaning) 'Diaria',
-                      if (firstItem.isGeneralCleaning) 'General',
-                      if (firstItem.isDeepCleaning) 'Profunda',
-                    ];
                     final products = <String>[
                       if (firstItem.usesChlorine) 'Cloro',
                       if (firstItem.usesDetergent) 'Detergente',
                       if (firstItem.usesOtherProduct) 'Otro',
                     ];
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
+                      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+                      padding: context.responsivePadding,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                         border: Border.all(color: AppColors.inputBorder),
                       ),
                       child: Column(
@@ -268,13 +294,6 @@ class _CleaningCard extends StatelessWidget {
                           ]),
                           const SizedBox(height: 8),
                           Row(children: [
-                            Icon(Icons.cleaning_services_outlined, size: 14, color: AppColors.textSecondary),
-                            const SizedBox(width: 4),
-                            Text(cleaningTypes.join(', '),
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          ]),
-                          const SizedBox(height: 4),
-                          Row(children: [
                             Icon(Icons.science_outlined, size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 4),
                             Text(products.join(', '),
@@ -282,7 +301,10 @@ class _CleaningCard extends StatelessWidget {
                           ]),
                           const SizedBox(height: 8),
                           ...items.map((item) => Padding(
-                            padding: const EdgeInsets.only(left: 16, top: 4),
+                            padding: EdgeInsets.only(
+                              left: context.responsiveSpacing,
+                              top: context.responsiveSpacing / 4,
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

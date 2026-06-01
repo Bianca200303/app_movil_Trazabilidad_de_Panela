@@ -111,14 +111,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
 
                             AppButton(
-                              text: 'Formulario de control Producción',
+                              text: 'Control BPM',
                               icon: Icons.assignment_turned_in_outlined,
                               type: AppButtonType.option,
                               onPressed: () => context.go(AppRoutes.controlFormsProduccion.path),
                             ),
 
                             AppButton(
-                              text: 'Formulario de control Módulo',
+                              text: 'Control HSS',
                               icon: Icons.assignment_outlined,
                               type: AppButtonType.option,
                               onPressed: () => context.go(AppRoutes.controlFormsModulo.path),

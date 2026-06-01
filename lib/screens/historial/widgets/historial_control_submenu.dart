@@ -55,12 +55,6 @@ class HistorialControlSubmenu extends StatelessWidget {
         'index': 4,
         'enabled': isOnline && features.enableHealthAccidentTracking,
       },
-      {
-        'title': 'Mantenimiento hornilla/maquinaria/equipos',
-        'icon': Icons.build_outlined,
-        'index': 8,
-        'enabled': isOnline && features.enableMaintenanceControl,
-      },
     ];
 
     final produccionForms = [
@@ -81,6 +75,12 @@ class HistorialControlSubmenu extends StatelessWidget {
         'icon': Icons.badge_outlined,
         'index': 7,
         'enabled': isOnline && features.enableWorkerControl,
+      },
+      {
+        'title': 'Mantenimiento hornilla/maquinaria/equipos',
+        'icon': Icons.build_outlined,
+        'index': 8,
+        'enabled': isOnline && features.enableMaintenanceControl,
       },
     ];
 

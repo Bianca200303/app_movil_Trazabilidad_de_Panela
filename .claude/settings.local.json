@@ -84,7 +84,10 @@
       "Bash(sed -n '155,175p' /c/Users/bianc/Desktop/proyecto-panela/flutter/lib/screens/health_accident_tracking_registration_screen.dart)",
       "Bash(psql *)",
       "PowerShell(psql *)",
-      "PowerShell(supabase *)"
+      "PowerShell(supabase *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\bianc\\\\Desktop\\\\proyecto-panela\" -Recurse -Filter \"*.sql\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "Bash(flutter build *)"
     ]
   }
 }

@@ -11,6 +11,7 @@ import 'package:panela_sys/widgets/production/ph_control_step.dart';
 import 'package:panela_sys/widgets/production/temperature_control_step.dart';
 import 'package:panela_sys/widgets/production/registration_summary_step.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/widgets/common/step_progress_indicator.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/models/batch_cert.dart';
@@ -174,7 +175,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _StepProgressIndicator(
+                StepProgressIndicator(
                   currentStep: _currentStep + 1,
                   totalSteps: _totalSteps,
                 ),
@@ -521,42 +522,4 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     );
   }
 
-}
-
-class _StepProgressIndicator extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-
-  const _StepProgressIndicator({
-    required this.currentStep,
-    required this.totalSteps,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = currentStep / totalSteps;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            'Paso $currentStep de $totalSteps',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 6,
-            backgroundColor: Theme.of(context).dividerColor,
-          ),
-        ),
-      ],
-    );
-  }
 }

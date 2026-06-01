@@ -152,7 +152,7 @@ class CreateExitItemRequest {
   final String productionBatchId;
   final double quantityKg;
   final bool isAutoconsumo;
-  final int? bagsCount; // Optional, will be calculated if not provided
+  final double? bagsCount;
   final double unitPrice;
   final String? notes;
   final String? itemDocumentNumber;
@@ -191,7 +191,7 @@ class CreateExitItemRequest {
 class UpdateExitItemRequest {
   final double? quantityKg;
   final bool? isAutoconsumo;
-  final int? bagsCount;
+  final double? bagsCount;
   final double? unitPrice;
   final String? notes;
   final String? itemDocumentNumber;
