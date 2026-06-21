@@ -11,6 +11,8 @@ export 'common/under_construction_screen.dart';
 // Form widgets
 export 'forms/app_text_field.dart';
 export 'forms/app_dropdown.dart';
+export 'forms/module_search_field.dart';
+export 'forms/yes_no_field.dart';
 export 'forms/form_section.dart';
 export 'forms/radio_group.dart';
 

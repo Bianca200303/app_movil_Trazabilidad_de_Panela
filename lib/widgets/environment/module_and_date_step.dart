@@ -4,8 +4,8 @@ import 'package:panela_sys/services/environment_inspection_service.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
-import 'package:panela_sys/widgets/forms/app_dropdown.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
+import 'package:panela_sys/widgets/forms/module_search_field.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
@@ -92,14 +92,11 @@ class _ModuleAndDateStepState extends State<ModuleAndDateStep> {
             if (widget.isLoadingModules)
               const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
             else
-              AppDropdown<String>(
-                label: null,
-                value: widget.selectedModuleId,
-                options: widget.availableModules
-                    .map((m) => DropdownOption(value: m.id, label: m.name))
-                    .toList(),
+              ModuleSearchField(
+                modules: widget.availableModules,
+                selectedModuleId: widget.selectedModuleId,
                 onChanged: widget.onModuleChanged,
-                hintText: 'Selecciona un módulo',
+                hintText: 'Buscar módulo...',
               ),
           ],
         ),

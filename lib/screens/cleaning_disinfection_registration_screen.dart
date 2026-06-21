@@ -450,17 +450,10 @@ class _CleaningDisinfectionRegistrationScreenState
           const SizedBox(height: 24),
 
           // Module dropdown
-          AppDropdown<String>(
+          ModuleSearchField(
             label: 'Módulo',
-            value: _selectedModuleId,
-            options: _availableModules
-                .map(
-                  (m) => DropdownOption(
-                    value: m.id,
-                    label: m.name,
-                  ),
-                )
-                .toList(),
+            modules: _availableModules,
+            selectedModuleId: _selectedModuleId,
             onChanged: (moduleId) => setState(() {
               _selectedModuleId = moduleId;
               _selectedDate = null;
@@ -535,7 +528,10 @@ class _CleaningDisinfectionRegistrationScreenState
           const SizedBox(height: 8),
           ...CleaningAreas.all.map((areaCode) {
             return CheckboxListTile(
-              title: Text(CleaningAreas.getDisplayName(areaCode)),
+              title: Text(
+                CleaningAreas.getDisplayName(areaCode),
+                style: AppTextStyles.bodyText,
+              ),
               value: _selectedAreas.contains(areaCode),
               onChanged: (checked) {
                 setState(() {
@@ -557,7 +553,10 @@ class _CleaningDisinfectionRegistrationScreenState
           const SizedBox(height: 8),
           ...CleaningType.values.map((type) {
             return CheckboxListTile(
-              title: Text(type.getDisplayName()),
+              title: Text(
+                type.getDisplayName(),
+                style: AppTextStyles.bodyText,
+              ),
               value: _cleaningTypes.contains(type),
               onChanged: (checked) {
                 setState(() {
@@ -579,7 +578,10 @@ class _CleaningDisinfectionRegistrationScreenState
           const SizedBox(height: 8),
           ...CleaningProduct.values.map((product) {
             return CheckboxListTile(
-              title: Text(product.getDisplayName()),
+              title: Text(
+                product.getDisplayName(),
+                style: AppTextStyles.bodyText,
+              ),
               value: _selectedProducts.contains(product),
               onChanged: (checked) {
                 setState(() {
@@ -629,38 +631,50 @@ class _CleaningDisinfectionRegistrationScreenState
           SizedBox(height: context.responsiveSpacing),
 
           AppTitle(title: CleaningAreas.getDisplayName(areaCode)),
-          const SizedBox(height: 8),
+          SizedBox(height: context.responsiveSpacing / 2),
           Text(
-            'Selecciona los puntos que se limpiaron en esta área:',
+            'Marca cada punto según se haya limpiado en esta área:',
             style: AppTextStyles.bodyText.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: context.responsiveSpacing),
 
-          // List of checkboxes (all checked by default)
+          // List of points with toggle LIMPIO / NO LIMPIO (todos limpios por defecto)
           ...points.map((point) {
             final pointCode = point['code']!;
             final isSelected = areaSelectedPoints.contains(pointCode);
 
-            return CheckboxListTile(
-              title: Text(point['description']!),
-              value: isSelected,
-              onChanged: (checked) {
-                setState(() {
-                  if (checked == true) {
-                    _selectedPoints[areaCode]!.add(pointCode);
-                  } else {
-                    _selectedPoints[areaCode]!.remove(pointCode);
-                  }
-                });
-              },
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
+            return Container(
+              margin: EdgeInsets.only(bottom: context.responsiveSpacing / 2),
+              padding: context.responsivePadding,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                border: Border.all(
+                  color: AppColors.inputBorder,
+                  width: AppDimensions.inputBorderWidth,
+                ),
+              ),
+              child: YesNoField(
+                label: point['description']!,
+                value: isSelected,
+                yesLabel: 'LIMPIO',
+                noLabel: 'NO LIMPIO',
+                onChanged: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedPoints[areaCode]!.add(pointCode);
+                    } else {
+                      _selectedPoints[areaCode]!.remove(pointCode);
+                    }
+                  });
+                },
+              ),
             );
           }),
 
-          const SizedBox(height: 24),
+          SizedBox(height: context.responsiveSpacing),
 
           // Button
           AppButton(

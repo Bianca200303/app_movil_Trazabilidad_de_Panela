@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panela_sys/widgets/forms/app_dropdown.dart';
+import 'package:panela_sys/widgets/forms/module_search_field.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
@@ -464,13 +465,11 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         ),
         SizedBox(height: context.responsiveSpacing * 1.5),
         if (_assignedModules.length > 1) ...[
-          AppDropdown<String>(
+          ModuleSearchField(
             label: 'Seleccione el módulo',
-            value: _selectedModuleId,
-            hintText: 'Seleccionar módulo',
-            options: _assignedModules
-                .map((m) => DropdownOption(value: m.id, label: m.name))
-                .toList(),
+            modules: _assignedModules,
+            selectedModuleId: _selectedModuleId,
+            hintText: 'Buscar módulo...',
             onChanged: _onModuleChanged,
           ),
           SizedBox(height: context.responsiveSpacing),

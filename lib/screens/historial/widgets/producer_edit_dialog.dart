@@ -12,7 +12,7 @@ import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/services/producer_service.dart';
-import 'package:panela_sys/widgets/forms/app_dropdown.dart';
+import 'package:panela_sys/widgets/forms/module_search_field.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/forms/radio_group.dart';
 
@@ -429,13 +429,11 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
           ),
           const SizedBox(height: 12),
 
-          AppDropdown<String>(
+          ModuleSearchField(
             label: 'Módulo',
-            hintText: 'Selecciona un módulo',
-            value: _selectedModuleId,
-            options: _modules
-                .map((m) => DropdownOption(value: m.id, label: m.name))
-                .toList(),
+            hintText: 'Buscar módulo...',
+            modules: _modules,
+            selectedModuleId: _selectedModuleId,
             onChanged: (v) => setState(() => _selectedModuleId = v),
           ),
           const SizedBox(height: 12),

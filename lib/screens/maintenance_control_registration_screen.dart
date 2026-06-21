@@ -287,15 +287,10 @@ class _MaintenanceControlRegistrationScreenState
                     // ============================================================
                     // Module Dropdown
                     // ============================================================
-                    AppDropdown<String>(
+                    ModuleSearchField(
                       label: 'Módulo',
-                      value: _selectedModuleId,
-                      options: _availableModules
-                          .map((m) => DropdownOption(
-                                value: m.id,
-                                label: m.name,
-                              ))
-                          .toList(),
+                      modules: _availableModules,
+                      selectedModuleId: _selectedModuleId,
                       onChanged: (value) {
                         setState(() {
                           _selectedModuleId = value;

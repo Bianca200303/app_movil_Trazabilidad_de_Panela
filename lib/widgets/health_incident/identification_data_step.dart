@@ -57,15 +57,10 @@ class IdentificationDataStep extends StatelessWidget {
         SizedBox(height: context.responsiveSpacing * 1.5),
         FormSection(
           children: [
-            AppDropdown<String>(
+            ModuleSearchField(
               label: 'Módulo',
-              value: selectedModuleId,
-              options: availableModules
-                  .map((module) => DropdownOption<String>(
-                        value: module.id,
-                        label: module.name,
-                      ))
-                  .toList(),
+              modules: availableModules,
+              selectedModuleId: selectedModuleId,
               onChanged: onModuleChanged,
             ),
             SizedBox(height: context.responsiveSpacing),

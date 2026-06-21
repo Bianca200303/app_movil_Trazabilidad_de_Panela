@@ -35,7 +35,7 @@ class ProductionDateSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         HistorialPeriodFilter(
-          initial: HistorialPeriodo.hoy,
+          initial: HistorialPeriodo.esteMes,
           onChanged: onFilterChanged,
         ),
         const SizedBox(height: 16),

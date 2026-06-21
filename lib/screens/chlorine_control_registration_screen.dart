@@ -39,7 +39,7 @@ class _ChlorineControlRegistrationScreenState
   bool _isSaving = false;
 
   // Producers for responsible person autocomplete
-  List<String> _producerNames = [];
+  List<({String name, String moduleId})> _allProducers = [];
   bool _isLoadingProducers = false;
   final _responsibleFocusNode = FocusNode();
 
@@ -85,19 +85,38 @@ class _ChlorineControlRegistrationScreenState
     try {
       final response = await _supabase
           .from('producers')
-          .select('first_name, last_name')
+          .select('first_name, last_name, coop_module_id')
           .eq('cooperative_id', AppConfig.current.id)
           .eq('is_active', true)
           .order('first_name');
-      setState(() {
-        _producerNames = (response as List)
-            .map((p) => '${p['first_name']} ${p['last_name']}')
+      var producers = (response as List)
+          .map((p) => (
+                name: '${p['first_name']} ${p['last_name']}',
+                moduleId: p['coop_module_id'] as String,
+              ))
+          .toList();
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.hasModuleRestriction) {
+        producers = producers
+            .where((p) => currentUser.moduleIds.contains(p.moduleId))
             .toList();
+      }
+      setState(() {
+        _allProducers = producers;
         _isLoadingProducers = false;
       });
     } catch (_) {
       setState(() => _isLoadingProducers = false);
     }
+  }
+
+  /// Producers restricted to the currently selected module.
+  List<String> get _producerNames {
+    if (_selectedModuleId == null) return const [];
+    return _allProducers
+        .where((p) => p.moduleId == _selectedModuleId)
+        .map((p) => p.name)
+        .toList();
   }
 
   Future<void> _loadModules() async {
@@ -391,20 +410,16 @@ class _ChlorineControlRegistrationScreenState
                     ),
 
                     // Module dropdown
-                    AppDropdown<String>(
+                    ModuleSearchField(
                       label: 'Módulo',
-                      value: _selectedModuleId,
-                      options: _availableModules
-                          .map((module) => DropdownOption(
-                                value: module.id,
-                                label: module.name,
-                              ))
-                          .toList(),
+                      modules: _availableModules,
+                      selectedModuleId: _selectedModuleId,
                       onChanged: (value) {
                         setState(() {
                           _selectedModuleId = value;
                           _controlDate = null;
                           _productionDates = [];
+                          _responsiblePersonController.clear();
                         });
                         _loadProductionDates();
                       },

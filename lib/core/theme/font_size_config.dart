@@ -13,7 +13,7 @@ class FontSizeConfig {
   /// Global scale factor for all font sizes
   /// Adjust this single value to scale all fonts proportionally
   /// 1.0 = 100% (normal), 1.1 = 110%, 0.9 = 90%, etc.
-  static const double scaleFactor = 1.0;
+  static const double scaleFactor = 1.1;
 
   // ============================================================================
   // Base semantic sizes following +2px increment pattern

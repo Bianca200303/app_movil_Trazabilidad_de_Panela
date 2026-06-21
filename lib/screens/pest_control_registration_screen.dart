@@ -487,22 +487,18 @@ class _PestControlRegistrationScreenState
         const AppTitle(
           title: 'Control de plagas',
         ),
-        if (_isLoadingModules)
-          const Center(child: CircularProgressIndicator())
-        else
-          AppDropdown<String>(
-            label: 'Módulo',
-            value: _selectedModuleId,
-            options: _availableModules
-                .map((m) => DropdownOption(value: m.id, label: m.name))
-                .toList(),
-            onChanged: (value) => setState(() {
-              _selectedModuleId = value;
-              _selectedDate = null;
-              _hadProduction = false;
-              _duplicateWarningAcknowledged = false;
-            }),
-          ),
+        ModuleSearchField(
+          label: 'Módulo',
+          modules: _availableModules,
+          selectedModuleId: _selectedModuleId,
+          isLoading: _isLoadingModules,
+          onChanged: (value) => setState(() {
+            _selectedModuleId = value;
+            _selectedDate = null;
+            _hadProduction = false;
+            _duplicateWarningAcknowledged = false;
+          }),
+        ),
         if (_selectedModuleId != null) ...[
           FormSection(
             title: 'Fecha del control',
