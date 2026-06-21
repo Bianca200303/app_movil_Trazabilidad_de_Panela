@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/models/worker_control.dart';
+import 'package:panela_sys/widgets/forms/yes_no_field.dart';
 
 /// Componente que representa un trabajador añadido.
-/// Utiliza un ExpansionTile para permitir la edicion in situ (Mejora UX 1).
+/// Utiliza un ExpansionTile para permitir la edición in situ.
 class WorkerEvaluationCard extends StatelessWidget {
-  final WorkerEvaluation worker;
-  final ValueChanged<WorkerEvaluation> onUpdate;
-  final VoidCallback onDelete;
-
   const WorkerEvaluationCard({
     super.key,
     required this.worker,
     required this.onUpdate,
     required this.onDelete,
   });
+
+  final WorkerEvaluation worker;
+  final ValueChanged<WorkerEvaluation> onUpdate;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -46,76 +47,16 @@ class WorkerEvaluationCard extends StatelessWidget {
           const Divider(),
           Text('Modificar cumplimiento:', style: AppTextStyles.bodyText),
           const SizedBox(height: 8),
-          _buildEditToggle('Uso de uniforme completo', worker.uniformComplete, (v) => onUpdate(worker.copyWith(uniformComplete: v))),
-          _buildEditToggle('Rostro sin maquillaje', worker.noMakeup, (v) => onUpdate(worker.copyWith(noMakeup: v))),
-          _buildEditToggle('Uñas cortas limpias', worker.nailsShortClean, (v) => onUpdate(worker.copyWith(nailsShortClean: v))),
-          _buildEditToggle('Uñas no esmaltadas', worker.nailsNoPolish, (v) => onUpdate(worker.copyWith(nailsNoPolish: v))),
-          _buildEditToggle('Manos limpias', worker.handsClean, (v) => onUpdate(worker.copyWith(handsClean: v))),
-          _buildEditToggle('Sin joyas ni perfume', worker.noJewelry, (v) => onUpdate(worker.copyWith(noJewelry: v))),
-          _buildEditToggle('Cabello corto o recogido', worker.hairCovered, (v) => onUpdate(worker.copyWith(hairCovered: v))),
-          _buildEditToggle('Sin barba', worker.noBeard, (v) => onUpdate(worker.copyWith(noBeard: v))),
-          _buildEditToggle('Ausencia de heridas y cortes', worker.noWounds, (v) => onUpdate(worker.copyWith(noWounds: v))),
+          YesNoField(label: 'Uso de uniforme completo',    value: worker.uniformComplete,  onChanged: (v) => onUpdate(worker.copyWith(uniformComplete: v))),
+          YesNoField(label: 'Rostro sin maquillaje',       value: worker.noMakeup,         onChanged: (v) => onUpdate(worker.copyWith(noMakeup: v))),
+          YesNoField(label: 'Uñas cortas limpias',         value: worker.nailsShortClean,  onChanged: (v) => onUpdate(worker.copyWith(nailsShortClean: v))),
+          YesNoField(label: 'Uñas no esmaltadas',          value: worker.nailsNoPolish,    onChanged: (v) => onUpdate(worker.copyWith(nailsNoPolish: v))),
+          YesNoField(label: 'Manos limpias',               value: worker.handsClean,       onChanged: (v) => onUpdate(worker.copyWith(handsClean: v))),
+          YesNoField(label: 'Sin joyas ni perfume',        value: worker.noJewelry,        onChanged: (v) => onUpdate(worker.copyWith(noJewelry: v))),
+          YesNoField(label: 'Cabello corto o recogido',    value: worker.hairCovered,      onChanged: (v) => onUpdate(worker.copyWith(hairCovered: v))),
+          YesNoField(label: 'Sin barba',                   value: worker.noBeard,          onChanged: (v) => onUpdate(worker.copyWith(noBeard: v))),
+          YesNoField(label: 'Ausencia de heridas y cortes',value: worker.noWounds,         onChanged: (v) => onUpdate(worker.copyWith(noWounds: v))),
         ],
-      ),
-    );
-  }
-
-  Widget _buildEditToggle(String title, bool value, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
-          const SizedBox(width: 8),
-          _YesNoButton(label: 'SI', selected: value, isYes: true, onTap: () => onChanged(true)),
-          const SizedBox(width: 6),
-          _YesNoButton(label: 'NO', selected: !value, isYes: false, onTap: () => onChanged(false)),
-        ],
-      ),
-    );
-  }
-}
-
-class _YesNoButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool isYes;
-  final VoidCallback onTap;
-
-  const _YesNoButton({
-    required this.label,
-    required this.selected,
-    required this.isYes,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isYes ? Colors.green.shade600 : Colors.red.shade600;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 52,
-        height: 36,
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : Colors.grey.shade400,
-            ),
-          ),
-        ),
       ),
     );
   }

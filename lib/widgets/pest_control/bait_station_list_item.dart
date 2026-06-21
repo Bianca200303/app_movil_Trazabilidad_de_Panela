@@ -3,7 +3,7 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
-import 'package:panela_sys/widgets/forms/binary_enum_switch.dart';
+import 'package:panela_sys/widgets/forms/yes_no_field.dart';
 
 /// A list item widget for displaying a single bait station
 ///
@@ -61,16 +61,10 @@ class BaitStationListItem extends StatelessWidget {
 
             SizedBox(width: context.responsiveSpacing / 2),
 
-            // Ate/Didn't eat toggle
             Expanded(
-              child: BinaryEnumSwitch<bool>(
-                groupName: 'bait_ate_$stationNumber',
-                label: 'Estado del cebo',
-                options: const [
-                  BinaryOption(value: false, label: 'No comió', isDefault: true),
-                  BinaryOption(value: true, label: 'Comió'),
-                ],
-                selectedValue: ate,
+              child: YesNoField(
+                label: '¿Comió el cebo?',
+                value: ate,
                 onChanged: onAteChanged,
               ),
             ),

@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.udep.panelasys"
+        applicationId = "com.udep.panelasys.caes"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

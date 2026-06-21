@@ -26,6 +26,7 @@ class _CooperativeSelectionScreenState
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   bool _obscureCode = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
   // Cuando es no-null, estamos en el paso 2 (confirmación)
@@ -38,24 +39,43 @@ class _CooperativeSelectionScreenState
   }
 
   // ── Paso 1: validar el código ──────────────────────────────────────────────
-  void _validateCode() {
+  Future<void> _validateCode() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
-    final config = AppConfig.findByAccessCode(_codeController.text.trim());
-
-    if (config == null) {
-      setState(() {
-        _errorMessage =
-            'Código incorrecto. Verifica el código con tu cooperativa.';
-      });
-      return;
-    }
-
-    // Código válido → mostrar paso 2
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
-      _pendingConfig = config;
     });
+
+    try {
+      final config =
+          await AppConfig.findByAccessCode(_codeController.text.trim());
+
+      if (!mounted) return;
+
+      if (config == null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage =
+              'Código incorrecto. Verifica el código con tu cooperativa.';
+        });
+        return;
+      }
+
+      // Código válido → mostrar paso 2
+      setState(() {
+        _isLoading = false;
+        _pendingConfig = config;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            'No se pudo verificar el código. Revisa tu conexión e intenta de nuevo.';
+      });
+    }
   }
 
   // ── Paso 2: confirmar y guardar ────────────────────────────────────────────
@@ -224,7 +244,7 @@ class _CooperativeSelectionScreenState
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _validateCode,
+                  onPressed: _isLoading ? null : _validateCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.textWhite,
@@ -233,11 +253,20 @@ class _CooperativeSelectionScreenState
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Continuar',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.textWhite,
+                          ),
+                        )
+                      : const Text(
+                          'Continuar',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                 ),
               ),
             ],
@@ -290,8 +319,7 @@ class _CooperativeSelectionScreenState
           ),
           child: Column(
             children: [
-              const Icon(Icons.business_rounded,
-                  color: AppColors.primary, size: 36),
+              Image.asset(config.logoPath, height: 56),
               const SizedBox(height: 10),
               Text(
                 config.name,

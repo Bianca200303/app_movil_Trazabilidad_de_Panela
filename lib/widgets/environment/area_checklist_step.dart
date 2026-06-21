@@ -65,6 +65,7 @@ class AreaChecklistStep extends StatelessWidget {
               'Evalúa cada ítem como Conforme (C) o No Conforme (NC). Agrega acciones correctivas cuando sea NC.',
           children: items.map((item) {
             return InspectionItemWidget(
+              key: ValueKey('${areaCode}_${item.itemCode}'),
               itemDescription: item.itemDescription,
               condition: item.condition,
               correctiveActions: item.correctiveActions,

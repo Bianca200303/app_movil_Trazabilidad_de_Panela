@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
+import 'package:panela_sys/widgets/forms/yes_no_field.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/screen_utils.dart';
@@ -48,6 +49,16 @@ class _InspectionItemWidgetState extends State<InspectionItemWidget> {
     _correctiveActionsController.dispose();
     _observationsController.dispose();
     super.dispose();
+  }
+
+  void _handleConditionChanged(bool isCompliant) {
+    widget.onConditionChanged(
+      isCompliant ? InspectionCondition.compliant : InspectionCondition.nonCompliant,
+    );
+    // Despliega los campos automáticamente para que se documente de inmediato.
+    if (!isCompliant && !_isExpanded) {
+      setState(() => _isExpanded = true);
+    }
   }
 
   @override
@@ -135,56 +146,11 @@ class _InspectionItemWidgetState extends State<InspectionItemWidget> {
         ),
         const SizedBox(height: 12),
 
-        // Switch for C/NC with pencil icon
-        Row(
-          children: [
-            // Conforme label - flexible to prevent overflow
-            Flexible(
-              child: Text(
-                'Conforme',
-                style: AppTextStyles.bodyText.copyWith(
-                  color: widget.condition == InspectionCondition.compliant
-                      ? AppColors.success
-                      : AppColors.textSecondary,
-                  fontWeight: widget.condition == InspectionCondition.compliant
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // Switch
-            Switch(
-              value: widget.condition == InspectionCondition.nonCompliant,
-              onChanged: (value) {
-                widget.onConditionChanged(
-                  value ? InspectionCondition.nonCompliant : InspectionCondition.compliant,
-                );
-              },
-              activeColor: AppColors.error,
-              inactiveThumbColor: AppColors.success,
-              inactiveTrackColor: AppColors.success.withOpacity(0.5),
-            ),
-            const SizedBox(width: 8),
-
-            // No Conforme label - flexible to prevent overflow
-            Flexible(
-              child: Text(
-                'No Conforme',
-                style: AppTextStyles.bodyText.copyWith(
-                  color: widget.condition == InspectionCondition.nonCompliant
-                      ? AppColors.error
-                      : AppColors.textSecondary,
-                  fontWeight: widget.condition == InspectionCondition.nonCompliant
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        YesNoField(
+          value: widget.condition == InspectionCondition.compliant,
+          yesLabel: 'CONFORME',
+          noLabel: 'NO CONFORME',
+          onChanged: _handleConditionChanged,
         ),
 
         // Collapsible textareas (shown when expanded)

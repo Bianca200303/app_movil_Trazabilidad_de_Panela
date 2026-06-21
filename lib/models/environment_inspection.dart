@@ -402,14 +402,4 @@ class CreateEnvironmentInspectionRequest {
     required this.cooperativeId,
     required this.items,
   });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'coop_module_id': coopModuleId,
-      'inspection_date': inspectionDate?.toIso8601String().split('T')[0] ??
-          DateTime.now().toIso8601String().split('T')[0],
-      'cooperative_id': cooperativeId,
-      // created_by is auto-populated by database trigger
-    };
-  }
 }

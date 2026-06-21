@@ -181,10 +181,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   key: _formKey,
                   child: FormGroup(
                     children: [
+                      Image.asset(AppConfig.current.logoPath, height: 64),
+                      const SizedBox(height: 12),
                       AppTitle(
                         title: AppConfig.current.displayTitle,
                       ),
-                      
+
                       AppTextField(
                         label: 'DNI',
                         controller: _identifierController,

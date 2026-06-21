@@ -20,7 +20,7 @@ class AppTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: AppTextStyles.mainTitle,
+          style: AppTextStyles.mainTitle.copyWith(fontSize: _resolvedFontSize),
           textAlign: textAlign,
         ),
         if (subtitle != null) ...[
@@ -33,6 +33,14 @@ class AppTitle extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  // Algunos títulos (ej. nombres de área de inspección) son mucho más largos
+  // que el resto de la app y a tamaño completo envuelven palabra por palabra.
+  double get _resolvedFontSize {
+    final baseSize = AppTextStyles.mainTitle.fontSize!;
+    if (title.length > 50) return baseSize * 0.55;
+    return baseSize;
   }
 }
 

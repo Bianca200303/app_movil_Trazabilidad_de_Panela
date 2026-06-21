@@ -44,19 +44,25 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-.env*
+.env
+.env.local
+.env.production
 
 
 
 # Signing keys
 android/key.properties
+android/app/*.jks
 
-#
+# Notas internas / documentación personal
+me
+me/
+docs/
 
-#..\supabase functions serve
+# IDE
+.claude/
+.vscode/
 
+# Build artifacts
+android/build/
 
-poner en marcha el contenedor
-cd C:\Users\bianc\Desktop\proyecto-panela\supabase\mi-proyecto
-..\supabase start
-..\supabase stop

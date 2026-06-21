@@ -3,8 +3,8 @@ import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
+import 'package:panela_sys/widgets/forms/yes_no_field.dart';
 import 'package:panela_sys/core/screen_utils.dart';
-import 'package:panela_sys/core/theme/app_text_styles.dart';
 
 class VehicleChecklistStep extends StatelessWidget {
   final bool hasSpareTire;
@@ -73,148 +73,37 @@ class VehicleChecklistStep extends StatelessWidget {
     return FormGroup(
       spacing: context.responsiveSpacing,
       children: [
-        // Back button
-        AppBackButton(
-          onPressed: onBack,
-          isExpanded: false,
-        ),
+        AppBackButton(onPressed: onBack, isExpanded: false),
 
         const AppTitle(title: 'CHECKLIST DEL VEHÍCULO'),
 
         FormSection(
           title: 'Equipamiento de seguridad',
-          subtitle: 'Marca los elementos presentes en el vehículo',
+          subtitle: 'Indica si el vehículo cuenta con cada elemento',
           children: [
-            SizedBox(height: context.responsiveSpacing * 0.5),
-
-            CheckboxListTile(
-              title: Text('Neumático de repuesto', style: AppTextStyles.bodyText),
-              value: hasSpareTire,
-              onChanged: (value) => onSpareTireChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('SOAT vigente', style: AppTextStyles.bodyText),
-              value: hasValidSoat,
-              onChanged: (value) => onValidSoatChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Revisión técnica vigente', style: AppTextStyles.bodyText),
-              value: hasTechnicalReview,
-              onChanged: (value) => onTechnicalReviewChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Botiquín', style: AppTextStyles.bodyText),
-              value: hasFirstAidKit,
-              onChanged: (value) => onFirstAidKitChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Extintor', style: AppTextStyles.bodyText),
-              value: hasFireExtinguisher,
-              onChanged: (value) => onFireExtinguisherChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('GPS', style: AppTextStyles.bodyText),
-              value: hasGps,
-              onChanged: (value) => onGpsChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Implementos de limpieza', style: AppTextStyles.bodyText),
-              value: hasCleaningSupplies,
-              onChanged: (value) => onCleaningSuppliesChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
+            YesNoField(label: 'Neumático de repuesto',    value: hasSpareTire,       onChanged: onSpareTireChanged),
+            YesNoField(label: 'SOAT vigente',             value: hasValidSoat,        onChanged: onValidSoatChanged),
+            YesNoField(label: 'Revisión técnica vigente', value: hasTechnicalReview,  onChanged: onTechnicalReviewChanged),
+            YesNoField(label: 'Botiquín',                 value: hasFirstAidKit,      onChanged: onFirstAidKitChanged),
+            YesNoField(label: 'Extintor',                 value: hasFireExtinguisher, onChanged: onFireExtinguisherChanged),
+            YesNoField(label: 'GPS',                      value: hasGps,              onChanged: onGpsChanged),
+            YesNoField(label: 'Implementos de limpieza',  value: hasCleaningSupplies, onChanged: onCleaningSuppliesChanged),
           ],
         ),
 
         FormSection(
           title: 'Condiciones de limpieza',
-          subtitle: 'Marca las condiciones de limpieza del vehículo',
+          subtitle: 'Indica el estado de limpieza del vehículo',
           children: [
-            SizedBox(height: context.responsiveSpacing * 0.5),
-
-            CheckboxListTile(
-              title: Text('Pisos limpios', style: AppTextStyles.bodyText),
-              value: floorsClean,
-              onChanged: (value) => onFloorsCleanChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Paredes limpias', style: AppTextStyles.bodyText),
-              value: wallsClean,
-              onChanged: (value) => onWallsCleanChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Techos limpios', style: AppTextStyles.bodyText),
-              value: ceilingsClean,
-              onChanged: (value) => onCeilingsCleanChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Sin olores extraños', style: AppTextStyles.bodyText),
-              value: noStrangeOdors,
-              onChanged: (value) => onNoStrangeOdorsChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Carpa limpia', style: AppTextStyles.bodyText),
-              value: tarpClean,
-              onChanged: (value) => onTarpCleanChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-
-            CheckboxListTile(
-              title: Text('Parihuelas limpias', style: AppTextStyles.bodyText),
-              value: palletsClean,
-              onChanged: (value) => onPalletsCleanChanged(value ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
+            YesNoField(label: 'Pisos limpios',      value: floorsClean,    onChanged: onFloorsCleanChanged),
+            YesNoField(label: 'Paredes limpias',    value: wallsClean,     onChanged: onWallsCleanChanged),
+            YesNoField(label: 'Techos limpios',     value: ceilingsClean,  onChanged: onCeilingsCleanChanged),
+            YesNoField(label: 'Sin olores extraños',value: noStrangeOdors, onChanged: onNoStrangeOdorsChanged),
+            YesNoField(label: 'Carpa limpia',       value: tarpClean,      onChanged: onTarpCleanChanged),
+            YesNoField(label: 'Parihuelas limpias', value: palletsClean,   onChanged: onPalletsCleanChanged),
           ],
         ),
 
-        // Continue button
         SizedBox(height: context.responsiveSpacing),
         AppButton(
           text: 'CONTINUAR',

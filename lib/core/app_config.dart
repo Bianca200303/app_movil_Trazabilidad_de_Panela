@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Central configuration for different cooperatives.
 /// This is the single source of truth for app configuration.
@@ -37,17 +39,18 @@ class AppConfig {
     _runtimeConfig = config;
   }
 
-  /// Busca la cooperativa que corresponde al [accessCode] ingresado por el usuario.
+  /// Valida el [accessCode] ingresado por el usuario contra Supabase.
   /// El accessCode es el código secreto entregado a cada cooperativa.
-  /// Retorna null si ninguna cooperativa coincide.
-  static CooperativeConfig? findByAccessCode(String accessCode) {
-    final upper = accessCode.trim().toUpperCase();
-    for (final config in CooperativeConfigs.all) {
-      if (config.accessCode.toUpperCase() == upper) {
-        return config;
-      }
-    }
-    return null;
+  /// Retorna null si el código no corresponde a ninguna cooperativa.
+  /// Lanza una excepción si falla la conexión (para distinguir de código incorrecto).
+  static Future<CooperativeConfig?> findByAccessCode(String accessCode) async {
+    final response = await Supabase.instance.client.rpc(
+      'validate_cooperative_access_code',
+      params: {'p_access_code': accessCode.trim()},
+    );
+    final data = response as Map<String, dynamic>;
+    if (data['success'] != true) return null;
+    return _findByCode(data['code'] as String);
   }
 
   /// Limpia la cooperativa activa (usado cuando el usuario elige "Cambiar cooperativa").
@@ -82,7 +85,7 @@ class AppConfig {
     if (useLocalSupabase) {
       return _getLocalSupabaseUrl();
     }
-    return 'https://mzebhkgusujujskylzdw.supabase.co';
+    return dotenv.env['SUPABASE_URL'] ?? '';
   }
 
   static String _getLocalSupabaseUrl() {
@@ -102,11 +105,7 @@ class AppConfig {
     if (useLocalSupabase) {
       return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
     }
-    return const String.fromEnvironment(
-      'SUPABASE_ANON_KEY',
-      defaultValue:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16ZWJoa2d1c3VqdWpza3lsemR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDI0MTYsImV4cCI6MjA5MzkxODQxNn0.1jo2Z9u3cMPAezldzFwAAZ_jRy20gm3KTl8htJ6yrLM',
-    );
+    return dotenv.env['SUPABASE_ANON_KEY'] ?? '';
   }
 }
 
@@ -152,7 +151,7 @@ class CooperativeConfig {
   final String name;          // Nombre completo
   final String displayTitle;  // Título corto mostrado en la UI
   final String batchCodePrefix; // Prefijo de 4 chars para códigos de lote
-  final String accessCode;    // Código secreto que ingresa el usuario al configurar la app
+  final String logoPath;      // Ruta del logo de la cooperativa en assets/logos/
   final CooperativeFeatures features;
 
   const CooperativeConfig({
@@ -161,7 +160,7 @@ class CooperativeConfig {
     required this.name,
     required this.displayTitle,
     required this.batchCodePrefix,
-    required this.accessCode,
+    required this.logoPath,
     required this.features,
   });
 }
@@ -170,19 +169,17 @@ class CooperativeConfig {
 // Configuraciones predefinidas de cada cooperativa
 // Los IDs deben coincidir con los sembrados en Supabase.
 //
-// ¡IMPORTANTE! Cambia los accessCode antes de salir a producción.
-// Estos códigos son los que cada cooperativa entregará a sus usuarios.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CooperativeConfigs {
-  static const norandino = CooperativeConfig(
+  static CooperativeConfig get norandino => CooperativeConfig(
     id: '550e8400-e29b-41d4-a716-446655440001',
     code: 'NORANDINO',
     name: 'Cooperativa Agraria Norandino',
     displayTitle: 'Cooperativa Norandino',
     batchCodePrefix: 'NORA',
-    accessCode: 'NORA2025', // ← Cambiar antes de producción
-    features: CooperativeFeatures(
+    logoPath: 'assets/logos/norandino.png',
+    features: const CooperativeFeatures(
       requirePlotNames: true,
       useAppagropCode: true,
       enableStowageTransportInspection: true,
@@ -197,14 +194,14 @@ class CooperativeConfigs {
     ),
   );
 
-  static const caes = CooperativeConfig(
+  static CooperativeConfig get caes => CooperativeConfig(
     id: '550e8400-e29b-41d4-a716-446655440002',
     code: 'CAES',
     name: 'Cooperativa Agraria Ecológica y Solidaria Piura',
     displayTitle: 'Cooperativa CAES',
     batchCodePrefix: 'CAES',
-    accessCode: 'CAES2025', // ← Cambiar antes de producción
-    features: CooperativeFeatures(
+    logoPath: 'assets/logos/caes.png',
+    features: const CooperativeFeatures(
       requirePlotNames: true,
       useAppagropCode: false,
       enableStowageTransportInspection: true,
@@ -212,8 +209,8 @@ class CooperativeConfigs {
       enableCleaningDisinfection: true,
       enableChlorineControl: true,
       enablePestControl: true,
-      enableHealthAccidentTracking: true,
       enableComplaintsReturns: true,
+      enableHealthAccidentTracking: true,
       enableWorkerControl: true,
       enableMaintenanceControl: true,
     ),
@@ -221,5 +218,5 @@ class CooperativeConfigs {
 
   /// Lista de todas las cooperativas registradas.
   /// Al agregar una nueva cooperativa, solo añadirla aquí y en la lista.
-  static const List<CooperativeConfig> all = [norandino, caes];
+  static List<CooperativeConfig> get all => [norandino, caes];
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
@@ -24,14 +25,6 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // ── DIAGNÓSTICO 401 ──────────────────────────────────────────────────
-      final session = _supabase.auth.currentSession;
-      final tokenEnviado = session?.accessToken ?? AppConfig.supabaseAnonKey;
-      print('🔑 [AUTH-DNI] URL destino : ${AppConfig.supabaseUrl}/functions/v1/auth-dni');
-      print('🔑 [AUTH-DNI] Token que se enviará (primeros 60 chars): ${tokenEnviado.substring(0, tokenEnviado.length.clamp(0, 60))}...');
-      print('🔑 [AUTH-DNI] ¿Es JWT? (debe empezar con "eyJ"): ${tokenEnviado.startsWith("eyJ")}');
-      print('🔑 [AUTH-DNI] Cooperative ID: ${AppConfig.current.id}');
-      // ────────────────────────────────────────────────────────────────────
       // Call our Edge Function for DNI/email authentication
       final response = await _supabase.functions.invoke(
         'auth-dni',
@@ -140,28 +133,16 @@ class AuthService {
     required String role,
     List<String> moduleIds = const [],
   }) async {
-    print('🚀 [FLUTTER] INICIO: Intentando registrar usuario...');
-    print('👤 [FLUTTER] Datos: $dni, $firstName, $lastName');
+    if (kDebugMode) {
+      print('🚀 [FLUTTER] Intentando registrar usuario: $dni');
+    }
 
     try {
-      // 1. Verificar si AppConfig está vivo
-      print('🔍 [FLUTTER] Verificando configuración...');
       final coopId = AppConfig.current.id;
-      print('🏢 [FLUTTER] ID Cooperativa detectado: $coopId');
 
       if (coopId.isEmpty) {
         throw Exception('El ID de la cooperativa está vacío. Revisa AppConfig.');
       }
-
-      // 2. Intentar llamar a la nube
-      print('☁️ [FLUTTER] Llamando a Edge Function "register-user"...');
-      // ── DIAGNÓSTICO 401 ──────────────────────────────────────────────────
-      final _session = _supabase.auth.currentSession;
-      final _tokenEnviado = _session?.accessToken ?? AppConfig.supabaseAnonKey;
-      print('🔑 [REGISTER] URL destino : ${AppConfig.supabaseUrl}/functions/v1/register-user');
-      print('🔑 [REGISTER] Token que se enviará (primeros 60 chars): ${_tokenEnviado.substring(0, _tokenEnviado.length.clamp(0, 60))}...');
-      print('🔑 [REGISTER] ¿Es JWT? (debe empezar con "eyJ"): ${_tokenEnviado.startsWith("eyJ")}');
-      // ────────────────────────────────────────────────────────────────────
 
       final body = {
         'dni': dni,
@@ -178,26 +159,21 @@ class AuthService {
         body: body,
       );
 
-      print('📨 [FLUTTER] Respuesta recibida. Status: ${response.status}');
-
       if (response.data == null) {
         throw Exception('Error de conexión: Respuesta vacía');
       }
 
       final data = response.data as Map<String, dynamic>;
-      print('📦 [FLUTTER] Data recibida: $data');
-      
+
       if (data['error'] != null) {
         throw AuthException(data['error']);
       }
 
-      print('✅ [FLUTTER] ¡ÉXITO TOTAL!');
-
     } catch (e, stackTrace) {
-      // AQUÍ VEREMOS EL ERROR REAL
-      print('💥 [FLUTTER] ERROR FATAL EN APP: $e');
-      print('📜 [FLUTTER] Stack trace: $stackTrace');
-      
+      if (kDebugMode) {
+        print('💥 [FLUTTER] Error al registrar usuario: $e');
+        print('📜 Stack trace: $stackTrace');
+      }
       if (e is AuthException) {
         rethrow;
       }

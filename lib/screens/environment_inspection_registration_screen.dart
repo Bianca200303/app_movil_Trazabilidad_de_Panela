@@ -159,9 +159,11 @@ class _EnvironmentInspectionRegistrationScreenState
       if (ncWithoutActions > 0) {
         AppSnackBar.show(
           context,
-          message: 'Hay $ncWithoutActions ítems NC sin acciones correctivas',
+          message:
+              'Hay $ncWithoutActions ítems No Conforme sin acciones correctivas. Agrégalas antes de continuar.',
           type: SnackBarType.warning,
         );
+        return false;
       }
     }
     return true;

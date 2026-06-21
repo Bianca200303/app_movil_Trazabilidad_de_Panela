@@ -89,6 +89,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       padding: context.responsivePadding,
                       child: FormGroup(
                         children: [
+                          Image.asset(AppConfig.current.logoPath, height: 64),
+                          const SizedBox(height: 12),
                           AppTitle(title: AppConfig.current.displayTitle),
 
                           if (!isProductor) ...[

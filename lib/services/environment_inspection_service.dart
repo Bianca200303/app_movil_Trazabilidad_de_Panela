@@ -5,39 +5,28 @@ import 'package:panela_sys/models/production_date_group.dart';
 class EnvironmentInspectionService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Create inspection with all items in a single transaction-like operation
+  // Create inspection with all items atomically via RPC (un solo insert falla
+  // o aplica todo junto; ver migración create_environment_inspection_rpc).
   Future<EnvironmentInspection> createInspection(
     CreateEnvironmentInspectionRequest request,
   ) async {
     try {
-      // Use Supabase transaction-like approach:
-      // 1. Insert parent
-      // 2. Insert all children
-      // 3. Query back with joined data
+      final inspectionDate = request.inspectionDate ?? DateTime.now();
+      final inspectionId = await _supabase.rpc(
+        'create_environment_inspection',
+        params: {
+          'p_coop_module_id': request.coopModuleId,
+          'p_inspection_date': inspectionDate.toIso8601String().split('T')[0],
+          'p_cooperative_id': request.cooperativeId,
+          'p_items': request.items.map((item) => item.toJson()).toList(),
+        },
+      ) as String;
 
-      // Insert parent inspection
-      final parentResponse = await _supabase
-          .from('environment_inspections')
-          .insert(request.toJson())
-          .select()
-          .single();
-
-      final inspectionId = parentResponse['id'] as String;
-
-      // Insert all items
-      if (request.items.isNotEmpty) {
-        final itemsData = request.items.map((item) {
-          final json = item.toJson();
-          json['environment_inspection_id'] = inspectionId;
-          return json;
-        }).toList();
-
-        await _supabase.from('environment_inspection_items').insert(itemsData);
+      final created = await getInspectionById(inspectionId);
+      if (created == null) {
+        throw Exception('La inspección se creó pero no se pudo recuperar');
       }
-
-      // Fetch complete inspection with items
-      return await getInspectionById(inspectionId) ??
-          EnvironmentInspection.fromJson(parentResponse);
+      return created;
     } catch (e) {
       throw Exception('Error al crear la inspección de ambiente: $e');
     }
