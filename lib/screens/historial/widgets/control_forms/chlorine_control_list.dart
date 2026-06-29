@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
@@ -29,6 +30,7 @@ class _ChlorineControlListState extends State<ChlorineControlList> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  final Set<String> _expandedRecords = {};
 
   @override
   void initState() {
@@ -40,7 +42,7 @@ class _ChlorineControlListState extends State<ChlorineControlList> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _isLoading = true; _error = null; _expandedRecords.clear(); });
     try {
       final controls = await widget.service.getControls(
         fromDate: _from,
@@ -107,7 +109,17 @@ class _ChlorineControlListState extends State<ChlorineControlList> {
         else
           Column(
             mainAxisSize: MainAxisSize.min,
-            children: _items.map((c) => _ChlorineCard(data: c)).toList(),
+            children: _items.map((c) {
+              final recordId = c['id'] as String;
+              final isExpanded = _expandedRecords.contains(recordId);
+              return _ChlorineCard(
+                data: c,
+                isExpanded: isExpanded,
+                onToggle: () => setState(() {
+                  isExpanded ? _expandedRecords.remove(recordId) : _expandedRecords.add(recordId);
+                }),
+              );
+            }).toList(),
           ),
       ],
     );
@@ -115,8 +127,10 @@ class _ChlorineControlListState extends State<ChlorineControlList> {
 }
 
 class _ChlorineCard extends StatelessWidget {
-  const _ChlorineCard({required this.data});
+  const _ChlorineCard({required this.data, required this.isExpanded, required this.onToggle});
   final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -137,40 +151,40 @@ class _ChlorineCard extends StatelessWidget {
     final Color backgroundColor = bothSafe ? Colors.green[50]! : Colors.orange[50]!;
     final Color badgeColor = bothSafe ? AppColors.success : Colors.orange[700]!;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      backgroundColor: backgroundColor,
+      header: Row(
         children: [
-          Row(
-            children: [
-              Icon(bothSafe ? Icons.check_circle : Icons.warning_amber_rounded, color: badgeColor, size: 20),
-              SizedBox(width: context.responsiveSpacing / 2),
-              Expanded(
-                child: Text(
+          Icon(bothSafe ? Icons.check_circle : Icons.warning_amber_rounded, color: badgeColor, size: 20),
+          SizedBox(width: context.responsiveSpacing / 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(moduleName, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 2),
+                Text(
                   bothSafe ? 'EN RANGO SEGURO' : 'FUERA DE RANGO',
-                  style: AppTextStyles.fieldLabel.copyWith(color: badgeColor, fontWeight: FontWeight.w600),
+                  style: AppTextStyles.captionText.copyWith(color: badgeColor, fontWeight: FontWeight.w600),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-                  Text('$controlDate $controlTime', style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
+              Text('$controlDate $controlTime', style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
             ],
           ),
-          SizedBox(height: context.responsiveSpacing / 2),
-          HistorialInfoRow(label: 'Módulo:', value: moduleName),
-          SizedBox(height: context.responsiveSpacing / 2),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Container(
             padding: EdgeInsets.all(context.responsiveSpacing / 2),
             decoration: BoxDecoration(

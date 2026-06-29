@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/models/pest_control.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
@@ -245,7 +246,7 @@ class _BaitControlStepState extends State<BaitControlStep> {
 
         Text(
           'Estaciones de cebo',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: AppTextStyles.sectionLabel,
         ),
 
         SizedBox(height: context.responsiveSpacing / 2),

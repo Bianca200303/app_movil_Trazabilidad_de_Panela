@@ -26,6 +26,8 @@ import 'package:panela_sys/providers/cane_density_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/core/production_calculator.dart';
 import 'package:panela_sys/services/location_service.dart';
+import 'package:panela_sys/models/producer_quota_status.dart';
+import 'package:panela_sys/services/producer_quota_service.dart';
 
 class ProductionRegistrationScreen extends ConsumerStatefulWidget {
   const ProductionRegistrationScreen({super.key});
@@ -82,7 +84,13 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   // Density stored as local state to avoid ref.watch in build
   double _density = ProductionCalculator.sugarCaneDensity;
   bool _isAdminSistema = false;
+  bool _isTecnicoCampo = false;
   ProviderSubscription<double>? _densitySubscription;
+
+  // Cupo del productor — se consulta al seleccionar productor + parcela
+  late final ProducerQuotaService _quotaService;
+  QuotaCheckResult? _quotaResult;
+  bool _isLoadingQuota = false;
 
   @override
   void initState() {
@@ -91,10 +99,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     // Inject database from providers for offline support
     final db = ref.read(appDatabaseProvider);
     _batchCertService = BatchCertService(db: db);
+    _quotaService = ProducerQuotaService();
 
     // Read initial values without watch (avoids build-scope conflicts)
     _density = ref.read(caneDensityProvider);
     _isAdminSistema = ref.read(currentUserProvider)?.isAdminSistema == true;
+    _isTecnicoCampo = ref.read(currentUserProvider)?.isTecnicoCampo == true;
 
     // Role guard: productores cannot register production
     final currentUser = ref.read(currentUserProvider);
@@ -130,6 +140,8 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   }
 
   void _onPlotChanged() {
+    // Resetear cupo ante cualquier cambio de parcela o productor
+    setState(() => _quotaResult = null);
     if (_plotController.text.isNotEmpty) {
       _loadSelectedProducerAndPlot();
     }
@@ -182,7 +194,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
                 SizedBox(height: context.responsiveSpacing),
                 AppCard(
                   padding: context.responsivePadding,
-                  child: _buildCurrentStep(_density, _isAdminSistema),
+                  child: _buildCurrentStep(_density, _isAdminSistema, _isTecnicoCampo),
                 ),
               ],
             ),
@@ -192,7 +204,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     );
   }
 
-  Widget _buildCurrentStep(double density, bool isAdminSistema) {
+  Widget _buildCurrentStep(double density, bool isAdminSistema, bool isTecnicoCampo) {
 
     switch (_currentStep) {
       case 0:
@@ -201,8 +213,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           plotController: _plotController,
           extractionPercentageController: _extractionPercentageController,
           cachazaPercentageController: _cachazaPercentageController,
+          canEditYieldPercentages: isTecnicoCampo || isAdminSistema,
           selectedProducer: _selectedProducer,
           selectedPlot: _selectedPlot,
+          quotaResult: _quotaResult,
+          isLoadingQuota: _isLoadingQuota,
           locationLatitude: _locationLatitude,
           locationLongitude: _locationLongitude,
           locationText: _locationText,
@@ -314,8 +329,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           plotController: _plotController,
           extractionPercentageController: _extractionPercentageController,
           cachazaPercentageController: _cachazaPercentageController,
+          canEditYieldPercentages: isTecnicoCampo || isAdminSistema,
           selectedProducer: _selectedProducer,
           selectedPlot: _selectedPlot,
+          quotaResult: _quotaResult,
+          isLoadingQuota: _isLoadingQuota,
           locationLatitude: _locationLatitude,
           locationLongitude: _locationLongitude,
           locationText: _locationText,
@@ -455,6 +473,32 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         _density = moduleDensity!;
         _densityController.text = moduleDensity!.toStringAsFixed(2);
       }
+    });
+
+    if (producerId.isNotEmpty) _checkProducerQuota(producerId);
+  }
+
+  Future<void> _checkProducerQuota(String producerId) async {
+    if (!mounted) return;
+    debugPrint('▶▶▶ QUOTA CHECK START — producerId=$producerId');
+    setState(() => _isLoadingQuota = true);
+
+    final result = await _quotaService.getQuotaStatuses(
+      producerId: producerId,
+      processDate: DateTime.now(),
+    );
+
+    if (!mounted) return;
+    debugPrint(
+      '◀◀◀ QUOTA CHECK END — '
+      'statuses=${result.statuses.length}, '
+      'offline=${result.isOffline}, '
+      'exceeded=${result.hasExceeded}, '
+      'warning=${result.hasWarning}',
+    );
+    setState(() {
+      _quotaResult = result;
+      _isLoadingQuota = false;
     });
   }
 

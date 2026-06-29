@@ -6,6 +6,7 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
@@ -158,171 +159,147 @@ class _CleaningCard extends StatelessWidget {
     final itemsByArea = data['items_by_area'] as Map<String, List<CleaningDisinfectionItem>>;
     final totalItems = data['total_items'] as int;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      header: Row(
         children: [
-          InkWell(
-            onTap: onToggle,
-            child: Padding(
-              padding: context.responsivePadding,
-              child: Row(
-                children: [
-                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more, color: AppColors.primary, size: 24),
-                  SizedBox(width: context.responsiveSpacing / 2),
-                  Icon(Icons.cleaning_services, color: AppColors.primary, size: 20),
-                  SizedBox(width: context.responsiveSpacing / 2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(moduleName, style: AppTextStyles.cardTitle),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: cleaningTypes.map((t) {
-                            final c = _cleaningTypeColor(t);
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: c.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                t.getDisplayName(),
-                                style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 11),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 4),
-                        Text('Fecha de limpieza', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-                        Text(formattedDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$totalItems',
-                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                  if (hasObservations)
-                    Padding(
-                      padding: EdgeInsets.only(left: context.responsiveSpacing / 2),
-                      child: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                    ),
-                ],
-              ),
+          Icon(Icons.cleaning_services, color: AppColors.primary, size: 20),
+          SizedBox(width: context.responsiveSpacing / 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(moduleName, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: cleaningTypes.map((t) {
+                    final c = _cleaningTypeColor(t);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: c.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        t.getDisplayName(),
+                        style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 4),
+                Text('Fecha de limpieza', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
+                Text(formattedDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
             ),
           ),
-          if (isExpanded) ...[
-            const Divider(height: 1),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$totalItems',
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
+          if (hasObservations)
             Padding(
+              padding: EdgeInsets.only(left: context.responsiveSpacing / 2),
+              child: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+            ),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasObservations && generalObservations != null) ...[
+            Container(
               padding: context.responsivePadding,
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (hasObservations && generalObservations != null) ...[
-                    Container(
-                      padding: context.responsivePadding,
-                      decoration: BoxDecoration(
-                        color: Colors.orange[50],
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                        border: Border.all(color: Colors.orange[200]!),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Icon(Icons.info_outline, size: 16, color: Colors.orange[900]),
-                            const SizedBox(width: 8),
-                            Text('Observaciones Generales:',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange[900])),
-                          ]),
-                          const SizedBox(height: 8),
-                          Text(generalObservations,
-                              style: TextStyle(fontSize: 12, color: Colors.orange[900])),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: context.responsiveSpacing),
-                  ],
-                  Text('Detalles de limpieza:', style: AppTextStyles.fieldLabel),
-                  SizedBox(height: context.responsiveSpacing / 2),
-                  ...itemsByArea.entries.map((entry) {
-                    final areaCode = entry.key;
-                    final items = entry.value;
-                    final areaName = CleaningAreas.getDisplayName(areaCode);
-                    final firstItem = items.first;
-                    final products = <String>[
-                      if (firstItem.usesChlorine) 'Cloro',
-                      if (firstItem.usesDetergent) 'Detergente',
-                      if (firstItem.usesOtherProduct) 'Otro',
-                    ];
-                    return Container(
-                      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-                      padding: context.responsivePadding,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                        border: Border.all(color: AppColors.inputBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Icon(Icons.room_outlined, size: 16, color: AppColors.primary),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(areaName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
-                            Text('${items.length} puntos',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          ]),
-                          const SizedBox(height: 8),
-                          Row(children: [
-                            Icon(Icons.science_outlined, size: 14, color: AppColors.textSecondary),
-                            const SizedBox(width: 4),
-                            Text(products.join(', '),
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          ]),
-                          const SizedBox(height: 8),
-                          ...items.map((item) => Padding(
-                            padding: EdgeInsets.only(
-                              left: context.responsiveSpacing,
-                              top: context.responsiveSpacing / 4,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(item.pointDescription,
-                                    style: const TextStyle(fontSize: 12))),
-                              ],
-                            ),
-                          )),
-                        ],
-                      ),
-                    );
-                  }),
+                  Row(children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.orange[900]),
+                    const SizedBox(width: 8),
+                    Text('Observaciones Generales:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange[900])),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(generalObservations,
+                      style: TextStyle(fontSize: 12, color: Colors.orange[900])),
                 ],
               ),
             ),
+            SizedBox(height: context.responsiveSpacing),
           ],
+          Text('Detalles de limpieza:', style: AppTextStyles.fieldLabel),
+          SizedBox(height: context.responsiveSpacing / 2),
+          ...itemsByArea.entries.map((entry) {
+            final areaCode = entry.key;
+            final items = entry.value;
+            final areaName = CleaningAreas.getDisplayName(areaCode);
+            final firstItem = items.first;
+            final products = <String>[
+              if (firstItem.usesChlorine) 'Cloro',
+              if (firstItem.usesDetergent) 'Detergente',
+              if (firstItem.usesOtherProduct) 'Otro',
+            ];
+            return Container(
+              margin: EdgeInsets.only(bottom: context.responsiveSpacing),
+              padding: context.responsivePadding,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                border: Border.all(color: AppColors.inputBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.room_outlined, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(areaName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
+                    Text('${items.length} puntos',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Icon(Icons.science_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text(products.join(', '),
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ]),
+                  const SizedBox(height: 8),
+                  ...items.map((item) => Padding(
+                    padding: EdgeInsets.only(
+                      left: context.responsiveSpacing,
+                      top: context.responsiveSpacing / 4,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(item.pointDescription,
+                            style: const TextStyle(fontSize: 12))),
+                      ],
+                    ),
+                  )),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

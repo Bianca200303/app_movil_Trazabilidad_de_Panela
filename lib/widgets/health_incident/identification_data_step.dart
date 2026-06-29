@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
+import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
@@ -13,6 +14,7 @@ class IdentificationDataStep extends StatelessWidget {
   final String? selectedModuleId;
   final TextEditingController employeeNameController;
   final TextEditingController workAreaController;
+  final FocusNode workAreaFocusNode;
   final DateTime? registrationDate;
   final VoidCallback onDateTap;
   final VoidCallback onNext;
@@ -25,6 +27,7 @@ class IdentificationDataStep extends StatelessWidget {
     required this.selectedModuleId,
     required this.employeeNameController,
     required this.workAreaController,
+    required this.workAreaFocusNode,
     required this.registrationDate,
     required this.onDateTap,
     required this.onNext,
@@ -76,16 +79,54 @@ class IdentificationDataStep extends StatelessWidget {
               hintText: 'Ej: Juan Pérez',
             ),
             SizedBox(height: context.responsiveSpacing),
-            AppTextField(
-              label: 'Área de trabajo',
-              controller: workAreaController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Ingresa el área de trabajo';
-                }
-                return null;
+            RawAutocomplete<String>(
+              textEditingController: workAreaController,
+              focusNode: workAreaFocusNode,
+              optionsBuilder: (TextEditingValue value) {
+                final areaNames = CleaningAreas.all.map(CleaningAreas.getDisplayName);
+                if (value.text.isEmpty) return areaNames;
+                final query = value.text.toLowerCase();
+                return areaNames.where((name) => name.toLowerCase().contains(query));
               },
-              hintText: 'Ej: Área de producción',
+              displayStringForOption: (option) => option,
+              fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                return AppTextField(
+                  label: 'Área de trabajo',
+                  controller: controller,
+                  focusNode: focusNode,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Ingresa el área de trabajo';
+                    }
+                    return null;
+                  },
+                  hintText: 'Buscar o escribir área...',
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final name = options.elementAt(index);
+                          return ListTile(
+                            dense: true,
+                            title: Text(name),
+                            onTap: () => onSelected(name),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             SizedBox(height: context.responsiveSpacing),
             Column(

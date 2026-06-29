@@ -142,18 +142,20 @@ class _ProductionDateCard extends StatelessWidget {
               SizedBox(height: context.responsiveSpacing / 2),
             ],
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Fecha de producción:', style: AppTextStyles.fieldLabel),
+                Expanded(
+                  child: Text('Fecha de producción:', style: AppTextStyles.fieldLabel),
+                ),
                 Text(AppDateUtils.formatDDMMYYYY(group.date),
                     style: AppTextStyles.bodyText),
               ],
             ),
             SizedBox(height: context.responsiveSpacing / 2),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Lotes:', style: AppTextStyles.fieldLabel),
+                Expanded(
+                  child: Text('Lotes:', style: AppTextStyles.fieldLabel),
+                ),
                 Text(
                   '${group.batchCount} lote${group.batchCount != 1 ? 's' : ''}',
                   style: AppTextStyles.bodyText,
@@ -163,9 +165,10 @@ class _ProductionDateCard extends StatelessWidget {
             if (group.totalPanelaKg > 0) ...[
               SizedBox(height: context.responsiveSpacing / 2),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Total panela:', style: AppTextStyles.fieldLabel),
+                  Expanded(
+                    child: Text('Total panela:', style: AppTextStyles.fieldLabel),
+                  ),
                   Text('${group.totalPanelaKg.toStringAsFixed(1)} kg',
                       style: AppTextStyles.bodyText),
                 ],

@@ -39,6 +39,7 @@ class _HealthAccidentTrackingRegistrationScreenState
   final TextEditingController _employeeNameController =
       TextEditingController();
   final TextEditingController _workAreaController = TextEditingController();
+  final FocusNode _workAreaFocusNode = FocusNode();
   DateTime? _registrationDate;
 
   // Step 1: Incident description
@@ -165,6 +166,7 @@ class _HealthAccidentTrackingRegistrationScreenState
   void dispose() {
     _employeeNameController.dispose();
     _workAreaController.dispose();
+    _workAreaFocusNode.dispose();
     _symptomsController.dispose();
     _otherActionController.dispose();
     _returnDateController.dispose();
@@ -303,6 +305,7 @@ class _HealthAccidentTrackingRegistrationScreenState
           selectedModuleId: _selectedModuleId,
           employeeNameController: _employeeNameController,
           workAreaController: _workAreaController,
+          workAreaFocusNode: _workAreaFocusNode,
           registrationDate: _registrationDate,
           onDateTap: _pickDate,
           onNext: _goToNextStep,

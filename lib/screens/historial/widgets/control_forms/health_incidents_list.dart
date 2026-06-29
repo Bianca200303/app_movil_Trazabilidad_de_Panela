@@ -5,6 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/health_incident.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
@@ -30,6 +31,7 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  final Set<String> _expandedRecords = {};
 
   @override
   void initState() {
@@ -41,7 +43,7 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _isLoading = true; _error = null; _expandedRecords.clear(); });
     try {
       final raw = await widget.service.getIncidentsWithModuleDetails(
         fromDate: _from,
@@ -108,7 +110,17 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
         else
           Column(
             mainAxisSize: MainAxisSize.min,
-            children: _items.map((i) => _HealthIncidentCard(data: i)).toList(),
+            children: _items.map((i) {
+              final recordId = i['id'] as String;
+              final isExpanded = _expandedRecords.contains(recordId);
+              return _HealthIncidentCard(
+                data: i,
+                isExpanded: isExpanded,
+                onToggle: () => setState(() {
+                  isExpanded ? _expandedRecords.remove(recordId) : _expandedRecords.add(recordId);
+                }),
+              );
+            }).toList(),
           ),
       ],
     );
@@ -116,8 +128,10 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
 }
 
 class _HealthIncidentCard extends StatelessWidget {
-  const _HealthIncidentCard({required this.data});
+  const _HealthIncidentCard({required this.data, required this.isExpanded, required this.onToggle});
   final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -131,44 +145,44 @@ class _HealthIncidentCard extends StatelessWidget {
     final returnDate = data['return_date'] as String;
     final certificatePresented = data['certificate_presented'] as String;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: hasReturnDate ? Colors.green[50] : Colors.orange[50],
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      backgroundColor: hasReturnDate ? Colors.green[50] : Colors.orange[50],
+      header: Row(
         children: [
-          Row(
-            children: [
-              Icon(hasReturnDate ? Icons.check_circle : Icons.warning,
-                  color: hasReturnDate ? AppColors.success : AppColors.warning, size: 20),
-              SizedBox(width: context.responsiveSpacing / 2),
-              Expanded(
-                child: Text(
+          Icon(hasReturnDate ? Icons.check_circle : Icons.warning,
+              color: hasReturnDate ? AppColors.success : AppColors.warning, size: 20),
+          SizedBox(width: context.responsiveSpacing / 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(employeeName, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 2),
+                Text(
                   hasReturnDate ? 'REINTEGRADO' : 'PENDIENTE',
-                  style: AppTextStyles.fieldLabel.copyWith(
+                  style: AppTextStyles.captionText.copyWith(
                     color: hasReturnDate ? AppColors.success : AppColors.warning,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-                  Text(registrationDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
+              Text(registrationDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
             ],
           ),
-          SizedBox(height: context.responsiveSpacing / 2),
-          HistorialInfoRow(label: 'Empleado:', value: employeeName),
-          SizedBox(height: context.responsiveSpacing / 2),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           HistorialInfoRow(label: 'Módulo:', value: moduleName),
           SizedBox(height: context.responsiveSpacing / 2),
           HistorialInfoRow(label: 'Área:', value: workArea),

@@ -596,7 +596,7 @@ class _PestControlRegistrationScreenState
         const AppTitle(title: 'Resumen'),
         Text(
           'Datos generales',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: AppTextStyles.sectionLabel,
         ),
         SizedBox(height: context.responsiveSpacing / 2),
         _buildSummaryRow(
@@ -615,7 +615,7 @@ class _PestControlRegistrationScreenState
           SizedBox(height: context.responsiveSpacing),
           Text(
             'Control de Cebos',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: AppTextStyles.sectionLabel,
           ),
           SizedBox(height: context.responsiveSpacing / 2),
           _buildSummaryRow(
@@ -639,7 +639,7 @@ class _PestControlRegistrationScreenState
           SizedBox(height: context.responsiveSpacing),
           Text(
             'Control de Insectos',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: AppTextStyles.sectionLabel,
           ),
           SizedBox(height: context.responsiveSpacing / 2),
           _buildSummaryRow(
@@ -676,13 +676,13 @@ class _PestControlRegistrationScreenState
         children: [
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+            style: AppTextStyles.fieldLabel,
           ),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.grey),
+              style: AppTextStyles.bodyText,
             ),
           ),
         ],

@@ -5,7 +5,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
-import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_stat_chip.dart';
@@ -32,6 +32,7 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  final Set<String> _expandedRecords = {};
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _isLoading = true; _error = null; _expandedRecords.clear(); });
     try {
       final raw = await widget.service.getInspectionsWithModuleDetails(
         fromDate: _from,
@@ -110,7 +111,17 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
         else
           Column(
             mainAxisSize: MainAxisSize.min,
-            children: _items.map((inspection) => _EnvironmentInspectionCard(data: inspection)).toList(),
+            children: _items.map((inspection) {
+              final recordId = inspection['id'] as String;
+              final isExpanded = _expandedRecords.contains(recordId);
+              return _EnvironmentInspectionCard(
+                data: inspection,
+                isExpanded: isExpanded,
+                onToggle: () => setState(() {
+                  isExpanded ? _expandedRecords.remove(recordId) : _expandedRecords.add(recordId);
+                }),
+              );
+            }).toList(),
           ),
       ],
     );
@@ -118,8 +129,10 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
 }
 
 class _EnvironmentInspectionCard extends StatelessWidget {
-  const _EnvironmentInspectionCard({required this.data});
+  const _EnvironmentInspectionCard({required this.data, required this.isExpanded, required this.onToggle});
   final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -140,56 +153,50 @@ class _EnvironmentInspectionCard extends StatelessWidget {
       badgeColor = Colors.orange[700]!;
     }
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      backgroundColor: backgroundColor,
+      header: Row(
         children: [
-          Row(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: badgeColor),
+            ),
+            child: Text(
+              '${compliancePercentage.toStringAsFixed(0)}%',
+              style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+          ),
+          SizedBox(width: context.responsiveSpacing / 2),
+          Expanded(child: Text(moduleName, style: AppTextStyles.cardTitle)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: badgeColor),
-                ),
-                child: Text(
-                  '${compliancePercentage.toStringAsFixed(0)}%',
-                  style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 14),
+              Text(
+                'Fecha de inspección',
+                style: AppTextStyles.captionText.copyWith(
+                  color: AppColors.textPrimary,
+                  fontSize: 11,
                 ),
               ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Fecha de inspección',
-                    style: AppTextStyles.captionText.copyWith(
-                      color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    inspectionDate,
-                    style: AppTextStyles.bodyText.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              Text(
+                inspectionDate,
+                style: AppTextStyles.bodyText.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          SizedBox(height: context.responsiveSpacing / 2),
-          HistorialInfoRow(label: 'Módulo:', value: moduleName),
-          SizedBox(height: context.responsiveSpacing / 2),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Container(
             padding: EdgeInsets.all(context.responsiveSpacing / 2),
             decoration: BoxDecoration(

@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
@@ -29,6 +30,7 @@ class _MaintenanceControlListState extends State<MaintenanceControlList> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  final Set<String> _expandedRecords = {};
 
   @override
   void initState() {
@@ -40,7 +42,7 @@ class _MaintenanceControlListState extends State<MaintenanceControlList> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _isLoading = true; _error = null; _expandedRecords.clear(); });
     try {
       final records = await widget.service.getRecords(
         fromDate: _from,
@@ -104,7 +106,17 @@ class _MaintenanceControlListState extends State<MaintenanceControlList> {
         else
           Column(
             mainAxisSize: MainAxisSize.min,
-            children: _items.map((m) => _MaintenanceCard(data: m)).toList(),
+            children: _items.map((m) {
+              final recordId = m['id'] as String;
+              final isExpanded = _expandedRecords.contains(recordId);
+              return _MaintenanceCard(
+                data: m,
+                isExpanded: isExpanded,
+                onToggle: () => setState(() {
+                  isExpanded ? _expandedRecords.remove(recordId) : _expandedRecords.add(recordId);
+                }),
+              );
+            }).toList(),
           ),
       ],
     );
@@ -112,8 +124,10 @@ class _MaintenanceControlListState extends State<MaintenanceControlList> {
 }
 
 class _MaintenanceCard extends StatelessWidget {
-  const _MaintenanceCard({required this.data});
+  const _MaintenanceCard({required this.data, required this.isExpanded, required this.onToggle});
   final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -130,28 +144,25 @@ class _MaintenanceCard extends StatelessWidget {
 
     final Color badgeColor = maintenanceTypeCode == 'P' ? AppColors.success : AppColors.warning;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      backgroundColor: AppColors.cardBackground,
+      header: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(moduleName, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 4),
+                Text(equipmentName, style: AppTextStyles.captionText.copyWith(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-                  Text(maintenanceDate, style: AppTextStyles.cardTitle),
-                ],
-              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -163,15 +174,16 @@ class _MaintenanceCard extends StatelessWidget {
                   style: AppTextStyles.fieldLabel.copyWith(color: badgeColor, fontWeight: FontWeight.w600),
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(maintenanceDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold, fontSize: 13)),
             ],
           ),
-          SizedBox(height: context.responsiveSpacing / 2),
-          Divider(color: AppColors.inputBorder),
-          SizedBox(height: context.responsiveSpacing / 2),
-          HistorialInfoRow(label: 'Módulo:', value: moduleName),
-          SizedBox(height: context.responsiveSpacing / 4),
-          HistorialInfoRow(label: 'Equipo:', value: equipmentName),
-          SizedBox(height: context.responsiveSpacing / 4),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           HistorialInfoRow(label: 'Causa:', value: maintenanceCause),
           SizedBox(height: context.responsiveSpacing / 4),
           HistorialInfoRow(label: 'Duración:', value: durationHours),

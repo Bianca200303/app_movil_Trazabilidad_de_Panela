@@ -6,10 +6,12 @@ import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/core/screen_utils.dart';
-import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
+import 'package:panela_sys/core/theme/app_dimensions.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:go_router/go_router.dart';
+import 'package:panela_sys/models/current_user.dart';
 import 'package:panela_sys/models/producer.dart';
 import 'package:panela_sys/models/plot.dart';
 import 'package:panela_sys/models/coop_module.dart';
@@ -20,14 +22,24 @@ import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/services/location_service.dart';
+import 'package:panela_sys/models/producer_quota_status.dart';
 
 class ProducerSelectionStep extends ConsumerStatefulWidget {
   final TextEditingController producerController;
   final TextEditingController plotController;
   final TextEditingController extractionPercentageController;
   final TextEditingController cachazaPercentageController;
+  /// Si es false, % de extracción y % de cachaza se muestran con el valor
+  /// por defecto (parcela > productor > sistema) y no se pueden editar.
+  /// Estos porcentajes deben reflejar la medición real del técnico de campo
+  /// en planta, por lo que otros roles (ej. Admin de módulo) solo los ven.
+  final bool canEditYieldPercentages;
   final Producer? selectedProducer;
   final Plot? selectedPlot;
+  /// Resultado de la verificación de cupos del productor seleccionado.
+  /// null mientras carga o cuando no hay productor/parcela seleccionados.
+  final QuotaCheckResult? quotaResult;
+  final bool isLoadingQuota;
   final VoidCallback onContinue;
   final double? locationLatitude;
   final double? locationLongitude;
@@ -41,8 +53,11 @@ class ProducerSelectionStep extends ConsumerStatefulWidget {
     required this.plotController,
     required this.extractionPercentageController,
     required this.cachazaPercentageController,
+    this.canEditYieldPercentages = true,
     this.selectedProducer,
     this.selectedPlot,
+    this.quotaResult,
+    this.isLoadingQuota = false,
     required this.onContinue,
     this.locationLatitude,
     this.locationLongitude,
@@ -72,6 +87,8 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   bool _isEditingLocation = false;
   final TextEditingController _manualLocationController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  // IDs de cupos excedidos para los que ya se mostró el dialog (evita re-mostrar)
+  final Set<String> _exceededDialogShownIds = {};
 
   List<Producer> get _filteredProducers {
     final q = _searchController.text.trim().toLowerCase();
@@ -79,6 +96,41 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     return _producers.where((p) =>
       p.fullName.toLowerCase().contains(q) || p.dni.contains(q),
     ).toList();
+  }
+
+  @override
+  void didUpdateWidget(ProducerSelectionStep oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // El padre resuelve selectedProducer/selectedPlot de forma asíncrona tras
+    // la selección; cuando cambian, refrescamos el valor por defecto bloqueado.
+    if (!widget.canEditYieldPercentages &&
+        (widget.selectedProducer != oldWidget.selectedProducer ||
+            widget.selectedPlot != oldWidget.selectedPlot)) {
+      _applyDefaultPercentagesIfLocked();
+    }
+
+    // Mostrar dialog cuando llega un resultado con cupos excedidos.
+    // Se usa addPostFrameCallback para no disparar showDialog durante un build.
+    if (widget.quotaResult != oldWidget.quotaResult &&
+        widget.quotaResult != null &&
+        widget.quotaResult!.hasExceeded) {
+      final newExceededIds = widget.quotaResult!.statuses
+          .where((s) => s.superado)
+          .map((s) => s.quotaId)
+          .toSet();
+      final hasNew = newExceededIds.any((id) => !_exceededDialogShownIds.contains(id));
+      if (hasNew) {
+        _exceededDialogShownIds.addAll(newExceededIds);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showExceededDialog(widget.quotaResult!);
+        });
+      }
+    }
+
+    // Limpiar tracking cuando cambia productor/parcela (cupo vuelve a null)
+    if (widget.quotaResult == null && oldWidget.quotaResult != null) {
+      _exceededDialogShownIds.clear();
+    }
   }
 
   @override
@@ -92,18 +144,12 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     _modulesService = CoopModulesService(db: db);
 
     final currentUser = ref.read(currentUserProvider);
-    if (currentUser != null && currentUser.moduleIds.length > 1) {
-      _loadAssignedModules(currentUser.moduleIds);
-    } else {
-      if (currentUser != null && currentUser.moduleIds.length == 1) {
-        _selectedModuleId = currentUser.moduleIds.first;
-      }
-      _loadProducers();
-    }
+    _initModules(currentUser);
     // Restaurar parcelas si ya hay productor seleccionado (usuario regresó)
     if (widget.producerController.text.isNotEmpty) {
       _loadPlotsForProducer(widget.producerController.text, clearSelection: false);
     }
+    _applyDefaultPercentagesIfLocked();
 
     // Restore manual location text if returning to this step
     if (widget.locationText != null) {
@@ -147,13 +193,32 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     widget.onLocationChanged(result);
   }
 
-  Future<void> _loadAssignedModules(List<String> moduleIds) async {
+  Future<void> _initModules(CurrentUser? currentUser) async {
     try {
       final all = await _modulesService.getModules();
-      setState(() {
-        _assignedModules = all.where((m) => moduleIds.contains(m.id)).toList();
-      });
-    } catch (_) {}
+
+      // Técnico/admin de módulo → solo sus módulos asignados
+      // Admin sistema u otros sin restricción → todos los módulos
+      final available = (currentUser?.hasModuleRestriction == true &&
+              currentUser!.moduleIds.isNotEmpty)
+          ? all.where((m) => currentUser.moduleIds.contains(m.id)).toList()
+          : all;
+
+      if (!mounted) return;
+      setState(() => _assignedModules = available);
+
+      if (available.length == 1) {
+        // Un solo módulo disponible → auto-seleccionar y cargar productores
+        setState(() => _selectedModuleId = available.first.id);
+        _loadProducers();
+      } else if (available.isEmpty) {
+        // Sin módulos configurados → cargar todos como fallback
+        _loadProducers();
+      }
+      // Múltiples módulos → esperar selección del usuario en el dropdown
+    } catch (_) {
+      if (mounted) _loadProducers();
+    }
   }
 
   void _onModuleChanged(String? moduleId) {
@@ -265,6 +330,30 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     return null;
   }
 
+  /// Resuelve el valor por defecto de un porcentaje de rendimiento
+  /// (parcela > productor > sistema), usado cuando el rol actual no puede
+  /// editar manualmente % de extracción/cachaza.
+  double _resolveDefaultPercentage(String fieldType) {
+    if (fieldType == 'extraction') {
+      return widget.selectedPlot?.defaultExtractionPercentage ??
+          widget.selectedProducer?.defaultExtractionPercentage ??
+          62.5;
+    }
+    return widget.selectedPlot?.defaultCachazaPercentage ??
+        widget.selectedProducer?.defaultCachazaPercentage ??
+        2.5;
+  }
+
+  /// Aplica los valores por defecto a los controllers cuando el usuario no
+  /// puede editarlos manualmente, para que el formulario siga siendo válido.
+  void _applyDefaultPercentagesIfLocked() {
+    if (widget.canEditYieldPercentages) return;
+    widget.extractionPercentageController.text =
+        _resolveDefaultPercentage('extraction').toString();
+    widget.cachazaPercentageController.text =
+        _resolveDefaultPercentage('cachaza').toString();
+  }
+
   String _getDefaultHintText(String fieldType) {
     if (fieldType == 'extraction') {
       // Priority: plot -> producer -> system
@@ -285,6 +374,259 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         return 'Valor por defecto (sistema): 2.5%';
       }
     }
+  }
+
+  void _showExceededDialog(QuotaCheckResult result) {
+    final exceeded = result.statuses.where((s) => s.superado).toList();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.error_rounded, color: AppColors.error, size: AppDimensions.iconLarge),
+            const SizedBox(width: AppDimensions.spacingSmall),
+            Expanded(
+              child: Text('Cupo superado', style: AppTextStyles.sectionTitle),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Este productor ha superado el cupo autorizado por la certificadora. '
+              'Registrar esta producción puede incumplir los requisitos de certificación.',
+              style: AppTextStyles.bodyText,
+            ),
+            const SizedBox(height: AppDimensions.spacingMedium),
+            ...exceeded.map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: AppDimensions.spacingSmall),
+              child: Container(
+                padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.certName,
+                      style: AppTextStyles.captionText.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingXSmall),
+                    Text(
+                      'Cupo: ${s.cupoKg.toStringAsFixed(1)} kg  •  '
+                      'Producido: ${s.acumuladoKg.toStringAsFixed(1)} kg  •  '
+                      '+${(s.acumuladoKg - s.cupoKg).toStringAsFixed(1)} kg',
+                      style: AppTextStyles.captionText.copyWith(color: AppColors.error),
+                    ),
+                  ],
+                ),
+              ),
+            )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'CANCELAR',
+              style: AppTextStyles.bodyText.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.textWhite,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+              ),
+            ),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('CONTINUAR DE TODAS FORMAS'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuotaBanner(BuildContext context) {
+    if (widget.isLoadingQuota) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppDimensions.spacingXSmall),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 14, height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: AppDimensions.spacingSmall),
+            Text(
+              'Verificando cupo...',
+              style: AppTextStyles.captionText.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final result = widget.quotaResult;
+    if (result == null) return const SizedBox.shrink();
+
+    if (result.isOffline) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.paddingSmall,
+          vertical: AppDimensions.spacingSmall,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.wifi_off, size: AppDimensions.iconXSmall, color: AppColors.textSecondary),
+            const SizedBox(width: AppDimensions.spacingSmall),
+            Expanded(
+              child: Text(
+                'No se pudo verificar el cupo. Se requiere conexión.',
+                style: AppTextStyles.captionText.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!result.hasQuotas) return const SizedBox.shrink();
+
+    final level = result.hasExceeded
+        ? QuotaStatusLevel.exceeded
+        : result.hasWarning
+            ? QuotaStatusLevel.warning
+            : QuotaStatusLevel.ok;
+
+    final bgColor = level == QuotaStatusLevel.exceeded
+        ? AppColors.errorLight
+        : level == QuotaStatusLevel.warning
+            ? AppColors.warningLight
+            : AppColors.successLight;
+
+    final borderColor = level == QuotaStatusLevel.exceeded
+        ? AppColors.error
+        : level == QuotaStatusLevel.warning
+            ? AppColors.warning
+            : AppColors.success;
+
+    final icon = level == QuotaStatusLevel.exceeded
+        ? Icons.error_rounded
+        : level == QuotaStatusLevel.warning
+            ? Icons.warning_amber_rounded
+            : Icons.check_circle_rounded;
+
+    final title = level == QuotaStatusLevel.exceeded
+        ? '¡Cupo superado!'
+        : level == QuotaStatusLevel.warning
+            ? 'Cupo próximo a agotarse'
+            : 'Cupo disponible';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      padding: EdgeInsets.all(context.responsiveSpacing * 0.6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: borderColor, size: AppDimensions.iconSmall),
+              const SizedBox(width: AppDimensions.spacingSmall),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.bodyText.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.spacingSmall),
+          ...result.statuses.map((s) => _buildQuotaRow(s, borderColor)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuotaRow(ProducerQuotaStatus s, Color accentColor) {
+    final progress = (s.porcentajeUsado / 100).clamp(0.0, 1.0);
+    final isExceeded = s.statusLevel == QuotaStatusLevel.exceeded;
+    final rowColor = isExceeded ? AppColors.error : accentColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimensions.spacingSmall),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            s.certName,
+            style: AppTextStyles.captionText.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppDimensions.spacingXSmall),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(rowColor),
+            ),
+          ),
+          const SizedBox(height: AppDimensions.spacingXSmall),
+          // Flexible evita overflow: el texto largo cede espacio al badge de estado
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Producido: ${s.acumuladoKg.toStringAsFixed(1)} kg  /  '
+                  'Cupo: ${s.cupoKg.toStringAsFixed(1)} kg',
+                  style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppDimensions.spacingSmall),
+              Text(
+                isExceeded
+                    ? '+${(s.acumuladoKg - s.cupoKg).toStringAsFixed(1)} kg'
+                    : '${s.disponibleKg.toStringAsFixed(1)} kg libre',
+                style: AppTextStyles.captionText.copyWith(
+                  color: rowColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildProducerSearch() {
@@ -547,6 +889,8 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
               ],
               if (widget.plotController.text.isNotEmpty) ...[
                 SizedBox(height: context.responsiveSpacing * 1.5),
+                _buildQuotaBanner(context),
+                SizedBox(height: context.responsiveSpacing),
                 Text(
                   'Porcentajes de producción',
                   style: AppTextStyles.sectionTitle,
@@ -556,6 +900,10 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                   controller: widget.extractionPercentageController,
                   label: 'Ingrese el % de extracción (%)',
                   hintText: _getDefaultHintText('extraction'),
+                  helperText: widget.canEditYieldPercentages
+                      ? null
+                      : 'Solo editable por el técnico de campo',
+                  enabled: widget.canEditYieldPercentages,
                   keyboardType: TextInputType.number,
                   validator: (value) => _validatePercentage(value, '% de extracción'),
                 ),
@@ -564,6 +912,10 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                   controller: widget.cachazaPercentageController,
                   label: 'Ingrese el % de cachaza (%)',
                   hintText: _getDefaultHintText('cachaza'),
+                  helperText: widget.canEditYieldPercentages
+                      ? null
+                      : 'Solo editable por el técnico de campo',
+                  enabled: widget.canEditYieldPercentages,
                   keyboardType: TextInputType.number,
                   validator: (value) => _validatePercentage(value, '% de cachaza'),
                 ),

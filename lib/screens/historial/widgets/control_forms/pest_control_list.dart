@@ -4,6 +4,7 @@ import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
@@ -29,6 +30,7 @@ class _PestControlListState extends State<PestControlList> {
   bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _items = [];
+  final Set<String> _expandedRecords = {};
 
   @override
   void initState() {
@@ -40,7 +42,7 @@ class _PestControlListState extends State<PestControlList> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _isLoading = true; _error = null; _expandedRecords.clear(); });
     try {
       final controls = await widget.service.getPestControls(
         fromDate: _from,
@@ -103,16 +105,42 @@ class _PestControlListState extends State<PestControlList> {
         else
           Column(
             mainAxisSize: MainAxisSize.min,
-            children: _items.map((c) => _PestControlCard(data: c)).toList(),
+            children: _items.map((c) {
+              final recordId = c['id'] as String;
+              final isExpanded = _expandedRecords.contains(recordId);
+              return _PestControlCard(
+                data: c,
+                isExpanded: isExpanded,
+                onToggle: () => setState(() {
+                  isExpanded ? _expandedRecords.remove(recordId) : _expandedRecords.add(recordId);
+                }),
+              );
+            }).toList(),
           ),
       ],
     );
   }
 }
 
+Widget _badge(String label, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11),
+    ),
+  );
+}
+
 class _PestControlCard extends StatelessWidget {
-  const _PestControlCard({required this.data});
+  const _PestControlCard({required this.data, required this.isExpanded, required this.onToggle});
   final Map<String, dynamic> data;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -127,39 +155,46 @@ class _PestControlCard extends StatelessWidget {
         ? Colors.blue[50]!
         : (hasBaitData ? Colors.green[50]! : Colors.orange[50]!);
 
-    return Container(
-      margin: EdgeInsets.only(bottom: context.responsiveSpacing),
-      padding: context.responsivePadding,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        border: Border.all(color: AppColors.inputBorder, width: AppDimensions.inputBorderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+    return HistorialExpandableCard(
+      isExpanded: isExpanded,
+      onToggle: onToggle,
+      backgroundColor: backgroundColor,
+      header: Row(
         children: [
-          Row(
+          Icon(Icons.bug_report, color: AppColors.primary, size: 20),
+          SizedBox(width: context.responsiveSpacing / 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(moduleName, style: AppTextStyles.cardTitle),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    if (hasBaitData)
+                      _badge('Cebos', Colors.green[700]!),
+                    if (hasInsectData)
+                      _badge('Insectos', Colors.orange[700]!),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Icon(Icons.bug_report, color: AppColors.primary, size: 20),
-              SizedBox(width: context.responsiveSpacing / 2),
-              Expanded(
-                child: Text('CONTROL DE PLAGAS',
-                    style: AppTextStyles.fieldLabel.copyWith(
-                      color: AppColors.primary, fontWeight: FontWeight.w600)),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-                  Text(controlDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
-                ],
-              ),
+              Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
+              Text(controlDate, style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
             ],
           ),
-          SizedBox(height: context.responsiveSpacing / 2),
-          HistorialInfoRow(label: 'Módulo:', value: moduleName),
-          SizedBox(height: context.responsiveSpacing / 2),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           if (hasBaitData) ...[
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),

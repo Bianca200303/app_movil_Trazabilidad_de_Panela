@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_title.dart';
 import 'package:panela_sys/widgets/forms/app_dropdown.dart';
@@ -49,6 +51,8 @@ class _InsectControlStepState extends State<InsectControlStep> {
   late String _selectedUnit;
   bool _customUnit = false;
 
+  final FocusNode _areaFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +76,12 @@ class _InsectControlStepState extends State<InsectControlStep> {
       _selectedUnit = _kCustom;
       _customUnit = true;
     }
+  }
+
+  @override
+  void dispose() {
+    _areaFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -205,7 +215,7 @@ class _InsectControlStepState extends State<InsectControlStep> {
 
         Text(
           'Conteo de insectos',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: AppTextStyles.sectionLabel,
         ),
 
         SizedBox(height: context.responsiveSpacing / 2),
@@ -256,10 +266,49 @@ class _InsectControlStepState extends State<InsectControlStep> {
 
         SizedBox(height: context.responsiveSpacing),
 
-        AppTextField(
-          label: 'Área/Zona',
-          controller: widget.areaController,
-          hintText: 'Ej: TT - TEA',
+        // ── Área/Zona ──
+        RawAutocomplete<String>(
+          textEditingController: widget.areaController,
+          focusNode: _areaFocusNode,
+          optionsBuilder: (TextEditingValue value) {
+            final areaNames = CleaningAreas.all.map(CleaningAreas.getDisplayName);
+            if (value.text.isEmpty) return areaNames;
+            final query = value.text.toLowerCase();
+            return areaNames.where((name) => name.toLowerCase().contains(query));
+          },
+          displayStringForOption: (option) => option,
+          fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+            return AppTextField(
+              label: 'Área/Zona',
+              controller: controller,
+              focusNode: focusNode,
+              hintText: 'Buscar o escribir área...',
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final name = options.elementAt(index);
+                      return ListTile(
+                        dense: true,
+                        title: Text(name),
+                        onTap: () => onSelected(name),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
         ),
 
         AppTextField(
