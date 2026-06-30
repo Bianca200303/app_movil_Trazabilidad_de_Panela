@@ -7,9 +7,13 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
+import 'package:panela_sys/models/certified_worker.dart';
+import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
+import 'package:panela_sys/services/certified_workers_service.dart';
+import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/services/product_return_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
@@ -56,6 +60,8 @@ class _WorkerControlRegistrationScreenState
     extends ConsumerState<WorkerControlRegistrationScreen> {
   final _workerControlService = WorkerControlService();
   final _productReturnService = ProductReturnService();
+  final _certifiedWorkersService = CertifiedWorkersService();
+  final _coopModulesService = CoopModulesService();
   final _scrollController = ScrollController();
 
   int _currentStep = 0;
@@ -68,6 +74,11 @@ class _WorkerControlRegistrationScreenState
   bool _isLoadingBatches = false;
   Map<String, List<WorkerControl>> _existingByBatch = {};
 
+  // Filtro por módulo
+  List<CoopModule> _assignedModules = [];
+  bool _isLoadingModules = false;
+  String? _selectedModuleId;
+
   String? _selectedBatchId;
   Map<String, dynamic>? _selectedBatch;
 
@@ -79,10 +90,18 @@ class _WorkerControlRegistrationScreenState
   WorkArea? _formArea;
   final _formObsController = TextEditingController();
 
+  // Búsqueda de lotes
+  final _batchSearchController = TextEditingController();
+
   // Workers del área actual
   List<WorkerEvaluation> _formWorkers = [];
   final _nameController = TextEditingController();
   final _nameFocusNode = FocusNode();
+
+  // Trabajadores certificados del módulo
+  List<CertifiedWorker> _certifiedWorkers = [];
+  bool _isLoadingWorkers = false;
+  CertifiedWorker? _selectedWorker;
   bool _uniformComplete = true;
   bool _noMakeup = true;
   bool _nailsShortClean = true;
@@ -101,7 +120,7 @@ class _WorkerControlRegistrationScreenState
     final (from, to) = historialPeriodoRange(HistorialPeriodo.esteMes);
     _from = from;
     _to = to;
-    _loadBatches();
+    _loadModules();
   }
 
   @override
@@ -110,6 +129,7 @@ class _WorkerControlRegistrationScreenState
     _formObsController.dispose();
     _nameController.dispose();
     _nameFocusNode.dispose();
+    _batchSearchController.dispose();
     super.dispose();
   }
 
@@ -121,8 +141,38 @@ class _WorkerControlRegistrationScreenState
     return user.moduleIds.isEmpty ? null : user.moduleIds;
   }
 
+  List<Map<String, dynamic>> get _moduleBatches {
+    if (_selectedModuleId == null) return _availableBatches;
+    return _availableBatches.where((b) {
+      final producer = b['producers'] as Map<String, dynamic>;
+      return (producer['coop_module_id'] as String?) == _selectedModuleId;
+    }).toList();
+  }
+
+  Future<void> _loadModules() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) { _loadBatches(); return; }
+
+    setState(() => _isLoadingModules = true);
+    try {
+      final all = await _coopModulesService.getModules();
+      final assigned = user.hasModuleRestriction && user.moduleIds.isNotEmpty
+          ? all.where((m) => user.moduleIds.contains(m.id)).toList()
+          : all;
+      if (!mounted) return;
+      setState(() {
+        _assignedModules = assigned;
+        _isLoadingModules = false;
+        if (assigned.length == 1) _selectedModuleId = assigned.first.id;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingModules = false);
+    }
+    _loadBatches();
+  }
+
   Future<void> _loadBatches() async {
-    setState(() { _isLoadingBatches = true; _selectedBatchId = null; _selectedBatch = null; });
+    setState(() { _isLoadingBatches = true; _selectedBatchId = null; _selectedBatch = null; _batchSearchController.clear(); });
     try {
       final batches = await _productReturnService.getBatchesByRange(
         _from, _to, moduleIds: _moduleIds,
@@ -152,6 +202,7 @@ class _WorkerControlRegistrationScreenState
     setState(() {
       _selectedBatchId = id;
       _selectedBatch = batch;
+      _batchSearchController.clear();
       _areaEntries = existing.map((c) => _AreaEntry(
         existingId: c.id,
         workArea: c.workArea,
@@ -161,6 +212,28 @@ class _WorkerControlRegistrationScreenState
       _editingIndex = null;
       _resetForm();
     });
+    _loadCertifiedWorkers(batch);
+  }
+
+  void _clearBatchSelection() {
+    setState(() {
+      _selectedBatchId = null;
+      _selectedBatch = null;
+      _areaEntries = [];
+      _certifiedWorkers = [];
+      _batchSearchController.clear();
+      _resetForm();
+    });
+  }
+
+  Future<void> _loadCertifiedWorkers(Map<String, dynamic> batch) async {
+    final producers = batch['producers'] as Map<String, dynamic>?;
+    final moduleId = producers?['coop_module_id'] as String?;
+    if (moduleId == null) return;
+
+    setState(() => _isLoadingWorkers = true);
+    final workers = await _certifiedWorkersService.getByModule(moduleId);
+    if (mounted) setState(() { _certifiedWorkers = workers; _isLoadingWorkers = false; });
   }
 
   void _scrollToTop() {
@@ -211,6 +284,7 @@ class _WorkerControlRegistrationScreenState
 
   void _resetTempWorker() {
     _nameController.clear();
+    _selectedWorker = null;
     _uniformComplete = true; _noMakeup = true; _nailsShortClean = true;
     _nailsNoPolish = true; _handsClean = true; _noJewelry = true;
     _hairCovered = true; _noBeard = true; _noWounds = true;
@@ -229,13 +303,20 @@ class _WorkerControlRegistrationScreenState
   }
 
   bool _addTempWorker() {
-    if (_nameController.text.trim().isEmpty) {
-      AppSnackBar.show(context, message: 'Ingresa el nombre del trabajador', type: SnackBarType.error);
+    final name = _certifiedWorkers.isNotEmpty
+        ? _selectedWorker?.fullName
+        : _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
+
+    if (name == null) {
+      final msg = _certifiedWorkers.isNotEmpty
+          ? 'Selecciona el trabajador'
+          : 'Ingresa el nombre del trabajador';
+      AppSnackBar.show(context, message: msg, type: SnackBarType.error);
       return false;
     }
     setState(() {
       _formWorkers.add(WorkerEvaluation(
-        workerName: _nameController.text.trim(),
+        workerName: name,
         uniformComplete: _uniformComplete, noMakeup: _noMakeup,
         nailsShortClean: _nailsShortClean, nailsNoPolish: _nailsNoPolish,
         handsClean: _handsClean, noJewelry: _noJewelry,
@@ -243,18 +324,23 @@ class _WorkerControlRegistrationScreenState
       ));
       _resetTempWorker();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocusNode.requestFocus());
+    if (_certifiedWorkers.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocusNode.requestFocus());
+    }
     return true;
   }
 
   Future<bool> _checkPendingWorker() async {
-    if (_nameController.text.trim().isEmpty) return true;
+    final pendingName = _certifiedWorkers.isNotEmpty
+        ? _selectedWorker?.fullName
+        : _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
+    if (pendingName == null) return true;
     final add = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Trabajador sin añadir'),
-        content: Text('Tienes a "${_nameController.text.trim()}" a medio registrar. ¿Añadirlo?'),
+        content: Text('Tienes a "$pendingName" a medio registrar. ¿Añadirlo?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Descartar', style: TextStyle(color: Colors.red))),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Añadir')),
@@ -428,10 +514,32 @@ class _WorkerControlRegistrationScreenState
             initial: HistorialPeriodo.esteMes,
             onChanged: (from, to) { _from = from; _to = to; _loadBatches(); },
           ),
+          if (_assignedModules.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SearchableDropdownField<CoopModule>(
+              label: 'Módulo',
+              items: _assignedModules,
+              selectedValue: _assignedModules.where((m) => m.id == _selectedModuleId).firstOrNull,
+              labelFor: (m) => m.name,
+              hintText: 'Seleccionar módulo...',
+              isLoading: _isLoadingModules,
+              onChanged: (module) {
+                setState(() {
+                  _selectedModuleId = module?.id;
+                  _selectedBatchId = null;
+                  _selectedBatch = null;
+                  _areaEntries = [];
+                  _certifiedWorkers = [];
+                  _batchSearchController.clear();
+                  _resetForm();
+                });
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           if (_isLoadingBatches)
             const Center(child: CircularProgressIndicator())
-          else if (_availableBatches.isEmpty)
+          else if (_moduleBatches.isEmpty)
             Text('No hay lotes para este período', style: AppTextStyles.bodyText)
           else
             _buildBatchList(),
@@ -448,89 +556,183 @@ class _WorkerControlRegistrationScreenState
   }
 
   Widget _buildBatchList() {
+    // Lote ya seleccionado → tarjeta compacta con "Cambiar"
+    if (_selectedBatchId != null && _selectedBatch != null) {
+      final batch = _selectedBatch!;
+      final producer = batch['producers'] as Map<String, dynamic>;
+      final processDateRaw = batch['process_date'] as String?;
+      final processDate = processDateRaw != null
+          ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
+          : null;
+      final panelaKg = (batch['panela_kg'] as num?)?.toDouble() ?? 0.0;
+      final confitilloKg = (batch['confitillo_kg'] as num?)?.toDouble() ?? 0.0;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          border: Border.all(color: AppColors.primary, width: 2),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.inventory_2_outlined, color: AppColors.primary, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${producer['first_name']} ${producer['last_name']}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
+                  ),
+                  if (processDate != null)
+                    Text(processDate, style: const TextStyle(fontSize: 13, color: Colors.black)),
+                  Text(
+                    'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
+                    '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _clearBatchSelection,
+              child: Text('Cambiar', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Sin selección → buscador + lista acotada
+    final query = _batchSearchController.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? _moduleBatches
+        : _moduleBatches.where((b) {
+            final producer = b['producers'] as Map<String, dynamic>;
+            final name = '${producer['first_name']} ${producer['last_name']}'.toLowerCase();
+            return name.contains(query);
+          }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Lote de Producción', style: AppTextStyles.fieldLabel),
         const SizedBox(height: 8),
-        ..._availableBatches.map((batch) {
-          final id = batch['id'] as String;
-          final isSelected = _selectedBatchId == id;
-          final isEvaluated = _existingByBatch.containsKey(id);
-          final producer = batch['producers'] as Map<String, dynamic>;
-          final panelaKg = (batch['panela_kg'] as num?)?.toDouble() ?? 0.0;
-          final confitilloKg = (batch['confitillo_kg'] as num?)?.toDouble() ?? 0.0;
-          final processDateRaw = batch['process_date'] as String?;
-          final processDate = processDateRaw != null
-              ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
-              : null;
-
-          return GestureDetector(
-            onTap: () => _selectBatch(batch),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.08)
-                    : isEvaluated
-                        ? Colors.green.withValues(alpha: 0.06)
-                        : AppColors.inputFill,
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.primary
-                      : isEvaluated
-                          ? Colors.green.shade400
-                          : AppColors.inputBorder,
-                  width: isSelected ? 2 : 1,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: isSelected ? AppColors.primary : AppColors.inputBorder,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${producer['first_name']} ${producer['last_name']}',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                        ),
-                        if (processDate != null)
-                          Text(processDate, style: AppTextStyles.captionText),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
-                          '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
-                          style: const TextStyle(fontSize: 13, color: Colors.black87),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isEvaluated)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.shade400),
-                      ),
-                      child: Text(
-                        'Ya evaluado',
-                        style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                ],
-              ),
+        TextField(
+          controller: _batchSearchController,
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(color: Colors.black, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Buscar por nombre de productor',
+            hintStyle: const TextStyle(color: Colors.black54),
+            prefixIcon: const Icon(Icons.search, color: Colors.black54),
+            suffixIcon: _batchSearchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: Colors.black54),
+                    onPressed: () => setState(() => _batchSearchController.clear()),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
             ),
-          );
-        }),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${filtered.length} lote${filtered.length == 1 ? '' : 's'}',
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFBDBDBD)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: filtered.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: Text(
+                      'No se encontraron lotes',
+                      style: TextStyle(color: Colors.black, fontSize: 14),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                  itemBuilder: (context, i) {
+                    final batch = filtered[i];
+                    final id = batch['id'] as String;
+                    final isEvaluated = _existingByBatch.containsKey(id);
+                    final producer = batch['producers'] as Map<String, dynamic>;
+                    final panelaKg = (batch['panela_kg'] as num?)?.toDouble() ?? 0.0;
+                    final confitilloKg = (batch['confitillo_kg'] as num?)?.toDouble() ?? 0.0;
+                    final processDateRaw = batch['process_date'] as String?;
+                    final processDate = processDateRaw != null
+                        ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
+                        : null;
+
+                    return InkWell(
+                      onTap: () => _selectBatch(batch),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.inventory_2_outlined, size: 20, color: Colors.black54),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${producer['first_name']} ${producer['last_name']}',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black),
+                                  ),
+                                  if (processDate != null)
+                                    Text(processDate, style: const TextStyle(fontSize: 12, color: Colors.black)),
+                                  Text(
+                                    'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
+                                    '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isEvaluated)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.green.shade400),
+                                ),
+                                child: Text(
+                                  'Evaluado',
+                                  style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                                ),
+                              )
+                            else
+                              const Icon(Icons.chevron_right, color: Colors.black38, size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
       ],
     );
   }
@@ -576,13 +778,12 @@ class _WorkerControlRegistrationScreenState
           if (_editingIndex != null) SizedBox(height: context.responsiveSpacing),
           Text('¿En qué área realizas el control?', style: AppTextStyles.sectionTitle),
           const SizedBox(height: 12),
-          AppDropdown<WorkArea>(
+          SearchableDropdownField<WorkArea>(
             label: 'Área de Trabajo',
-            value: _formArea,
-            options: WorkArea.values
-                .where((a) => !usedAreas.contains(a))
-                .map((a) => DropdownOption(value: a, label: a.displayName))
-                .toList(),
+            items: WorkArea.values.where((a) => !usedAreas.contains(a)).toList(),
+            selectedValue: _formArea,
+            labelFor: (a) => a.displayName,
+            hintText: 'Seleccionar área...',
             onChanged: (area) => setState(() => _formArea = area),
           ),
           const SizedBox(height: 24),
@@ -664,12 +865,23 @@ class _WorkerControlRegistrationScreenState
                   style: AppTextStyles.sectionTitle,
                 ),
                 const SizedBox(height: 16),
-                AppTextField(
-                  label: 'Nombre del Trabajador',
-                  controller: _nameController,
-                  hintText: 'Ej: Juan García',
-                  focusNode: _nameFocusNode,
-                ),
+                if (_certifiedWorkers.isNotEmpty || _isLoadingWorkers)
+                  SearchableDropdownField<CertifiedWorker>(
+                    label: 'Nombre y Apellidos',
+                    items: _certifiedWorkers,
+                    selectedValue: _selectedWorker,
+                    labelFor: (w) => w.fullName,
+                    hintText: 'Buscar trabajador...',
+                    isLoading: _isLoadingWorkers,
+                    onChanged: (w) => setState(() => _selectedWorker = w),
+                  )
+                else
+                  AppTextField(
+                    label: 'Nombre del Trabajador',
+                    controller: _nameController,
+                    hintText: 'Ej: Juan García',
+                    focusNode: _nameFocusNode,
+                  ),
                 const SizedBox(height: 16),
                 Text('Cumplimiento de Higiene y Seguridad:', style: AppTextStyles.fieldLabel),
                 const SizedBox(height: 8),

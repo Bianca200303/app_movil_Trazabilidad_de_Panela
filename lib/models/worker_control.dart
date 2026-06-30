@@ -3,10 +3,8 @@
 
 enum WorkArea {
   molienda('M', 'Molienda'),
-  hornilla('H', 'Hornilla'),
-  tratamientoTermico('TT', 'Tratamiento Térmico'),
-  tallerEmpaque('TEA', 'Taller de Empaque y Almacén'),
-  otros('rr', 'Otros');
+  hornilla('H', 'Cámara de combustión (hornero)'),
+  tallerEmpaque('TEA', 'Tamizado, Empaque y Almacenamiento');
 
   final String code;
   final String displayName;
