@@ -125,6 +125,9 @@ class CooperativeFeatures {
   final bool enableComplaintsReturns;
   final bool enableWorkerControl;
   final bool enableMaintenanceControl;
+  // Control de Insectos (trampas de luz) dentro de "Control de plagas" --
+  // CAES no usa sistemas de captura/lámparas atrapaluz, se oculta ese paso.
+  final bool enableInsectControl;
 
   const CooperativeFeatures({
     this.requirePlotNames = true,
@@ -138,6 +141,7 @@ class CooperativeFeatures {
     this.enableComplaintsReturns = false,
     this.enableWorkerControl = false,
     this.enableMaintenanceControl = false,
+    this.enableInsectControl = true,
   });
 }
 
@@ -191,6 +195,7 @@ class CooperativeConfigs {
       enableComplaintsReturns: true,
       enableWorkerControl: true,
       enableMaintenanceControl: true,
+      enableInsectControl: true,
     ),
   );
 
@@ -213,6 +218,7 @@ class CooperativeConfigs {
       enableHealthAccidentTracking: true,
       enableWorkerControl: true,
       enableMaintenanceControl: true,
+      enableInsectControl: false,
     ),
   );
 

@@ -10,6 +10,8 @@ import 'package:panela_sys/core/utils/date_utils.dart';
 class DateSelectionStep extends StatefulWidget {
   final TextEditingController harvestDateController;
   final TextEditingController processingDateController;
+  final List<DateTime> additionalHarvestDates;
+  final ValueChanged<List<DateTime>> onAdditionalHarvestDatesChanged;
   final VoidCallback onContinue;
   final VoidCallback onBack;
 
@@ -17,6 +19,8 @@ class DateSelectionStep extends StatefulWidget {
     super.key,
     required this.harvestDateController,
     required this.processingDateController,
+    required this.additionalHarvestDates,
+    required this.onAdditionalHarvestDatesChanged,
     required this.onContinue,
     required this.onBack,
   });
@@ -26,16 +30,24 @@ class DateSelectionStep extends StatefulWidget {
 }
 
 class _DateSelectionStepState extends State<DateSelectionStep> {
+  late List<TextEditingController> _additionalControllers;
+
   @override
   void initState() {
     super.initState();
     _fillSuggestedDates();
     widget.processingDateController.addListener(_onProcessingDateChanged);
+    _additionalControllers = widget.additionalHarvestDates
+        .map((date) => TextEditingController(text: AppDateUtils.formatDDMMYYYY(date)))
+        .toList();
   }
 
   @override
   void dispose() {
     widget.processingDateController.removeListener(_onProcessingDateChanged);
+    for (final controller in _additionalControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -70,15 +82,28 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
         widget.processingDateController.text.isEmpty) {
       return false;
     }
+    if (_additionalControllers.any((c) => c.text.isEmpty)) {
+      return false;
+    }
     return _dateOrderError == null;
   }
 
+  // Todas las fechas de corte (principal + adicionales) deben ser iguales o
+  // anteriores a la fecha de proceso.
   String? get _dateOrderError {
-    final harvest = AppDateUtils.parseDDMMYYYY(widget.harvestDateController.text);
     final process = AppDateUtils.parseDDMMYYYY(widget.processingDateController.text);
-    if (harvest == null || process == null) return null;
-    if (harvest.isAfter(process)) {
+    if (process == null) return null;
+
+    final harvest = AppDateUtils.parseDDMMYYYY(widget.harvestDateController.text);
+    if (harvest != null && harvest.isAfter(process)) {
       return 'La fecha de corte no puede ser posterior a la fecha de proceso.';
+    }
+
+    for (final controller in _additionalControllers) {
+      final date = AppDateUtils.parseDDMMYYYY(controller.text);
+      if (date != null && date.isAfter(process)) {
+        return 'La fecha de corte no puede ser posterior a la fecha de proceso.';
+      }
     }
     return null;
   }
@@ -96,7 +121,31 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
       setState(() {
         controller.text = AppDateUtils.formatDDMMYYYY(picked);
       });
+      _notifyAdditionalHarvestDatesChanged();
     }
+  }
+
+  void _addAdditionalHarvestDate() {
+    setState(() {
+      _additionalControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeAdditionalHarvestDate(int index) {
+    setState(() {
+      _additionalControllers[index].dispose();
+      _additionalControllers.removeAt(index);
+    });
+    _notifyAdditionalHarvestDatesChanged();
+  }
+
+  void _notifyAdditionalHarvestDatesChanged() {
+    final dates = _additionalControllers
+        .map((c) => AppDateUtils.parseDDMMYYYY(c.text))
+        .where((d) => d != null)
+        .map((d) => d!)
+        .toList();
+    widget.onAdditionalHarvestDatesChanged(dates);
   }
 
   @override
@@ -114,6 +163,17 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
         ),
         SizedBox(height: context.responsiveSpacing),
         AppTextField(
+          controller: widget.processingDateController,
+          label: 'Seleccione la fecha de proceso',
+          readOnly: true,
+          onTap: () => _selectDate(widget.processingDateController),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () => _selectDate(widget.processingDateController),
+          ),
+        ),
+        SizedBox(height: context.responsiveSpacing),
+        AppTextField(
           controller: widget.harvestDateController,
           label: 'Seleccione la fecha de corte',
           readOnly: true,
@@ -123,16 +183,12 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
             onPressed: () => _selectDate(widget.harvestDateController),
           ),
         ),
-        SizedBox(height: context.responsiveSpacing),
-        AppTextField(
-          controller: widget.processingDateController,
-          label: 'Seleccione la fecha de proceso',
-          readOnly: true,
-          onTap: () => _selectDate(widget.processingDateController),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () => _selectDate(widget.processingDateController),
-          ),
+        ..._buildAdditionalHarvestDateFields(),
+        SizedBox(height: context.responsiveSpacing * 0.5),
+        OutlinedButton.icon(
+          onPressed: _addAdditionalHarvestDate,
+          icon: const Icon(Icons.add),
+          label: const Text('Agregar otra fecha de corte'),
         ),
         if (_dateOrderError != null) ...[
           SizedBox(height: context.responsiveSpacing),
@@ -148,5 +204,37 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
         ),
       ],
     );
+  }
+
+  List<Widget> _buildAdditionalHarvestDateFields() {
+    return _additionalControllers.asMap().entries.map((entry) {
+      final index = entry.key;
+      final controller = entry.value;
+      return Padding(
+        padding: EdgeInsets.only(top: context.responsiveSpacing),
+        child: Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                controller: controller,
+                label: 'Fecha de corte adicional ${index + 1}',
+                readOnly: true,
+                onTap: () => _selectDate(controller),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.calendar_today),
+                  onPressed: () => _selectDate(controller),
+                ),
+              ),
+            ),
+            SizedBox(width: context.responsiveSpacing * 0.5),
+            IconButton(
+              onPressed: () => _removeAdditionalHarvestDate(index),
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Eliminar fecha de corte',
+            ),
+          ],
+        ),
+      );
+    }).toList();
   }
 }

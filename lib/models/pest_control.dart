@@ -123,6 +123,7 @@ class PestControl {
 
   // Joined fields
   final String? moduleName;
+  final String? registeredByName;
 
   const PestControl({
     required this.id,
@@ -133,6 +134,7 @@ class PestControl {
     required this.createdAt,
     required this.updatedAt,
     this.moduleName,
+    this.registeredByName,
   });
 
   factory PestControl.fromJson(Map<String, dynamic> json) {
@@ -145,6 +147,7 @@ class PestControl {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       moduleName: json['module']?['name'] as String?,
+      registeredByName: json['registered_by_name'] as String?,
     );
   }
 

@@ -27,6 +27,7 @@ class ChlorineResidualControl {
 
   // Joined fields (populated via query, not in database)
   final String? moduleName;
+  final String? registeredByName;
 
   ChlorineResidualControl({
     required this.id,
@@ -43,6 +44,7 @@ class ChlorineResidualControl {
     required this.createdAt,
     required this.updatedAt,
     this.moduleName,
+    this.registeredByName,
   });
 
   // ===== Factory Constructor =====
@@ -63,6 +65,7 @@ class ChlorineResidualControl {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       moduleName: json['module_name'] as String?,
+      registeredByName: json['registered_by_name'] as String?,
     );
   }
 

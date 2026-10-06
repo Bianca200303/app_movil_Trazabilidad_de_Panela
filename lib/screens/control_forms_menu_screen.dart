@@ -101,6 +101,11 @@ class ControlFormsMenuScreen extends ConsumerWidget {
                           : null,
                     ),
                   ] else ...[
+                    // "Quejas y devoluciones" se sacó de acá (2026-08-03): el
+                    // registro de una devolución ya se crea automático desde
+                    // Calidad en la web al rechazar un lote, no hace falta
+                    // cargarlo dos veces a mano. El historial sigue
+                    // disponible en Historial > Quejas y devoluciones.
                     AppButton(
                       text: 'Inspección de estiba y transporte',
                       icon: Icons.local_shipping_outlined,
@@ -109,16 +114,6 @@ class ControlFormsMenuScreen extends ConsumerWidget {
                           : AppButtonType.option,
                       onPressed: isOnline && features.enableStowageTransportInspection
                           ? () => context.go(AppRoutes.stowageTransportInspectionRegistration.path)
-                          : null,
-                    ),
-                    AppButton(
-                      text: 'Quejas y devoluciones',
-                      icon: Icons.feedback_outlined,
-                      type: isOnline && features.enableComplaintsReturns
-                          ? AppButtonType.optionActive
-                          : AppButtonType.option,
-                      onPressed: isOnline && features.enableComplaintsReturns
-                          ? () => context.go(AppRoutes.complaintsReturnsRegistration.path)
                           : null,
                     ),
                     AppButton(

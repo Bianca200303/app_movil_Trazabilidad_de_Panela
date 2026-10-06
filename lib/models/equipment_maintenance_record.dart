@@ -44,6 +44,7 @@ class EquipmentMaintenanceRecord {
 
   // Joined fields (from related tables)
   final String? moduleName; // From coop_modules join
+  final String? registeredByName; // Nombre del usuario que registró (join users)
 
   const EquipmentMaintenanceRecord({
     required this.id,
@@ -60,6 +61,7 @@ class EquipmentMaintenanceRecord {
     required this.createdAt,
     required this.updatedAt,
     this.moduleName,
+    this.registeredByName,
   });
 
   /// Create EquipmentMaintenanceRecord from JSON (Supabase response)
@@ -84,6 +86,9 @@ class EquipmentMaintenanceRecord {
           ? (json['module'] is Map
               ? json['module']['name'] as String?
               : null)
+          : null,
+      registeredByName: json['registered_by_user'] is Map
+          ? '${json['registered_by_user']['first_name']} ${json['registered_by_user']['last_name']}'
           : null,
     );
   }

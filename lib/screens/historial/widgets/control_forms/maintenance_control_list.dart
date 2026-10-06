@@ -61,6 +61,7 @@ class _MaintenanceControlListState extends State<MaintenanceControlList> {
         'duration_hours': record.formattedDuration,
         'responsible_person': record.responsiblePerson,
         'module_name': record.moduleName ?? 'Módulo desconocido',
+        'registered_by': record.registeredByName,
       }).toList();
       if (widget.allowedModuleIds != null) {
         items = items
@@ -203,6 +204,12 @@ class _MaintenanceCard extends StatelessWidget {
               ),
               child: Text(materialsUsed ?? '', style: AppTextStyles.bodyText),
             ),
+          ],
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
           ],
         ],
       ),

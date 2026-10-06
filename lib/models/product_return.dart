@@ -11,7 +11,8 @@ class ProductReturn {
   final int quantitySacks;
   final String returnReason;
   final String? observations;
-  final String createdBy;
+  final String? createdBy;
+  final String? createdByWebUserId;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,7 +26,8 @@ class ProductReturn {
     required this.quantitySacks,
     required this.returnReason,
     this.observations,
-    required this.createdBy,
+    this.createdBy,
+    this.createdByWebUserId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -42,7 +44,8 @@ class ProductReturn {
       quantitySacks: json['quantity_sacks'] as int,
       returnReason: json['return_reason'] as String,
       observations: json['observations'] as String?,
-      createdBy: json['created_by'] as String,
+      createdBy: json['created_by'] as String?,
+      createdByWebUserId: json['created_by_web_user_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -61,6 +64,7 @@ class ProductReturn {
       'return_reason': returnReason,
       'observations': observations,
       'created_by': createdBy,
+      'created_by_web_user_id': createdByWebUserId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

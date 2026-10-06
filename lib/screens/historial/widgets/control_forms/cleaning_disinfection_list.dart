@@ -7,6 +7,7 @@ import 'package:panela_sys/core/utils/date_utils.dart';
 import 'package:panela_sys/models/cleaning_disinfection.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
@@ -79,6 +80,7 @@ class _CleaningDisinfectionListState extends State<CleaningDisinfectionList> {
           'general_observations': record.generalObservations,
           'items_by_area': itemsByArea,
           'total_items': items.length,
+          'registered_by': record.createdByName,
         });
       }
       var result = formattedData;
@@ -300,6 +302,12 @@ class _CleaningCard extends StatelessWidget {
               ),
             );
           }),
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
+          ],
         ],
       ),
     );

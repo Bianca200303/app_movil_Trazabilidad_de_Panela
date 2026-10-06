@@ -133,7 +133,8 @@ class EnvironmentInspectionService {
               id,
               name
             ),
-            environment_inspection_items(*)
+            environment_inspection_items(*),
+            registered_by_user:users!environment_inspections_created_by_fkey(first_name, last_name)
           ''');
 
       if (fromDate != null) {

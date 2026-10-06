@@ -37,6 +37,9 @@ class _BatchGroup {
   final String? moduleName;
   final double? panelaKg;
   final double? confitilloKg;
+  // Igual para todas las áreas de un mismo lote en la práctica (misma
+  // ronda de inspección) -- se toma del primer control del grupo.
+  final String? registeredBy;
   final List<WorkerControl> controls;
 
   _BatchGroup({
@@ -46,6 +49,7 @@ class _BatchGroup {
     this.moduleName,
     this.panelaKg,
     this.confitilloKg,
+    this.registeredBy,
     required this.controls,
   });
 
@@ -106,6 +110,7 @@ class _WorkerControlListState extends State<WorkerControlList> {
             moduleName: entry['module_name'] as String?,
             panelaKg: (entry['panela_kg'] as num?)?.toDouble(),
             confitilloKg: (entry['confitillo_kg'] as num?)?.toDouble(),
+            registeredBy: entry['registered_by'] as String?,
             controls: [],
           );
         }
@@ -256,7 +261,14 @@ class _BatchCard extends StatelessWidget {
                 padding: context.responsivePadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: group.controls.map((c) => _AreaSection(control: c)).toList(),
+                  children: [
+                    ...group.controls.map((c) => _AreaSection(control: c)),
+                    if ((group.registeredBy ?? '').isNotEmpty) ...[
+                      const Divider(height: 1),
+                      SizedBox(height: context.responsiveSpacing / 2),
+                      HistorialInfoRow(label: 'Registrado por:', value: group.registeredBy!),
+                    ],
+                  ],
                 ),
               ),
             ],

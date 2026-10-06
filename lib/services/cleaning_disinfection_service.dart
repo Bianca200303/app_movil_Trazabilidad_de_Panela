@@ -102,7 +102,24 @@ class CleaningDisinfectionService {
 
       final response = await query.order('cleaning_date', ascending: false);
 
-      return (response as List).map((json) {
+      final rows = response as List;
+
+      // cleaning_disinfections.created_by no tiene FK a users -- se resuelve
+      // con una consulta aparte y se cruza en memoria (igual que en
+      // chlorine_residual_control_service.dart).
+      final createdByIds = rows.map((j) => j['created_by'] as String?).whereType<String>().toSet();
+      Map<String, String> namesByUserId = {};
+      if (createdByIds.isNotEmpty) {
+        final users = await _supabase
+            .from('users')
+            .select('user_id, first_name, last_name')
+            .inFilter('user_id', createdByIds.toList());
+        namesByUserId = {
+          for (final u in users) u['user_id'] as String: '${u['first_name']} ${u['last_name']}',
+        };
+      }
+
+      return rows.map((json) {
         // Extract joined data
         final moduleName =
             json['module'] != null ? json['module']['name'] as String : null;
@@ -111,6 +128,7 @@ class CleaningDisinfectionService {
         return CleaningDisinfection.fromJson({
           ...json,
           'module_name': moduleName,
+          'created_by_name': namesByUserId[json['created_by']],
         });
       }).toList();
     } catch (e) {

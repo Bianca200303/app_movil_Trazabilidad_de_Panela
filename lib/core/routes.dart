@@ -14,7 +14,6 @@ import 'package:panela_sys/screens/cleaning_disinfection_registration_screen.dar
 import 'package:panela_sys/screens/chlorine_control_registration_screen.dart';
 import 'package:panela_sys/screens/pest_control_registration_screen.dart';
 import 'package:panela_sys/screens/health_accident_tracking_registration_screen.dart';
-import 'package:panela_sys/screens/complaints_returns_registration_screen.dart';
 import 'package:panela_sys/screens/worker_control_registration_screen.dart';
 import 'package:panela_sys/screens/maintenance_control_registration_screen.dart';
 import 'package:panela_sys/screens/user_management_screen.dart';
@@ -147,13 +146,6 @@ class AppRoutes {
     isUnderConstruction: false,
   );
 
-  static const complaintsReturnsRegistration = AppRoute(
-    path: '/control-forms/complaints-returns',
-    displayName: 'Quejas y devoluciones',
-    screen: ComplaintsReturnsRegistrationScreen(),
-    isUnderConstruction: false,
-  );
-
   static const workerControlRegistration = AppRoute(
     path: '/control-forms/worker-control',
     displayName: 'Control de personal operario',
@@ -201,7 +193,6 @@ class AppRoutes {
     pestControlRegistration,
     healthAccidentTrackingRegistration,
     stowageTransportInspectionRegistration,
-    complaintsReturnsRegistration,
     workerControlRegistration,
     maintenanceControlRegistration,
     userManagement,

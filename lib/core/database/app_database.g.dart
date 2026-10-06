@@ -3039,6 +3039,17 @@ class $BatchTemperaturesTable extends BatchTemperatures
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _timeBetweenMielesMinutesMeta =
+      const VerificationMeta('timeBetweenMielesMinutes');
+  @override
+  late final GeneratedColumn<double> timeBetweenMielesMinutes =
+      GeneratedColumn<double>(
+        'time_between_mieles_minutes',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -3092,6 +3103,7 @@ class $BatchTemperaturesTable extends BatchTemperatures
     temperature,
     sequenceNumber,
     cooperativeId,
+    timeBetweenMielesMinutes,
     syncStatus,
     remoteId,
     createdAt,
@@ -3156,6 +3168,15 @@ class $BatchTemperaturesTable extends BatchTemperatures
     } else if (isInserting) {
       context.missing(_cooperativeIdMeta);
     }
+    if (data.containsKey('time_between_mieles_minutes')) {
+      context.handle(
+        _timeBetweenMielesMinutesMeta,
+        timeBetweenMielesMinutes.isAcceptableOrUnknown(
+          data['time_between_mieles_minutes']!,
+          _timeBetweenMielesMinutesMeta,
+        ),
+      );
+    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -3209,6 +3230,10 @@ class $BatchTemperaturesTable extends BatchTemperatures
         DriftSqlType.string,
         data['${effectivePrefix}cooperative_id'],
       )!,
+      timeBetweenMielesMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}time_between_mieles_minutes'],
+      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sync_status'],
@@ -3242,6 +3267,10 @@ class BatchTemperatureLocal extends DataClass
   final double temperature;
   final int sequenceNumber;
   final String cooperativeId;
+
+  /// Minutos transcurridos desde la miel anterior (opcional, pareado con
+  /// esta temperatura puntual).
+  final double? timeBetweenMielesMinutes;
   final int syncStatus;
   final String? remoteId;
   final DateTime createdAt;
@@ -3252,6 +3281,7 @@ class BatchTemperatureLocal extends DataClass
     required this.temperature,
     required this.sequenceNumber,
     required this.cooperativeId,
+    this.timeBetweenMielesMinutes,
     required this.syncStatus,
     this.remoteId,
     required this.createdAt,
@@ -3265,6 +3295,11 @@ class BatchTemperatureLocal extends DataClass
     map['temperature'] = Variable<double>(temperature);
     map['sequence_number'] = Variable<int>(sequenceNumber);
     map['cooperative_id'] = Variable<String>(cooperativeId);
+    if (!nullToAbsent || timeBetweenMielesMinutes != null) {
+      map['time_between_mieles_minutes'] = Variable<double>(
+        timeBetweenMielesMinutes,
+      );
+    }
     map['sync_status'] = Variable<int>(syncStatus);
     if (!nullToAbsent || remoteId != null) {
       map['remote_id'] = Variable<String>(remoteId);
@@ -3283,6 +3318,9 @@ class BatchTemperatureLocal extends DataClass
       temperature: Value(temperature),
       sequenceNumber: Value(sequenceNumber),
       cooperativeId: Value(cooperativeId),
+      timeBetweenMielesMinutes: timeBetweenMielesMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timeBetweenMielesMinutes),
       syncStatus: Value(syncStatus),
       remoteId: remoteId == null && nullToAbsent
           ? const Value.absent()
@@ -3307,6 +3345,9 @@ class BatchTemperatureLocal extends DataClass
       temperature: serializer.fromJson<double>(json['temperature']),
       sequenceNumber: serializer.fromJson<int>(json['sequenceNumber']),
       cooperativeId: serializer.fromJson<String>(json['cooperativeId']),
+      timeBetweenMielesMinutes: serializer.fromJson<double?>(
+        json['timeBetweenMielesMinutes'],
+      ),
       syncStatus: serializer.fromJson<int>(json['syncStatus']),
       remoteId: serializer.fromJson<String?>(json['remoteId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -3322,6 +3363,9 @@ class BatchTemperatureLocal extends DataClass
       'temperature': serializer.toJson<double>(temperature),
       'sequenceNumber': serializer.toJson<int>(sequenceNumber),
       'cooperativeId': serializer.toJson<String>(cooperativeId),
+      'timeBetweenMielesMinutes': serializer.toJson<double?>(
+        timeBetweenMielesMinutes,
+      ),
       'syncStatus': serializer.toJson<int>(syncStatus),
       'remoteId': serializer.toJson<String?>(remoteId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -3335,6 +3379,7 @@ class BatchTemperatureLocal extends DataClass
     double? temperature,
     int? sequenceNumber,
     String? cooperativeId,
+    Value<double?> timeBetweenMielesMinutes = const Value.absent(),
     int? syncStatus,
     Value<String?> remoteId = const Value.absent(),
     DateTime? createdAt,
@@ -3346,6 +3391,9 @@ class BatchTemperatureLocal extends DataClass
     temperature: temperature ?? this.temperature,
     sequenceNumber: sequenceNumber ?? this.sequenceNumber,
     cooperativeId: cooperativeId ?? this.cooperativeId,
+    timeBetweenMielesMinutes: timeBetweenMielesMinutes.present
+        ? timeBetweenMielesMinutes.value
+        : this.timeBetweenMielesMinutes,
     syncStatus: syncStatus ?? this.syncStatus,
     remoteId: remoteId.present ? remoteId.value : this.remoteId,
     createdAt: createdAt ?? this.createdAt,
@@ -3366,6 +3414,9 @@ class BatchTemperatureLocal extends DataClass
       cooperativeId: data.cooperativeId.present
           ? data.cooperativeId.value
           : this.cooperativeId,
+      timeBetweenMielesMinutes: data.timeBetweenMielesMinutes.present
+          ? data.timeBetweenMielesMinutes.value
+          : this.timeBetweenMielesMinutes,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -3383,6 +3434,7 @@ class BatchTemperatureLocal extends DataClass
           ..write('temperature: $temperature, ')
           ..write('sequenceNumber: $sequenceNumber, ')
           ..write('cooperativeId: $cooperativeId, ')
+          ..write('timeBetweenMielesMinutes: $timeBetweenMielesMinutes, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -3398,6 +3450,7 @@ class BatchTemperatureLocal extends DataClass
     temperature,
     sequenceNumber,
     cooperativeId,
+    timeBetweenMielesMinutes,
     syncStatus,
     remoteId,
     createdAt,
@@ -3412,6 +3465,7 @@ class BatchTemperatureLocal extends DataClass
           other.temperature == this.temperature &&
           other.sequenceNumber == this.sequenceNumber &&
           other.cooperativeId == this.cooperativeId &&
+          other.timeBetweenMielesMinutes == this.timeBetweenMielesMinutes &&
           other.syncStatus == this.syncStatus &&
           other.remoteId == this.remoteId &&
           other.createdAt == this.createdAt &&
@@ -3425,6 +3479,7 @@ class BatchTemperaturesCompanion
   final Value<double> temperature;
   final Value<int> sequenceNumber;
   final Value<String> cooperativeId;
+  final Value<double?> timeBetweenMielesMinutes;
   final Value<int> syncStatus;
   final Value<String?> remoteId;
   final Value<DateTime> createdAt;
@@ -3435,6 +3490,7 @@ class BatchTemperaturesCompanion
     this.temperature = const Value.absent(),
     this.sequenceNumber = const Value.absent(),
     this.cooperativeId = const Value.absent(),
+    this.timeBetweenMielesMinutes = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3446,6 +3502,7 @@ class BatchTemperaturesCompanion
     required double temperature,
     required int sequenceNumber,
     required String cooperativeId,
+    this.timeBetweenMielesMinutes = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3460,6 +3517,7 @@ class BatchTemperaturesCompanion
     Expression<double>? temperature,
     Expression<int>? sequenceNumber,
     Expression<String>? cooperativeId,
+    Expression<double>? timeBetweenMielesMinutes,
     Expression<int>? syncStatus,
     Expression<String>? remoteId,
     Expression<DateTime>? createdAt,
@@ -3472,6 +3530,8 @@ class BatchTemperaturesCompanion
       if (temperature != null) 'temperature': temperature,
       if (sequenceNumber != null) 'sequence_number': sequenceNumber,
       if (cooperativeId != null) 'cooperative_id': cooperativeId,
+      if (timeBetweenMielesMinutes != null)
+        'time_between_mieles_minutes': timeBetweenMielesMinutes,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (remoteId != null) 'remote_id': remoteId,
       if (createdAt != null) 'created_at': createdAt,
@@ -3485,6 +3545,7 @@ class BatchTemperaturesCompanion
     Value<double>? temperature,
     Value<int>? sequenceNumber,
     Value<String>? cooperativeId,
+    Value<double?>? timeBetweenMielesMinutes,
     Value<int>? syncStatus,
     Value<String?>? remoteId,
     Value<DateTime>? createdAt,
@@ -3497,6 +3558,8 @@ class BatchTemperaturesCompanion
       temperature: temperature ?? this.temperature,
       sequenceNumber: sequenceNumber ?? this.sequenceNumber,
       cooperativeId: cooperativeId ?? this.cooperativeId,
+      timeBetweenMielesMinutes:
+          timeBetweenMielesMinutes ?? this.timeBetweenMielesMinutes,
       syncStatus: syncStatus ?? this.syncStatus,
       remoteId: remoteId ?? this.remoteId,
       createdAt: createdAt ?? this.createdAt,
@@ -3524,6 +3587,11 @@ class BatchTemperaturesCompanion
     if (cooperativeId.present) {
       map['cooperative_id'] = Variable<String>(cooperativeId.value);
     }
+    if (timeBetweenMielesMinutes.present) {
+      map['time_between_mieles_minutes'] = Variable<double>(
+        timeBetweenMielesMinutes.value,
+      );
+    }
     if (syncStatus.present) {
       map['sync_status'] = Variable<int>(syncStatus.value);
     }
@@ -3547,6 +3615,7 @@ class BatchTemperaturesCompanion
           ..write('temperature: $temperature, ')
           ..write('sequenceNumber: $sequenceNumber, ')
           ..write('cooperativeId: $cooperativeId, ')
+          ..write('timeBetweenMielesMinutes: $timeBetweenMielesMinutes, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
           ..write('createdAt: $createdAt, ')
@@ -5407,6 +5476,541 @@ class BatchCertsCompanion extends UpdateCompanion<BatchCertLocal> {
   }
 }
 
+class $ProductionBatchHarvestDatesTable extends ProductionBatchHarvestDates
+    with
+        TableInfo<
+          $ProductionBatchHarvestDatesTable,
+          ProductionBatchHarvestDateLocal
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProductionBatchHarvestDatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _productionBatchLocalIdMeta =
+      const VerificationMeta('productionBatchLocalId');
+  @override
+  late final GeneratedColumn<int> productionBatchLocalId = GeneratedColumn<int>(
+    'production_batch_local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _harvestDateMeta = const VerificationMeta(
+    'harvestDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> harvestDate = GeneratedColumn<DateTime>(
+    'harvest_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cooperativeIdMeta = const VerificationMeta(
+    'cooperativeId',
+  );
+  @override
+  late final GeneratedColumn<String> cooperativeId = GeneratedColumn<String>(
+    'cooperative_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _syncStatusMeta = const VerificationMeta(
+    'syncStatus',
+  );
+  @override
+  late final GeneratedColumn<int> syncStatus = GeneratedColumn<int>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _remoteIdMeta = const VerificationMeta(
+    'remoteId',
+  );
+  @override
+  late final GeneratedColumn<String> remoteId = GeneratedColumn<String>(
+    'remote_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    productionBatchLocalId,
+    harvestDate,
+    cooperativeId,
+    syncStatus,
+    remoteId,
+    createdAt,
+    syncedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'production_batch_harvest_dates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProductionBatchHarvestDateLocal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('production_batch_local_id')) {
+      context.handle(
+        _productionBatchLocalIdMeta,
+        productionBatchLocalId.isAcceptableOrUnknown(
+          data['production_batch_local_id']!,
+          _productionBatchLocalIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_productionBatchLocalIdMeta);
+    }
+    if (data.containsKey('harvest_date')) {
+      context.handle(
+        _harvestDateMeta,
+        harvestDate.isAcceptableOrUnknown(
+          data['harvest_date']!,
+          _harvestDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_harvestDateMeta);
+    }
+    if (data.containsKey('cooperative_id')) {
+      context.handle(
+        _cooperativeIdMeta,
+        cooperativeId.isAcceptableOrUnknown(
+          data['cooperative_id']!,
+          _cooperativeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cooperativeIdMeta);
+    }
+    if (data.containsKey('sync_status')) {
+      context.handle(
+        _syncStatusMeta,
+        syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
+      );
+    }
+    if (data.containsKey('remote_id')) {
+      context.handle(
+        _remoteIdMeta,
+        remoteId.isAcceptableOrUnknown(data['remote_id']!, _remoteIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProductionBatchHarvestDateLocal map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProductionBatchHarvestDateLocal(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      productionBatchLocalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}production_batch_local_id'],
+      )!,
+      harvestDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}harvest_date'],
+      )!,
+      cooperativeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cooperative_id'],
+      )!,
+      syncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sync_status'],
+      )!,
+      remoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
+    );
+  }
+
+  @override
+  $ProductionBatchHarvestDatesTable createAlias(String alias) {
+    return $ProductionBatchHarvestDatesTable(attachedDatabase, alias);
+  }
+}
+
+class ProductionBatchHarvestDateLocal extends DataClass
+    implements Insertable<ProductionBatchHarvestDateLocal> {
+  /// Local auto-increment ID
+  final int id;
+  final int productionBatchLocalId;
+  final DateTime harvestDate;
+  final String cooperativeId;
+  final int syncStatus;
+  final String? remoteId;
+  final DateTime createdAt;
+  final DateTime? syncedAt;
+  const ProductionBatchHarvestDateLocal({
+    required this.id,
+    required this.productionBatchLocalId,
+    required this.harvestDate,
+    required this.cooperativeId,
+    required this.syncStatus,
+    this.remoteId,
+    required this.createdAt,
+    this.syncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['production_batch_local_id'] = Variable<int>(productionBatchLocalId);
+    map['harvest_date'] = Variable<DateTime>(harvestDate);
+    map['cooperative_id'] = Variable<String>(cooperativeId);
+    map['sync_status'] = Variable<int>(syncStatus);
+    if (!nullToAbsent || remoteId != null) {
+      map['remote_id'] = Variable<String>(remoteId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
+    return map;
+  }
+
+  ProductionBatchHarvestDatesCompanion toCompanion(bool nullToAbsent) {
+    return ProductionBatchHarvestDatesCompanion(
+      id: Value(id),
+      productionBatchLocalId: Value(productionBatchLocalId),
+      harvestDate: Value(harvestDate),
+      cooperativeId: Value(cooperativeId),
+      syncStatus: Value(syncStatus),
+      remoteId: remoteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteId),
+      createdAt: Value(createdAt),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
+    );
+  }
+
+  factory ProductionBatchHarvestDateLocal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProductionBatchHarvestDateLocal(
+      id: serializer.fromJson<int>(json['id']),
+      productionBatchLocalId: serializer.fromJson<int>(
+        json['productionBatchLocalId'],
+      ),
+      harvestDate: serializer.fromJson<DateTime>(json['harvestDate']),
+      cooperativeId: serializer.fromJson<String>(json['cooperativeId']),
+      syncStatus: serializer.fromJson<int>(json['syncStatus']),
+      remoteId: serializer.fromJson<String?>(json['remoteId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'productionBatchLocalId': serializer.toJson<int>(productionBatchLocalId),
+      'harvestDate': serializer.toJson<DateTime>(harvestDate),
+      'cooperativeId': serializer.toJson<String>(cooperativeId),
+      'syncStatus': serializer.toJson<int>(syncStatus),
+      'remoteId': serializer.toJson<String?>(remoteId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+    };
+  }
+
+  ProductionBatchHarvestDateLocal copyWith({
+    int? id,
+    int? productionBatchLocalId,
+    DateTime? harvestDate,
+    String? cooperativeId,
+    int? syncStatus,
+    Value<String?> remoteId = const Value.absent(),
+    DateTime? createdAt,
+    Value<DateTime?> syncedAt = const Value.absent(),
+  }) => ProductionBatchHarvestDateLocal(
+    id: id ?? this.id,
+    productionBatchLocalId:
+        productionBatchLocalId ?? this.productionBatchLocalId,
+    harvestDate: harvestDate ?? this.harvestDate,
+    cooperativeId: cooperativeId ?? this.cooperativeId,
+    syncStatus: syncStatus ?? this.syncStatus,
+    remoteId: remoteId.present ? remoteId.value : this.remoteId,
+    createdAt: createdAt ?? this.createdAt,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+  );
+  ProductionBatchHarvestDateLocal copyWithCompanion(
+    ProductionBatchHarvestDatesCompanion data,
+  ) {
+    return ProductionBatchHarvestDateLocal(
+      id: data.id.present ? data.id.value : this.id,
+      productionBatchLocalId: data.productionBatchLocalId.present
+          ? data.productionBatchLocalId.value
+          : this.productionBatchLocalId,
+      harvestDate: data.harvestDate.present
+          ? data.harvestDate.value
+          : this.harvestDate,
+      cooperativeId: data.cooperativeId.present
+          ? data.cooperativeId.value
+          : this.cooperativeId,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+      remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductionBatchHarvestDateLocal(')
+          ..write('id: $id, ')
+          ..write('productionBatchLocalId: $productionBatchLocalId, ')
+          ..write('harvestDate: $harvestDate, ')
+          ..write('cooperativeId: $cooperativeId, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    productionBatchLocalId,
+    harvestDate,
+    cooperativeId,
+    syncStatus,
+    remoteId,
+    createdAt,
+    syncedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProductionBatchHarvestDateLocal &&
+          other.id == this.id &&
+          other.productionBatchLocalId == this.productionBatchLocalId &&
+          other.harvestDate == this.harvestDate &&
+          other.cooperativeId == this.cooperativeId &&
+          other.syncStatus == this.syncStatus &&
+          other.remoteId == this.remoteId &&
+          other.createdAt == this.createdAt &&
+          other.syncedAt == this.syncedAt);
+}
+
+class ProductionBatchHarvestDatesCompanion
+    extends UpdateCompanion<ProductionBatchHarvestDateLocal> {
+  final Value<int> id;
+  final Value<int> productionBatchLocalId;
+  final Value<DateTime> harvestDate;
+  final Value<String> cooperativeId;
+  final Value<int> syncStatus;
+  final Value<String?> remoteId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> syncedAt;
+  const ProductionBatchHarvestDatesCompanion({
+    this.id = const Value.absent(),
+    this.productionBatchLocalId = const Value.absent(),
+    this.harvestDate = const Value.absent(),
+    this.cooperativeId = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.remoteId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+  });
+  ProductionBatchHarvestDatesCompanion.insert({
+    this.id = const Value.absent(),
+    required int productionBatchLocalId,
+    required DateTime harvestDate,
+    required String cooperativeId,
+    this.syncStatus = const Value.absent(),
+    this.remoteId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+  }) : productionBatchLocalId = Value(productionBatchLocalId),
+       harvestDate = Value(harvestDate),
+       cooperativeId = Value(cooperativeId);
+  static Insertable<ProductionBatchHarvestDateLocal> custom({
+    Expression<int>? id,
+    Expression<int>? productionBatchLocalId,
+    Expression<DateTime>? harvestDate,
+    Expression<String>? cooperativeId,
+    Expression<int>? syncStatus,
+    Expression<String>? remoteId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? syncedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (productionBatchLocalId != null)
+        'production_batch_local_id': productionBatchLocalId,
+      if (harvestDate != null) 'harvest_date': harvestDate,
+      if (cooperativeId != null) 'cooperative_id': cooperativeId,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (remoteId != null) 'remote_id': remoteId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (syncedAt != null) 'synced_at': syncedAt,
+    });
+  }
+
+  ProductionBatchHarvestDatesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? productionBatchLocalId,
+    Value<DateTime>? harvestDate,
+    Value<String>? cooperativeId,
+    Value<int>? syncStatus,
+    Value<String?>? remoteId,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? syncedAt,
+  }) {
+    return ProductionBatchHarvestDatesCompanion(
+      id: id ?? this.id,
+      productionBatchLocalId:
+          productionBatchLocalId ?? this.productionBatchLocalId,
+      harvestDate: harvestDate ?? this.harvestDate,
+      cooperativeId: cooperativeId ?? this.cooperativeId,
+      syncStatus: syncStatus ?? this.syncStatus,
+      remoteId: remoteId ?? this.remoteId,
+      createdAt: createdAt ?? this.createdAt,
+      syncedAt: syncedAt ?? this.syncedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (productionBatchLocalId.present) {
+      map['production_batch_local_id'] = Variable<int>(
+        productionBatchLocalId.value,
+      );
+    }
+    if (harvestDate.present) {
+      map['harvest_date'] = Variable<DateTime>(harvestDate.value);
+    }
+    if (cooperativeId.present) {
+      map['cooperative_id'] = Variable<String>(cooperativeId.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<int>(syncStatus.value);
+    }
+    if (remoteId.present) {
+      map['remote_id'] = Variable<String>(remoteId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductionBatchHarvestDatesCompanion(')
+          ..write('id: $id, ')
+          ..write('productionBatchLocalId: $productionBatchLocalId, ')
+          ..write('harvestDate: $harvestDate, ')
+          ..write('cooperativeId: $cooperativeId, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5423,6 +6027,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProductionBatchCertsTable productionBatchCerts =
       $ProductionBatchCertsTable(this);
   late final $BatchCertsTable batchCerts = $BatchCertsTable(this);
+  late final $ProductionBatchHarvestDatesTable productionBatchHarvestDates =
+      $ProductionBatchHarvestDatesTable(this);
   late final ProducersDao producersDao = ProducersDao(this as AppDatabase);
   late final PlotsDao plotsDao = PlotsDao(this as AppDatabase);
   late final CoopModulesDao coopModulesDao = CoopModulesDao(
@@ -5440,6 +6046,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final ProductionBatchCertsDao productionBatchCertsDao =
       ProductionBatchCertsDao(this as AppDatabase);
   late final BatchCertsDao batchCertsDao = BatchCertsDao(this as AppDatabase);
+  late final ProductionBatchHarvestDatesDao productionBatchHarvestDatesDao =
+      ProductionBatchHarvestDatesDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5453,6 +6061,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     batchPhControls,
     productionBatchCerts,
     batchCerts,
+    productionBatchHarvestDates,
   ];
 }
 
@@ -6838,6 +7447,7 @@ typedef $$BatchTemperaturesTableCreateCompanionBuilder =
       required double temperature,
       required int sequenceNumber,
       required String cooperativeId,
+      Value<double?> timeBetweenMielesMinutes,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6850,6 +7460,7 @@ typedef $$BatchTemperaturesTableUpdateCompanionBuilder =
       Value<double> temperature,
       Value<int> sequenceNumber,
       Value<String> cooperativeId,
+      Value<double?> timeBetweenMielesMinutes,
       Value<int> syncStatus,
       Value<String?> remoteId,
       Value<DateTime> createdAt,
@@ -6887,6 +7498,11 @@ class $$BatchTemperaturesTableFilterComposer
 
   ColumnFilters<String> get cooperativeId => $composableBuilder(
     column: $table.cooperativeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get timeBetweenMielesMinutes => $composableBuilder(
+    column: $table.timeBetweenMielesMinutes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6945,6 +7561,11 @@ class $$BatchTemperaturesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get timeBetweenMielesMinutes => $composableBuilder(
+    column: $table.timeBetweenMielesMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -6995,6 +7616,11 @@ class $$BatchTemperaturesTableAnnotationComposer
 
   GeneratedColumn<String> get cooperativeId => $composableBuilder(
     column: $table.cooperativeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get timeBetweenMielesMinutes => $composableBuilder(
+    column: $table.timeBetweenMielesMinutes,
     builder: (column) => column,
   );
 
@@ -7058,6 +7684,7 @@ class $$BatchTemperaturesTableTableManager
                 Value<double> temperature = const Value.absent(),
                 Value<int> sequenceNumber = const Value.absent(),
                 Value<String> cooperativeId = const Value.absent(),
+                Value<double?> timeBetweenMielesMinutes = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -7068,6 +7695,7 @@ class $$BatchTemperaturesTableTableManager
                 temperature: temperature,
                 sequenceNumber: sequenceNumber,
                 cooperativeId: cooperativeId,
+                timeBetweenMielesMinutes: timeBetweenMielesMinutes,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,
@@ -7080,6 +7708,7 @@ class $$BatchTemperaturesTableTableManager
                 required double temperature,
                 required int sequenceNumber,
                 required String cooperativeId,
+                Value<double?> timeBetweenMielesMinutes = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -7090,6 +7719,7 @@ class $$BatchTemperaturesTableTableManager
                 temperature: temperature,
                 sequenceNumber: sequenceNumber,
                 cooperativeId: cooperativeId,
+                timeBetweenMielesMinutes: timeBetweenMielesMinutes,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
                 createdAt: createdAt,
@@ -8030,6 +8660,284 @@ typedef $$BatchCertsTableProcessedTableManager =
       BatchCertLocal,
       PrefetchHooks Function()
     >;
+typedef $$ProductionBatchHarvestDatesTableCreateCompanionBuilder =
+    ProductionBatchHarvestDatesCompanion Function({
+      Value<int> id,
+      required int productionBatchLocalId,
+      required DateTime harvestDate,
+      required String cooperativeId,
+      Value<int> syncStatus,
+      Value<String?> remoteId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> syncedAt,
+    });
+typedef $$ProductionBatchHarvestDatesTableUpdateCompanionBuilder =
+    ProductionBatchHarvestDatesCompanion Function({
+      Value<int> id,
+      Value<int> productionBatchLocalId,
+      Value<DateTime> harvestDate,
+      Value<String> cooperativeId,
+      Value<int> syncStatus,
+      Value<String?> remoteId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> syncedAt,
+    });
+
+class $$ProductionBatchHarvestDatesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProductionBatchHarvestDatesTable> {
+  $$ProductionBatchHarvestDatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get harvestDate => $composableBuilder(
+    column: $table.harvestDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProductionBatchHarvestDatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProductionBatchHarvestDatesTable> {
+  $$ProductionBatchHarvestDatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get harvestDate => $composableBuilder(
+    column: $table.harvestDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProductionBatchHarvestDatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProductionBatchHarvestDatesTable> {
+  $$ProductionBatchHarvestDatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get harvestDate => $composableBuilder(
+    column: $table.harvestDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteId =>
+      $composableBuilder(column: $table.remoteId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+}
+
+class $$ProductionBatchHarvestDatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProductionBatchHarvestDatesTable,
+          ProductionBatchHarvestDateLocal,
+          $$ProductionBatchHarvestDatesTableFilterComposer,
+          $$ProductionBatchHarvestDatesTableOrderingComposer,
+          $$ProductionBatchHarvestDatesTableAnnotationComposer,
+          $$ProductionBatchHarvestDatesTableCreateCompanionBuilder,
+          $$ProductionBatchHarvestDatesTableUpdateCompanionBuilder,
+          (
+            ProductionBatchHarvestDateLocal,
+            BaseReferences<
+              _$AppDatabase,
+              $ProductionBatchHarvestDatesTable,
+              ProductionBatchHarvestDateLocal
+            >,
+          ),
+          ProductionBatchHarvestDateLocal,
+          PrefetchHooks Function()
+        > {
+  $$ProductionBatchHarvestDatesTableTableManager(
+    _$AppDatabase db,
+    $ProductionBatchHarvestDatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProductionBatchHarvestDatesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ProductionBatchHarvestDatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ProductionBatchHarvestDatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> productionBatchLocalId = const Value.absent(),
+                Value<DateTime> harvestDate = const Value.absent(),
+                Value<String> cooperativeId = const Value.absent(),
+                Value<int> syncStatus = const Value.absent(),
+                Value<String?> remoteId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+              }) => ProductionBatchHarvestDatesCompanion(
+                id: id,
+                productionBatchLocalId: productionBatchLocalId,
+                harvestDate: harvestDate,
+                cooperativeId: cooperativeId,
+                syncStatus: syncStatus,
+                remoteId: remoteId,
+                createdAt: createdAt,
+                syncedAt: syncedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int productionBatchLocalId,
+                required DateTime harvestDate,
+                required String cooperativeId,
+                Value<int> syncStatus = const Value.absent(),
+                Value<String?> remoteId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
+              }) => ProductionBatchHarvestDatesCompanion.insert(
+                id: id,
+                productionBatchLocalId: productionBatchLocalId,
+                harvestDate: harvestDate,
+                cooperativeId: cooperativeId,
+                syncStatus: syncStatus,
+                remoteId: remoteId,
+                createdAt: createdAt,
+                syncedAt: syncedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProductionBatchHarvestDatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProductionBatchHarvestDatesTable,
+      ProductionBatchHarvestDateLocal,
+      $$ProductionBatchHarvestDatesTableFilterComposer,
+      $$ProductionBatchHarvestDatesTableOrderingComposer,
+      $$ProductionBatchHarvestDatesTableAnnotationComposer,
+      $$ProductionBatchHarvestDatesTableCreateCompanionBuilder,
+      $$ProductionBatchHarvestDatesTableUpdateCompanionBuilder,
+      (
+        ProductionBatchHarvestDateLocal,
+        BaseReferences<
+          _$AppDatabase,
+          $ProductionBatchHarvestDatesTable,
+          ProductionBatchHarvestDateLocal
+        >,
+      ),
+      ProductionBatchHarvestDateLocal,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8050,4 +8958,10 @@ class $AppDatabaseManager {
       $$ProductionBatchCertsTableTableManager(_db, _db.productionBatchCerts);
   $$BatchCertsTableTableManager get batchCerts =>
       $$BatchCertsTableTableManager(_db, _db.batchCerts);
+  $$ProductionBatchHarvestDatesTableTableManager
+  get productionBatchHarvestDates =>
+      $$ProductionBatchHarvestDatesTableTableManager(
+        _db,
+        _db.productionBatchHarvestDates,
+      );
 }

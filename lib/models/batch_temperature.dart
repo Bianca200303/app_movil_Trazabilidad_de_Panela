@@ -3,6 +3,7 @@ class BatchTemperature {
   final String productionBatchId;
   final double temperature;
   final int sequenceNumber;
+  final double? timeBetweenMielesMinutes;
   final String cooperativeId;
   final DateTime createdAt;
 
@@ -11,6 +12,7 @@ class BatchTemperature {
     required this.productionBatchId,
     required this.temperature,
     required this.sequenceNumber,
+    this.timeBetweenMielesMinutes,
     required this.cooperativeId,
     required this.createdAt,
   });
@@ -21,6 +23,7 @@ class BatchTemperature {
       productionBatchId: json['production_batch_id'] as String,
       temperature: (json['temperature'] as num).toDouble(),
       sequenceNumber: json['sequence_number'] as int,
+      timeBetweenMielesMinutes: (json['time_between_mieles_minutes'] as num?)?.toDouble(),
       cooperativeId: json['cooperative_id'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
@@ -32,6 +35,7 @@ class BatchTemperature {
       'production_batch_id': productionBatchId,
       'temperature': temperature,
       'sequence_number': sequenceNumber,
+      'time_between_mieles_minutes': timeBetweenMielesMinutes,
       'cooperative_id': cooperativeId,
       'created_at': createdAt.toIso8601String(),
     };
@@ -62,6 +66,7 @@ class BatchTemperature {
     String? productionBatchId,
     double? temperature,
     int? sequenceNumber,
+    double? timeBetweenMielesMinutes,
     String? cooperativeId,
     DateTime? createdAt,
   }) {
@@ -70,6 +75,7 @@ class BatchTemperature {
       productionBatchId: productionBatchId ?? this.productionBatchId,
       temperature: temperature ?? this.temperature,
       sequenceNumber: sequenceNumber ?? this.sequenceNumber,
+      timeBetweenMielesMinutes: timeBetweenMielesMinutes ?? this.timeBetweenMielesMinutes,
       cooperativeId: cooperativeId ?? this.cooperativeId,
       createdAt: createdAt ?? this.createdAt,
     );

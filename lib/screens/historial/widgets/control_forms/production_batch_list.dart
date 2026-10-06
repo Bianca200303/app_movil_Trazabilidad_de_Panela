@@ -257,6 +257,12 @@ class _BatchCard extends StatelessWidget {
                       SizedBox(height: context.responsiveSpacing / 4),
                       HistorialInfoRow(label: 'Rendimiento:', value: '${(batch['eficiencia'] as num?)?.toStringAsFixed(2) ?? '—'}%'),
                     ]),
+                    if ((batch['registrado_por'] as String?)?.isNotEmpty ?? false) ...[
+                      SizedBox(height: context.responsiveSpacing / 2),
+                      Divider(height: 1, color: AppColors.inputBorder),
+                      SizedBox(height: context.responsiveSpacing / 2),
+                      HistorialInfoRow(label: 'Registrado por:', value: batch['registrado_por'] as String),
+                    ],
                   ],
                 ),
               ),

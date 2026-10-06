@@ -104,7 +104,7 @@ class WorkerControlService {
     try {
       final response = await _supabase
           .from('worker_controls')
-          .select('*, worker_control_items(*), production_batches!inner(process_date, panela_kg, confitillo_kg, producers!inner(first_name, last_name, dni, coop_modules(name)))')
+          .select('*, worker_control_items(*), production_batches!inner(process_date, panela_kg, confitillo_kg, producers!inner(first_name, last_name, dni, coop_modules(name))), registered_by_user:users!worker_controls_created_by_fkey(first_name, last_name)')
           .eq('cooperative_id', cooperativeId)
           .gte('created_at', from.toIso8601String().split('T')[0])
           .lte('created_at', '${to.toIso8601String().split('T')[0]}T23:59:59')
@@ -113,6 +113,7 @@ class WorkerControlService {
       return (response as List).map((json) {
         final batch = json['production_batches'] as Map<String, dynamic>?;
         final producer = batch?['producers'] as Map<String, dynamic>?;
+        final regUser = json['registered_by_user'] as Map<String, dynamic>?;
         final control = WorkerControl.fromJson(json as Map<String, dynamic>);
         return {
           'control': control,
@@ -124,6 +125,7 @@ class WorkerControlService {
           'process_date': batch?['process_date'] as String?,
           'panela_kg': batch?['panela_kg'],
           'confitillo_kg': batch?['confitillo_kg'],
+          'registered_by': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
         };
       }).toList();
     } catch (e) {

@@ -6,6 +6,7 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_error.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_expandable_card.dart';
+import 'package:panela_sys/screens/historial/widgets/shared/historial_info_row.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_loading.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_stat_chip.dart';
@@ -53,6 +54,7 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
       var items = raw.map((item) {
         final inspection = EnvironmentInspection.fromJson(item);
         final moduleData = item['coop_module'] as Map<String, dynamic>?;
+        final regUser = item['registered_by_user'] as Map<String, dynamic>?;
         return {
           'id': inspection.id,
           'coop_module_id': inspection.coopModuleId,
@@ -65,6 +67,7 @@ class _EnvironmentInspectionListState extends State<EnvironmentInspectionList> {
           'compliance_percentage': inspection.compliancePercentage,
           'area_compliance': inspection.getAreaComplianceMap(),
           'non_compliant_by_area': inspection.getNonCompliantCountByArea(),
+          'registered_by': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
         };
       }).toList();
       if (widget.allowedModuleIds != null) {
@@ -240,6 +243,12 @@ class _EnvironmentInspectionCard extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
           ],
         ],
       ),

@@ -598,15 +598,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
 
       // ── Salidas ──────────────────────────────────────────────────────────────
       case 2:
-        if (_isLoadingExits) {
-          return const HistorialLoadingWidget();
-        }
-        if (_exitsError != null) {
-          return HistorialErrorWidget(
-            error: _exitsError!,
-            onRetry: _loadExitsData,
-          );
-        }
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -618,10 +609,18 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
               },
             ),
             SizedBox(height: context.responsiveSpacing),
-            HistorialExitsSection(
-              exitsData: _exitsData,
-              onAddGR: _addGRToExit,
-            ),
+            if (_isLoadingExits)
+              const HistorialLoadingWidget()
+            else if (_exitsError != null)
+              HistorialErrorWidget(
+                error: _exitsError!,
+                onRetry: _loadExitsData,
+              )
+            else
+              HistorialExitsSection(
+                exitsData: _exitsData,
+                onAddGR: _addGRToExit,
+              ),
           ],
         );
 

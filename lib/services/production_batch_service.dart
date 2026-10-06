@@ -17,6 +17,7 @@ class CreateProductionBatchRequest {
   final String producerId;
   final String? plotId;
   final DateTime harvestDate;
+  final List<DateTime> additionalHarvestDates;
   final DateTime processDate;
   final double juiceLiters;
   final double panelaKg;
@@ -25,6 +26,10 @@ class CreateProductionBatchRequest {
   final double cachazaPercentage;
   final List<String> selectedCertificateIds;
   final List<double> temperatures;
+  // Paralela a `temperatures` (mismo índice) -- minutos desde la miel
+  // anterior. Puede tener valores null (ej. la primera temperatura no tiene
+  // "miel anterior" contra la cual medir tiempo).
+  final List<double?> timeBetweenMielesMinutes;
   final double phInitial;
   final double phFinal;
   final String regulatorType;
@@ -44,6 +49,7 @@ class CreateProductionBatchRequest {
     required this.producerId,
     this.plotId,
     required this.harvestDate,
+    this.additionalHarvestDates = const [],
     required this.processDate,
     required this.juiceLiters,
     required this.panelaKg,
@@ -52,6 +58,7 @@ class CreateProductionBatchRequest {
     required this.cachazaPercentage,
     required this.selectedCertificateIds,
     required this.temperatures,
+    this.timeBetweenMielesMinutes = const [],
     required this.phInitial,
     required this.phFinal,
     this.regulatorType = 'cal',
@@ -161,7 +168,8 @@ class ProductionBatchService {
 
       // 5. Save related tables
       await _saveBatchCerts(batchLocalId, request.selectedCertificateIds);
-      await _saveBatchTemperatures(batchLocalId, request.temperatures);
+      await _saveBatchTemperatures(batchLocalId, request.temperatures, request.timeBetweenMielesMinutes);
+      await _saveBatchHarvestDates(batchLocalId, request.additionalHarvestDates);
       await _saveBatchPhControl(batchLocalId, request);
 
       // 6. Check connectivity
@@ -195,6 +203,7 @@ class ProductionBatchService {
             producerId: producer!.remoteId!,
             plotId: plotRemoteId,
             harvestDate: request.harvestDate,
+            additionalHarvestDates: request.additionalHarvestDates,
             processDate: request.processDate,
             juiceLiters: request.juiceLiters,
             panelaKg: request.panelaKg,
@@ -203,6 +212,7 @@ class ProductionBatchService {
             cachazaPercentage: request.cachazaPercentage,
             selectedCertificateIds: request.selectedCertificateIds,
             temperatures: request.temperatures,
+            timeBetweenMielesMinutes: request.timeBetweenMielesMinutes,
             phInitial: request.phInitial,
             phFinal: request.phFinal,
             regulatorType: request.regulatorType,
@@ -360,10 +370,24 @@ class ProductionBatchService {
           'production_batch_id': batchId,
           'temperature': entry.value,
           'sequence_number': entry.key + 1,
+          'time_between_mieles_minutes': entry.key < request.timeBetweenMielesMinutes.length
+              ? request.timeBetweenMielesMinutes[entry.key]
+              : null,
           'cooperative_id': cooperativeId,
         }).toList();
 
         await _supabase.from('batch_temperatures').insert(tempInserts);
+      }
+
+      // 3b. Create additional harvest dates
+      if (request.additionalHarvestDates.isNotEmpty) {
+        final harvestDateInserts = request.additionalHarvestDates.map((date) => {
+          'production_batch_id': batchId,
+          'harvest_date': date.toIso8601String().split('T')[0],
+          'cooperative_id': cooperativeId,
+        }).toList();
+
+        await _supabase.from('production_batch_harvest_dates').insert(harvestDateInserts);
       }
 
       // 4. Create pH control record
@@ -594,7 +618,8 @@ class ProductionBatchService {
               first_name, last_name, dni,
               coop_modules( name )
             ),
-            plots( name, code )
+            plots( name, code ),
+            registered_by_user:users!production_batches_registered_by_fkey(first_name, last_name)
           ''')
           .gte('process_date', fromStr)
           .lte('process_date', toStr)
@@ -604,6 +629,7 @@ class ProductionBatchService {
         final plot = item['plots'];
         final producer = item['producers'];
         final module = producer['coop_modules'];
+        final regUser = item['registered_by_user'] as Map<String, dynamic>?;
         return {
           'id': item['id'],
           'codigo_lote': item['batch_code'],
@@ -620,6 +646,7 @@ class ProductionBatchService {
           'porcentaje_extraccion': (item['porcentaje_extraccion'] as num?)?.toDouble() ?? 0.0,
           'eficiencia': (item['efficiency_percentage'] as num).toDouble(),
           'fecha_registro': DateTime.parse(item['created_at']).toLocal(),
+          'registrado_por': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
         };
       }).toList();
     } catch (e) {
@@ -701,7 +728,7 @@ class ProductionBatchService {
 
   /// Save batch temperatures to local DB
   Future<void> _saveBatchTemperatures(
-      int batchLocalId, List<double> temperatures) async {
+      int batchLocalId, List<double> temperatures, List<double?> timeBetweenMielesMinutes) async {
     if (temperatures.isEmpty) return;
 
     DebugLogger.debug('ProductionBatchService', '_saveBatchTemperatures',
@@ -714,12 +741,34 @@ class ProductionBatchService {
               productionBatchLocalId: batchLocalId,
               temperature: entry.value,
               sequenceNumber: entry.key + 1,
+              timeBetweenMielesMinutes: drift.Value(
+                  entry.key < timeBetweenMielesMinutes.length ? timeBetweenMielesMinutes[entry.key] : null),
               cooperativeId: AppConfig.current.id,
               syncStatus: drift.Value(SyncStatus.pending.value),
             ))
         .toList();
 
     await _db!.batchTemperaturesDao.createBatch(companions);
+  }
+
+  /// Save additional harvest dates to local DB
+  Future<void> _saveBatchHarvestDates(
+      int batchLocalId, List<DateTime> additionalHarvestDates) async {
+    if (additionalHarvestDates.isEmpty) return;
+
+    DebugLogger.debug('ProductionBatchService', '_saveBatchHarvestDates',
+        'Saving ${additionalHarvestDates.length} harvest dates for batch $batchLocalId');
+
+    final companions = additionalHarvestDates
+        .map((date) => ProductionBatchHarvestDatesCompanion.insert(
+              productionBatchLocalId: batchLocalId,
+              harvestDate: date,
+              cooperativeId: AppConfig.current.id,
+              syncStatus: drift.Value(SyncStatus.pending.value),
+            ))
+        .toList();
+
+    await _db!.productionBatchHarvestDatesDao.createBatch(companions);
   }
 
   /// Save batch pH control to local DB
@@ -784,6 +833,7 @@ class ProductionBatchService {
       // Get all related records
       final certs = await db.productionBatchCertsDao.getByBatchLocalId(batchLocalId);
       final temps = await db.batchTemperaturesDao.getByBatchLocalId(batchLocalId);
+      final harvestDates = await db.productionBatchHarvestDatesDao.getByBatchLocalId(batchLocalId);
       final phControl = await db.batchPhControlsDao.getByBatchLocalId(batchLocalId);
 
       // Mark certs as synced
@@ -806,6 +856,17 @@ class ProductionBatchService {
         );
         DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
             'Marked ${temps.length} temperatures as synced');
+      }
+
+      // Mark harvest dates as synced
+      if (harvestDates.isNotEmpty) {
+        final harvestDateRemoteIds = harvestDates.map((h) => 'SYNCED_${h.id}').toList();
+        await db.productionBatchHarvestDatesDao.markBatchAsSynced(
+          batchLocalId,
+          harvestDateRemoteIds,
+        );
+        DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
+            'Marked ${harvestDates.length} harvest dates as synced');
       }
 
       // Mark pH control as synced

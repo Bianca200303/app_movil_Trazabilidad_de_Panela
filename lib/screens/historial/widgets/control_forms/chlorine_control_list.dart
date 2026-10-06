@@ -64,6 +64,7 @@ class _ChlorineControlListState extends State<ChlorineControlList> {
         'corrective_actions': control.correctiveActions,
         'observations': control.observations,
         'responsible_person': control.responsiblePerson,
+        'registered_by': control.registeredByName,
       }).toList();
       if (widget.allowedModuleIds != null) {
         items = items
@@ -301,6 +302,12 @@ class _ChlorineCard extends StatelessWidget {
           ],
           SizedBox(height: context.responsiveSpacing / 2),
           HistorialInfoRow(label: 'Responsable:', value: responsiblePerson),
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
+          ],
         ],
       ),
     );

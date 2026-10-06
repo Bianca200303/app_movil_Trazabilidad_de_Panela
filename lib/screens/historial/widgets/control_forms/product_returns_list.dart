@@ -114,6 +114,7 @@ class _ReturnCard extends StatelessWidget {
     final quantity    = (data['quantity_sacks'] as int) > 0
         ? '${data['quantity_sacks']} sacos (${data['quantity_kg']} kg)'
         : '${data['quantity_kg']} kg';
+    final isVoided = data['voided_at'] != null;
 
     return GestureDetector(
       onTap: onToggle,
@@ -146,6 +147,24 @@ class _ReturnCard extends StatelessWidget {
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isVoided
+                              ? AppColors.textSecondary.withValues(alpha: 0.12)
+                              : AppColors.successLight,
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                          border: Border.all(color: isVoided ? AppColors.textSecondary : AppColors.success),
+                        ),
+                        child: Text(
+                          isVoided ? 'Anulada' : 'Vigente',
+                          style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700,
+                            color: isVoided ? AppColors.textSecondary : AppColors.success,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         returnDate != null ? DateFormat('dd/MM/yyyy').format(returnDate) : '—',
                         style: AppTextStyles.captionText,

@@ -52,6 +52,7 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
       var items = raw.map((item) {
         final incident = HealthIncident.fromJson(item);
         final moduleData = item['coop_module'] as Map<String, dynamic>?;
+        final regUser = item['registered_by_user'] as Map<String, dynamic>?;
         return {
           'id': incident.id,
           'coop_module_id': incident.coopModuleId,
@@ -64,6 +65,7 @@ class _HealthIncidentsListState extends State<HealthIncidentsList> {
           'return_date': incident.formattedReturnDate,
           'certificate_presented': incident.certificatePresentedText,
           'has_return_date': incident.returnDate != null,
+          'registered_by': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
         };
       }).toList();
       if (widget.allowedModuleIds != null) {
@@ -226,6 +228,12 @@ class _HealthIncidentCard extends StatelessWidget {
                 ),
               ]),
             ),
+          ],
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
           ],
         ],
       ),

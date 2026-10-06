@@ -99,7 +99,7 @@ class EnvironmentInspectionItemTemplates {
           {'code': 'mill', 'description': 'Trapiche'},
           {'code': 'engine', 'description': 'Motor'},
           {'code': 'personnel', 'description': 'Personal'},
-          {'code': 'pests', 'description': 'Presencia o signos de plagas'},
+          {'code': 'pests', 'description': 'Ausencia de plagas'},
         ];
       case EnvironmentInspectionAreas.thermalTreatment:
         return [
@@ -124,7 +124,7 @@ class EnvironmentInspectionItemTemplates {
           {'code': 'bunkers', 'description': 'Bunques'},
           {'code': 'utensils', 'description': 'Utensilios'},
           {'code': 'personnel', 'description': 'Personal'},
-          {'code': 'pests', 'description': 'Presencia o signos de plagas'},
+          {'code': 'pests', 'description': 'Ausencia de plagas'},
         ];
       case EnvironmentInspectionAreas.warehouses:
         return [
@@ -133,7 +133,7 @@ class EnvironmentInspectionItemTemplates {
           {'code': 'floors', 'description': 'Pisos'},
           {'code': 'platform_scale', 'description': 'Balanza plataforma'},
           {'code': 'pallets', 'description': 'Parihuelas'},
-          {'code': 'pests', 'description': 'Presencia o signos de plagas'},
+          {'code': 'pests', 'description': 'Ausencia de plagas'},
         ];
       case EnvironmentInspectionAreas.dressingRooms:
         return [

@@ -75,7 +75,7 @@ class EquipmentMaintenanceService {
     try {
       var query = _supabase
           .from('equipment_maintenance_records')
-          .select('*, module:coop_modules(name)')
+          .select('*, module:coop_modules(name), registered_by_user:users!equipment_maintenance_records_created_by_fkey(first_name, last_name)')
           .eq('cooperative_id', AppConfig.current.id);
 
       // Apply filters

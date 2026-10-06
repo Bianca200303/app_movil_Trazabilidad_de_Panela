@@ -76,8 +76,12 @@ class _PestControlRegistrationScreenState
     super.initState();
     _baitProductController.text = 'Panela';
     _baitUnitController.text = 'gr';
-    _insectProductController.text = 'Trampa de Luz';
-    _insectUnitController.text = 'lámina';
+    // Solo prellenar si el paso de insectos se muestra -- si no, dejar vacío
+    // para que hasInsectData quede en false y no se arme un registro vacío.
+    if (AppConfig.current.features.enableInsectControl) {
+      _insectProductController.text = 'Trampa de Luz';
+      _insectUnitController.text = 'lámina';
+    }
     _loadModules();
   }
 
@@ -161,6 +165,11 @@ class _PestControlRegistrationScreenState
     setState(() {
       if (_currentStep < _totalSteps - 1) {
         _currentStep++;
+        // Saltar el paso de Control de Insectos si la cooperativa no lo usa
+        // (ej. CAES no tiene sistemas de captura/lámparas atrapaluz).
+        if (_currentStep == 2 && !AppConfig.current.features.enableInsectControl) {
+          _currentStep++;
+        }
       }
     });
     _scrollController.jumpTo(0);
@@ -170,7 +179,12 @@ class _PestControlRegistrationScreenState
     if (_currentStep == 0) {
       _showExitConfirmation();
     } else {
-      setState(() => _currentStep--);
+      setState(() {
+        _currentStep--;
+        if (_currentStep == 2 && !AppConfig.current.features.enableInsectControl) {
+          _currentStep--;
+        }
+      });
       _scrollController.jumpTo(0);
     }
   }

@@ -64,6 +64,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
 
   // Temperature values (dynamic list)
   List<double> _temperatures = [0.0];
+  // Paralela a _temperatures (mismo índice) -- tiempo entre mieles en minutos
+  List<double?> _timeBetweenMielesMinutes = [];
+
+  // Additional harvest dates (dynamic list, beyond the primary harvest date)
+  List<DateTime> _additionalHarvestDates = [];
 
   // Current step in the registration process
   int _currentStep = 0;
@@ -238,6 +243,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         return DateSelectionStep(
           harvestDateController: _harvestDateController,
           processingDateController: _processingDateController,
+          additionalHarvestDates: _additionalHarvestDates,
+          onAdditionalHarvestDatesChanged: (dates) {
+            setState(() {
+              _additionalHarvestDates = dates;
+            });
+          },
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );
@@ -294,6 +305,12 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
               _temperatures = temperatures;
             });
           },
+          timeBetweenMielesMinutes: _timeBetweenMielesMinutes,
+          onTimeBetweenMielesChanged: (minutes) {
+            setState(() {
+              _timeBetweenMielesMinutes = minutes;
+            });
+          },
           onContinue: () => _nextStep(),
           onBack: () => _previousStep(),
         );
@@ -303,6 +320,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           producerController: _producerController,
           plotController: _plotController,
           harvestDateController: _harvestDateController,
+          additionalHarvestDates: _additionalHarvestDates,
           processingDateController: _processingDateController,
           juiceQuantityController: _juiceQuantityController,
           panelaQuantityController: _panelaQuantityController,
@@ -316,6 +334,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
           certificates: _certificates,
           selectedCertificates: _selectedCertificates,
           temperatures: _temperatures,
+          timeBetweenMielesMinutes: _timeBetweenMielesMinutes,
           density: density,
           locationLatitude: _locationLatitude,
           locationLongitude: _locationLongitude,

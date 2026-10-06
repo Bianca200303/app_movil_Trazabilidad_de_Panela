@@ -867,6 +867,15 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
         );
         return false;
       }
+
+      // Comprobante de acopio obligatorio, salvo en autoconsumo (no suele
+      // existir un comprobante físico ya que no hay venta a un tercero).
+      if (!_isAutoconsumo && _itemDocumentControllers[i].text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ingrese el comprobante de acopio para todos los lotes')),
+        );
+        return false;
+      }
     }
     return true;
   }
@@ -1057,7 +1066,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                   label: 'Comprobante de acopio',
                   controller: documentController,
                   hintText: 'Ej: RCP-001, FACT-123',
-                  suffixText: 'Opcional',
+                  suffixText: _isAutoconsumo ? 'Opcional' : null,
                 ),
               ],
             ),

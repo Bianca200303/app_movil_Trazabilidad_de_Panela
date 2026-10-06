@@ -14,6 +14,10 @@ class BatchTemperatures extends Table {
   IntColumn get sequenceNumber => integer()();
   TextColumn get cooperativeId => text()();
 
+  /// Minutos transcurridos desde la miel anterior (opcional, pareado con
+  /// esta temperatura puntual).
+  RealColumn get timeBetweenMielesMinutes => real().nullable()();
+
   // Synchronization fields (MANDATORY)
   IntColumn get syncStatus => integer().withDefault(const Constant(0))();
   TextColumn get remoteId => text().nullable()();

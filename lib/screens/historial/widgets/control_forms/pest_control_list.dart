@@ -58,6 +58,7 @@ class _PestControlListState extends State<PestControlList> {
           'control_date': control.formattedDate,
           'bait_records': baitRecords,
           'insect_records': insectRecords,
+          'registered_by': control.registeredByName,
         };
       });
       var items = await Future.wait(futures);
@@ -280,6 +281,12 @@ class _PestControlCard extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+          if ((data['registered_by'] as String?)?.isNotEmpty ?? false) ...[
+            SizedBox(height: context.responsiveSpacing / 2),
+            const Divider(height: 1),
+            SizedBox(height: context.responsiveSpacing / 2),
+            HistorialInfoRow(label: 'Registrado por:', value: data['registered_by'] as String),
           ],
         ],
       ),

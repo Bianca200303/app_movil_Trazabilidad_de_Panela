@@ -29,6 +29,7 @@ class RegistrationSummaryStep extends StatefulWidget {
   final TextEditingController producerController;
   final TextEditingController plotController;
   final TextEditingController harvestDateController;
+  final List<DateTime> additionalHarvestDates;
   final TextEditingController processingDateController;
   final TextEditingController juiceQuantityController;
   final TextEditingController panelaQuantityController;
@@ -42,6 +43,7 @@ class RegistrationSummaryStep extends StatefulWidget {
   final List<BatchCert> certificates;
   final Map<String, bool> selectedCertificates;
   final List<double> temperatures;
+  final List<double?> timeBetweenMielesMinutes;
   final VoidCallback onBack;
   final double density;
   final double? locationLatitude;
@@ -55,6 +57,7 @@ class RegistrationSummaryStep extends StatefulWidget {
     required this.producerController,
     required this.plotController,
     required this.harvestDateController,
+    this.additionalHarvestDates = const [],
     required this.processingDateController,
     required this.juiceQuantityController,
     required this.panelaQuantityController,
@@ -68,6 +71,7 @@ class RegistrationSummaryStep extends StatefulWidget {
     required this.certificates,
     required this.selectedCertificates,
     required this.temperatures,
+    this.timeBetweenMielesMinutes = const [],
     required this.onBack,
     this.density = ProductionCalculator.sugarCaneDensity,
     this.locationLatitude,
@@ -362,6 +366,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         producerId: widget.producerController.text,
         plotId: widget.plotController.text.isNotEmpty ? widget.plotController.text : null,
         harvestDate: harvestDate,
+        additionalHarvestDates: widget.additionalHarvestDates,
         processDate: processDate,
         juiceLiters: double.parse(widget.juiceQuantityController.text),
         panelaKg: double.parse(widget.panelaQuantityController.text),
@@ -370,6 +375,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
         cachazaPercentage: double.parse(widget.cachazaPercentageController.text),
         selectedCertificateIds: _selectedCertificateIds,
         temperatures: widget.temperatures,
+        timeBetweenMielesMinutes: widget.timeBetweenMielesMinutes,
         phInitial: double.parse(widget.initialPHController.text),
         phFinal: double.parse(widget.finalPHController.text),
         regulatorType: 'cal',
@@ -480,7 +486,13 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
     final certText = selectedCerts.isNotEmpty ? selectedCerts.join(', ') : 'Ninguna seleccionada';
 
     final tempText = widget.temperatures.isNotEmpty
-        ? widget.temperatures.map((t) => '${t.toStringAsFixed(1)}°C').join(', ')
+        ? widget.temperatures.asMap().entries.map((entry) {
+            final minutes = entry.key < widget.timeBetweenMielesMinutes.length
+                ? widget.timeBetweenMielesMinutes[entry.key]
+                : null;
+            final tempStr = '${entry.value.toStringAsFixed(1)}°C';
+            return minutes != null ? '$tempStr (${minutes.toStringAsFixed(0)} min)' : tempStr;
+          }).join(', ')
         : 'No registradas';
 
     final plotText = _isLoadingPlot
@@ -513,8 +525,10 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
     // Continue with remaining fields
     summaryItems.addAll([
       ['Parcela:', plotText],
-      ['Fecha de corte:', widget.harvestDateController.text.isNotEmpty ? widget.harvestDateController.text : 'No especificada'],
       ['Fecha de proceso:', widget.processingDateController.text.isNotEmpty ? widget.processingDateController.text : 'No especificada'],
+      ['Fecha de corte:', widget.harvestDateController.text.isNotEmpty ? widget.harvestDateController.text : 'No especificada'],
+      if (widget.additionalHarvestDates.isNotEmpty)
+        ['Fechas de corte adicionales:', widget.additionalHarvestDates.map((d) => AppDateUtils.formatDDMMYYYY(d)).join(', ')],
       ['Certificaciones:', certText],
       ['Cantidad de caña:', '${(calc?.caneKg ?? 0.0).toStringAsFixed(2)} kg'],
       ['Cantidad de jugo:', widget.juiceQuantityController.text.isNotEmpty ? '${widget.juiceQuantityController.text} L' : '0 L'],
@@ -537,7 +551,7 @@ class _RegistrationSummaryStepState extends State<RegistrationSummaryStep> {
     List<Widget> widgets = [];
     for (var item in summaryItems) {
       // Check if this is a multi-value field that needs wrapping
-      final isMultiValueField = item[0] == 'Certificaciones:' || item[0] == 'Temperaturas:';
+      final isMultiValueField = item[0] == 'Certificaciones:' || item[0] == 'Temperaturas:' || item[0] == 'Fechas de corte adicionales:';
 
       widgets.add(
         Row(

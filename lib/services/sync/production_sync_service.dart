@@ -107,6 +107,8 @@ class ProductionSyncService {
         final certs =
             await _db.productionBatchCertsDao.getByBatchLocalId(batch.id);
         final temps = await _db.batchTemperaturesDao.getByBatchLocalId(batch.id);
+        final harvestDates =
+            await _db.productionBatchHarvestDatesDao.getByBatchLocalId(batch.id);
         final phControl =
             await _db.batchPhControlsDao.getByBatchLocalId(batch.id);
 
@@ -115,6 +117,7 @@ class ProductionSyncService {
             'sync',
             'Related data: certs=${certs.length}, '
             'temps=${temps.length}, '
+            'harvestDates=${harvestDates.length}, '
             'phControl=${phControl != null}');
 
         // 4. Build request with remote IDs
@@ -122,6 +125,7 @@ class ProductionSyncService {
           producerId: producer.remoteId!,
           plotId: plotRemoteId,
           harvestDate: batch.harvestDate,
+          additionalHarvestDates: harvestDates.map((h) => h.harvestDate).toList(),
           processDate: batch.processDate,
           juiceLiters: batch.juiceLiters,
           panelaKg: batch.panelaKg,
@@ -130,6 +134,7 @@ class ProductionSyncService {
           cachazaPercentage: batch.cachazaPercentage ?? 2.5,
           selectedCertificateIds: certs.map((c) => c.batchCertId).toList(),
           temperatures: temps.map((t) => t.temperature).toList(),
+          timeBetweenMielesMinutes: temps.map((t) => t.timeBetweenMielesMinutes).toList(),
           phInitial: phControl?.phInitial ?? 0.0,
           phFinal: phControl?.phFinal ?? 0.0,
           regulatorType: phControl?.regulatorType ?? 'cal',
@@ -237,6 +242,8 @@ class ProductionSyncService {
           await _db.productionBatchCertsDao.getByBatchLocalId(batchLocalId);
       final temps =
           await _db.batchTemperaturesDao.getByBatchLocalId(batchLocalId);
+      final harvestDates =
+          await _db.productionBatchHarvestDatesDao.getByBatchLocalId(batchLocalId);
       final phControl =
           await _db.batchPhControlsDao.getByBatchLocalId(batchLocalId);
 
@@ -258,6 +265,16 @@ class ProductionSyncService {
         );
         DebugLogger.debug('ProductionSyncService', '_markRelatedAsSynced',
             'Marked ${temps.length} temperatures as synced');
+      }
+
+      // Mark harvest dates as synced
+      if (harvestDates.isNotEmpty) {
+        await _db.productionBatchHarvestDatesDao.markBatchAsSynced(
+          batchLocalId,
+          harvestDates.map((h) => 'SYNCED_${h.id}').toList(),
+        );
+        DebugLogger.debug('ProductionSyncService', '_markRelatedAsSynced',
+            'Marked ${harvestDates.length} harvest dates as synced');
       }
 
       // Mark pH control as synced

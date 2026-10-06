@@ -158,7 +158,9 @@ class ProductReturnService {
             return_reason,
             observations,
             created_at,
+            voided_at,
             registered_by_user:users!product_returns_created_by_fkey(first_name, last_name),
+            registered_by_web_user:web_users!product_returns_created_by_web_user_id_fkey(first_name, last_name),
             production_batches!inner(
               batch_code,
               process_date,
@@ -181,6 +183,7 @@ class ProductReturnService {
         final batch = item['production_batches'];
         final producer = batch['producers'];
         final regUser = item['registered_by_user'] as Map<String, dynamic>?;
+        final regWebUser = item['registered_by_web_user'] as Map<String, dynamic>?;
         return {
           'id': item['id'],
           'client_name': item['client_name'],
@@ -196,8 +199,13 @@ class ProductReturnService {
           'producer_dni': producer['dni'],
           'appagrop_code': producer['appagrop_code'],
           'module_name': (producer['coop_modules'] as Map<String, dynamic>?)?['name'],
-          'registered_by': regUser != null ? '${regUser['first_name']} ${regUser['last_name']}' : null,
+          'registered_by': regUser != null
+              ? '${regUser['first_name']} ${regUser['last_name']}'
+              : regWebUser != null
+                  ? '${regWebUser['first_name']} ${regWebUser['last_name']}'
+                  : null,
           'created_at': DateTime.parse(item['created_at']),
+          'voided_at': item['voided_at'] != null ? DateTime.parse(item['voided_at']) : null,
         };
       }).toList();
     } catch (e) {

@@ -106,7 +106,8 @@ class HealthIncidentService {
             coop_module:coop_modules(
               id,
               name
-            )
+            ),
+            registered_by_user:users!health_incidents_created_by_fkey(first_name, last_name)
           ''');
 
       if (fromDate != null) {

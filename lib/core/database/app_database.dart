@@ -11,6 +11,7 @@ import 'package:panela_sys/core/database/tables/batch_temperatures_table.dart';
 import 'package:panela_sys/core/database/tables/batch_ph_controls_table.dart';
 import 'package:panela_sys/core/database/tables/production_batch_certs_table.dart';
 import 'package:panela_sys/core/database/tables/batch_certs_table.dart';
+import 'package:panela_sys/core/database/tables/production_batch_harvest_dates_table.dart';
 import 'package:panela_sys/core/database/daos/producers_dao.dart';
 import 'package:panela_sys/core/database/daos/plots_dao.dart';
 import 'package:panela_sys/core/database/daos/coop_modules_dao.dart';
@@ -19,6 +20,7 @@ import 'package:panela_sys/core/database/daos/batch_temperatures_dao.dart';
 import 'package:panela_sys/core/database/daos/batch_ph_controls_dao.dart';
 import 'package:panela_sys/core/database/daos/production_batch_certs_dao.dart';
 import 'package:panela_sys/core/database/daos/batch_certs_dao.dart';
+import 'package:panela_sys/core/database/daos/production_batch_harvest_dates_dao.dart';
 
 part 'app_database.g.dart';
 
@@ -37,6 +39,7 @@ part 'app_database.g.dart';
     BatchPhControls,
     ProductionBatchCerts,
     BatchCerts,
+    ProductionBatchHarvestDates,
   ],
   daos: [
     ProducersDao,
@@ -47,6 +50,7 @@ part 'app_database.g.dart';
     BatchPhControlsDao,
     ProductionBatchCertsDao,
     BatchCertsDao,
+    ProductionBatchHarvestDatesDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -62,7 +66,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   /// Migration strategy for handling schema version changes
   ///
@@ -75,6 +79,8 @@ class AppDatabase extends _$AppDatabase {
   /// - v6: Add cane_density to production_batches for per-batch density tracking
   /// - v7: Add location fields (latitude, longitude, locationText) to production_batches
   /// - v8: Add observations to production_batches
+  /// - v9: Add production_batch_harvest_dates (fechas de corte adicionales)
+  /// - v10: Add timeBetweenMielesMinutes to batchTemperatures
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
@@ -99,6 +105,12 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from <= 7) {
             await m.addColumn(productionBatches, productionBatches.observations);
+          }
+          if (from <= 8) {
+            await m.createTable(productionBatchHarvestDates);
+          }
+          if (from <= 9) {
+            await m.addColumn(batchTemperatures, batchTemperatures.timeBetweenMielesMinutes);
           }
         },
       );

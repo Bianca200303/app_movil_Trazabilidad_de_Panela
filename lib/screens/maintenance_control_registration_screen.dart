@@ -221,7 +221,7 @@ class _MaintenanceControlRegistrationScreenState
           message: 'Registro de mantenimiento guardado exitosamente',
           type: SnackBarType.success,
         );
-        context.go(AppRoutes.controlFormsModulo.path);
+        context.go(AppRoutes.controlFormsProduccion.path);
       }
     } catch (e) {
       if (mounted) {
@@ -276,7 +276,7 @@ class _MaintenanceControlRegistrationScreenState
                 child: FormGroup(
                   children: [
                     AppBackButton(
-                      onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+                      onPressed: () => context.go(AppRoutes.controlFormsProduccion.path),
                       isExpanded: false,
                     ),
                     SizedBox(height: context.responsiveSpacing),
@@ -559,7 +559,7 @@ class _MaintenanceControlRegistrationScreenState
                           AppBackButton(
                             label: 'Cancelar',
                             onPressed: () =>
-                                context.go(AppRoutes.controlFormsModulo.path),
+                                context.go(AppRoutes.controlFormsProduccion.path),
                             isExpanded: true,
                           ),
                         ],
@@ -571,7 +571,7 @@ class _MaintenanceControlRegistrationScreenState
                             child: AppBackButton(
                               label: 'Cancelar',
                               onPressed: () =>
-                                  context.go(AppRoutes.controlFormsModulo.path),
+                                  context.go(AppRoutes.controlFormsProduccion.path),
                             ),
                           ),
                           SizedBox(width: context.responsiveSpacing / 2),
