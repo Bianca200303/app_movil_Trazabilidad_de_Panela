@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/widgets/forms/app_text_field.dart' show appInputContentPadding;
 
 /// Campo de búsqueda reutilizable con ícono de lupa y botón de limpiar.
 /// Muestra el botón X automáticamente cuando hay texto.
@@ -49,10 +50,7 @@ class AppSearchField extends StatelessWidget {
                 : null,
             filled: true,
             fillColor: AppColors.inputFill,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMedium,
-              vertical: AppDimensions.paddingMedium,
-            ),
+            contentPadding: appInputContentPadding(context),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
               borderSide: const BorderSide(

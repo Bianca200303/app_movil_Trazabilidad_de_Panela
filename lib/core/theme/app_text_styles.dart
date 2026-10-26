@@ -83,10 +83,12 @@ class AppTextStyles {
   );
 
   // Special styles - minimal and clean
-  static TextStyle topLabel = TextStyle(
-    color: AppColors.labelTransparent,
+  // Título de pantalla (AppScaffold). Antes era blanco translúcido, pensado
+  // para un fondo oscuro; sobre el fondo claro actual no se leía.
+  static const TextStyle topLabel = TextStyle(
+    color: AppColors.primaryDark,
     fontSize: FontSizeConfig.baseSize,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w600,
   );
 
   static const TextStyle hintText = TextStyle(

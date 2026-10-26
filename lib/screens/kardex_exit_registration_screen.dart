@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panela_sys/screens/success_registration_screen.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
+import 'package:panela_sys/widgets/common/unsaved_changes_guard.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
@@ -167,8 +168,24 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     return totalSacos;
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 1 || _selectedStock.contains(true) ||
+      _documentController.text.trim().isNotEmpty;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.home.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _handleBackNavigation,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
@@ -386,7 +403,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final isLowStock = availableKg < 50;
     final isExpanded = _expandedItems[index];
 
-    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: Colors.black);
+    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: AppColors.textPrimary);
 
     return Container(
       decoration: BoxDecoration(
@@ -445,7 +462,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                                 style: const TextStyle(
                                   fontSize: FontSizeConfig.smallSize,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black,
+                                  color: AppColors.textPrimary,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -556,7 +573,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
             Text(
               ' *',
               style: AppTextStyles.bodyText.copyWith(
-                color: Colors.red,
+                color: AppColors.error,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -762,28 +779,14 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
 
   Future<void> _handleExitTypeChange(bool newValue) async {
     if (_selectedStock.contains(true)) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('¿Cambiar tipo de salida?'),
-          content: const Text(
-            'Las cantidades ingresadas se recalcularán según el nuevo modo. '
-            '¿Deseas continuar?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-              child: const Text('Continuar'),
-            ),
-          ],
-        ),
+      final confirmed = await AppConfirmDialog.show(
+        context,
+        title: '¿Cambiar tipo de salida?',
+        message: 'Las cantidades ingresadas se recalcularán según el nuevo modo. '
+            '¿Desea continuar?',
+        confirmLabel: 'Continuar',
       );
-      if (confirmed != true) return;
+      if (!confirmed) return;
     }
     setState(() {
       _isAutoconsumo = newValue;
@@ -896,11 +899,11 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
     final requestedKg = _isAutoconsumo ? currentQty : currentQty * 50;
     final isOverLimit = currentQty > 0 && requestedKg > availableKg;
 
-    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: Colors.black);
+    const styleNormal = TextStyle(fontSize: FontSizeConfig.captionSize, color: AppColors.textPrimary);
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: isOverLimit ? AppColors.error : Colors.black, width: isOverLimit ? 1.0 : 1.5),
+        border: Border.all(color: isOverLimit ? AppColors.error : AppColors.textPrimary, width: isOverLimit ? 1.0 : 1.5),
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         color: AppColors.surface,
       ),
@@ -928,7 +931,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                           style: const TextStyle(
                             fontSize: FontSizeConfig.smallSize,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            color: AppColors.textPrimary,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1035,7 +1038,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
                           child: Text(
                             'Equivale a ${(currentQty * 50).toStringAsFixed(1)} kg',
                             style: TextStyle(
-                              color: isOverLimit ? AppColors.error : Colors.black,
+                              color: isOverLimit ? AppColors.error : AppColors.textPrimary,
                               fontSize: FontSizeConfig.smallSize,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1123,7 +1126,7 @@ class _KardexExitRegistrationScreenState extends ConsumerState<KardexExitRegistr
       });
       _scrollController.jumpTo(0);
     } else {
-      context.go(AppRoutes.home.path);
+      _leave();
     }
   }
 

@@ -265,24 +265,89 @@ class PlotsDao extends DatabaseAccessor<AppDatabase> with _$PlotsDaoMixin {
 
   /// Cache plots from remote (for offline dropdown usage)
   ///
-  /// Replaces all synced plots with fresh data from remote.
-  /// Preserves local pending plots (those not yet synced).
-  Future<void> cacheFromRemote(List<PlotsCompanion> remotePlots) async {
+  /// Actualiza la copia local CONSERVANDO el id local de cada parcela (se
+  /// empareja por remoteId): los lotes pendientes apuntan a ese id, y si se
+  /// borrara y reinsertara la parcela quedarían huérfanos.
+  ///
+  /// [remotePlots] es la lista completa del servidor, o solo las parcelas de
+  /// un productor si se indica [onlyForRemoteProducerId]; en ese caso solo
+  /// se depuran las parcelas de ese productor y las demás no se tocan.
+  /// Las parcelas sincronizadas que ya no vienen del servidor se borran,
+  /// salvo que algún lote pendiente todavía las use. Las parcelas pendientes
+  /// (sin subir) no se tocan.
+  Future<void> cacheFromRemote(
+    List<PlotsCompanion> remotePlots, {
+    String? onlyForRemoteProducerId,
+  }) async {
     DebugLogger.info('PlotsDao', 'cacheFromRemote',
-        'Caching ${remotePlots.length} plots from remote');
+        'Caching ${remotePlots.length} plots from remote'
+        '${onlyForRemoteProducerId != null ? ' (producer $onlyForRemoteProducerId)' : ''}');
 
-    // Clear all synced plots first to avoid duplicates
-    await deleteSynced();
+    await transaction(() async {
+      final query = select(plots)
+        ..where((p) => p.syncStatus.equals(SyncStatus.synced.value));
+      if (onlyForRemoteProducerId != null) {
+        query.where((p) => p.remoteProducerId.equals(onlyForRemoteProducerId));
+      }
+      final existing = await query.get();
 
-    DebugLogger.debug('PlotsDao', 'cacheFromRemote',
-        'Cleared synced plots, inserting fresh data');
+      // Un id local por remoteId; filas repetidas o sin remoteId sobran.
+      final idByRemoteId = <String, int>{};
+      final leftovers = <int>{};
+      for (final row in existing) {
+        final remoteId = row.remoteId;
+        if (remoteId == null || idByRemoteId.containsKey(remoteId)) {
+          leftovers.add(row.id);
+        } else {
+          idByRemoteId[remoteId] = row.id;
+        }
+      }
 
-    // Insert fresh data from remote
-    await batch((batch) {
-      batch.insertAll(plots, remotePlots);
+      final incomingRemoteIds = <String>{};
+      for (final plot in remotePlots) {
+        final remoteId = plot.remoteId.value!;
+        incomingRemoteIds.add(remoteId);
+        final localId = idByRemoteId[remoteId] ??
+            // Parcela ya guardada pero fuera del alcance de la consulta
+            // (p. ej. cambió de productor): se actualiza en su lugar.
+            (await (select(plots)
+                      ..where((p) =>
+                          p.remoteId.equals(remoteId) &
+                          p.syncStatus.equals(SyncStatus.synced.value))
+                      ..limit(1))
+                    .getSingleOrNull())
+                ?.id;
+        if (localId == null) {
+          await into(plots).insert(plot);
+        } else {
+          await (update(plots)..where((p) => p.id.equals(localId))).write(plot);
+        }
+      }
+
+      leftovers.addAll(idByRemoteId.entries
+          .where((e) => !incomingRemoteIds.contains(e.key))
+          .map((e) => e.value));
+      final inUse = await _idsReferencedByPendingBatches(leftovers);
+      final toDelete = leftovers.difference(inUse);
+      if (toDelete.isNotEmpty) {
+        await (delete(plots)..where((p) => p.id.isIn(toDelete))).go();
+      }
     });
 
     DebugLogger.debug('PlotsDao', 'cacheFromRemote', 'Cache updated successfully');
+  }
+
+  /// De [candidateIds], los que todavía usa algún lote sin subir.
+  Future<Set<int>> _idsReferencedByPendingBatches(Set<int> candidateIds) async {
+    if (candidateIds.isEmpty) return {};
+    final db = attachedDatabase;
+    final refs = await (db.select(db.productionBatches)
+          ..where((b) =>
+              b.plotLocalId.isIn(candidateIds) &
+              b.syncStatus.equals(SyncStatus.synced.value).not()))
+        .map((b) => b.plotLocalId)
+        .get();
+    return refs.whereType<int>().toSet();
   }
 
   /// Update a local plot's name

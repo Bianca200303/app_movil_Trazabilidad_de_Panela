@@ -4,6 +4,7 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
+import 'package:panela_sys/widgets/common/unsaved_changes_guard.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
 import 'package:panela_sys/widgets/common/app_snackbar.dart';
@@ -181,13 +182,11 @@ class _StowageTransportInspectionRegistrationScreenState
   }
 
   void _previousStep() {
-    setState(() {
-      if (_currentStep > 0) {
-        _currentStep--;
-      } else {
-        context.go(AppRoutes.controlFormsProduccion.path);
-      }
-    });
+    if (_currentStep == 0) {
+      _leave();
+      return;
+    }
+    setState(() => _currentStep--);
     _scrollToTop();
   }
 
@@ -309,8 +308,23 @@ class _StowageTransportInspectionRegistrationScreenState
     }
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _selectedExitId != null;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsProduccion.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(

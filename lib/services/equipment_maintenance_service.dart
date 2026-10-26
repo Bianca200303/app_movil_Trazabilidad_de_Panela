@@ -2,53 +2,32 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/models/equipment_maintenance_record.dart';
 import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/core/app_config.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 
 /// Service for managing equipment maintenance records
 /// Handles CRUD operations for hornilla, maquinaria y equipos maintenance
 class EquipmentMaintenanceService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
+
+  EquipmentMaintenanceService({PendingSubmissionsService? pending})
+      : _pending = pending ?? PendingSubmissionsService();
 
   // ============================================================================
   // CREATE: Insert new equipment maintenance record
   // ============================================================================
 
-  /// Create a new equipment maintenance record
+  /// Registra un mantenimiento nuevo, con o sin señal (ver
+  /// PendingSubmissionsService.submit). created_by lo pone el trigger.
   ///
-  /// Note: created_by is auto-populated by database trigger
-  ///
-  /// Throws Exception if:
-  /// - Network error occurs
-  /// - Database constraint violation (check constraints, foreign keys)
-  /// - User is not authenticated
-  Future<EquipmentMaintenanceRecord> createRecord(
-    CreateEquipmentMaintenanceRequest request,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('equipment_maintenance_records')
-          .insert(request.toJson())
-          .select('*, module:coop_modules(name)')
-          .single();
-
-      return EquipmentMaintenanceRecord.fromJson(response);
-    } on PostgrestException catch (e) {
-      // Handle specific database errors
-      if (e.code == '23514') {
-        // Check constraint violation
-        throw Exception(
-          'Datos inválidos: Verifica que la duración sea mayor a 0 y el tipo de mantenimiento sea válido',
-        );
-      }
-      if (e.code == '23503') {
-        // Foreign key violation
-        throw Exception(
-          'Módulo inválido o no pertenece a la cooperativa',
-        );
-      }
-      throw Exception('Error al crear registro de mantenimiento: ${e.message}');
-    } catch (e) {
-      throw Exception('Error al crear registro de mantenimiento: $e');
-    }
+  /// Si el servidor lo rechaza en el momento (duración <= 0, tipo inválido,
+  /// módulo de otra cooperativa), lanza el error.
+  Future<SubmissionOutcome> submitRecord(CreateEquipmentMaintenanceRequest request) {
+    return _pending.submit(
+      kind: SubmissionKinds.maintenanceRecord,
+      payload: request.toJson(),
+    );
   }
 
   // ============================================================================

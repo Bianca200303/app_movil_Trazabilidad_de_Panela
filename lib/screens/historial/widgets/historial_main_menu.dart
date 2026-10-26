@@ -58,9 +58,9 @@ class HistorialMainMenu extends ConsumerWidget {
             child: AppButton(
               text: option['title'] as String,
               icon: option['icon'] as IconData,
-              type: (index == 3 || index == 4)
-                  ? AppButtonType.secondary
-                  : isEnabled ? AppButtonType.primary : AppButtonType.secondary,
+              // Mismo estilo para todas las opciones (como el menú de Inicio):
+              // antes unas eran azules y otras blancas sin un criterio visible.
+              type: AppButtonType.option,
               onPressed: isEnabled ? () => onOptionSelected(index) : null,
             ),
           ),

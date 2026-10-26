@@ -6,6 +6,7 @@ import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/production/production_step_header.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class PhControlStep extends StatefulWidget {
   final TextEditingController initialPHController;
@@ -149,7 +150,7 @@ class _PhControlStepState extends State<PhControlStep> {
                       padding: EdgeInsets.only(top: context.responsiveSpacing * 0.25),
                       child: Text(
                         state.errorText ?? '',
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        style: const TextStyle(color: AppColors.error, fontSize: 12),
                       ),
                     ),
                 ],

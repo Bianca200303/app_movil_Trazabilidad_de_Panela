@@ -4,6 +4,7 @@ import 'package:panela_sys/widgets/forms/app_dropdown.dart';
 import 'package:panela_sys/widgets/forms/module_search_field.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/common/app_confirm_dialog.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
@@ -23,6 +24,7 @@ import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/services/location_service.dart';
 import 'package:panela_sys/models/producer_quota_status.dart';
+import 'package:panela_sys/widgets/plots/plot_form_sheet.dart';
 
 class ProducerSelectionStep extends ConsumerStatefulWidget {
   final TextEditingController producerController;
@@ -286,6 +288,30 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     }
   }
 
+  /// Administradores con un productor ya sincronizado (id remoto, no
+  /// entero local) pueden agregar una parcela sin salir del registro.
+  bool get _canAddPlot =>
+      (ref.read(currentUserProvider)?.canManagePlots ?? false) &&
+      int.tryParse(widget.producerController.text) == null;
+
+  Future<void> _addPlot() async {
+    final producerId = widget.producerController.text;
+    final producer = widget.selectedProducer;
+    final saved = await showPlotFormSheet(
+      context,
+      producerId: producerId,
+      producerName: producer == null
+          ? 'Productor'
+          : '${producer.firstName} ${producer.lastName}',
+      existingNames: _plots.map((p) => p.name),
+    );
+    if (saved == null || !mounted) return;
+    await _loadPlotsForProducer(producerId, clearSelection: false);
+    if (!mounted) return;
+    // Queda elegida para seguir con el registro.
+    setState(() => widget.plotController.text = saved.id);
+  }
+
   void _onProducerChanged(String? newProducerId) {
     setState(() {
       widget.producerController.text = newProducerId ?? '';
@@ -354,6 +380,14 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         _resolveDefaultPercentage('cachaza').toString();
   }
 
+  /// Técnicos y administradores de módulo que además son productores
+  /// pueden registrar su propia producción: se marca "(usted)" para que
+  /// quede claro a quién se le está registrando.
+  String _displayName(Producer p) {
+    final currentDni = ref.read(currentUserProvider)?.dni;
+    return p.dni == currentDni ? '${p.fullName} (usted)' : p.fullName;
+  }
+
   String _getDefaultHintText(String fieldType) {
     if (fieldType == 'extraction') {
       // Priority: plot -> producer -> system
@@ -378,85 +412,50 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
 
   void _showExceededDialog(QuotaCheckResult result) {
     final exceeded = result.statuses.where((s) => s.superado).toList();
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.error_rounded, color: AppColors.error, size: AppDimensions.iconLarge),
-            const SizedBox(width: AppDimensions.spacingSmall),
-            Expanded(
-              child: Text('Cupo superado', style: AppTextStyles.sectionTitle),
+    // Solo informa: ambas opciones cierran el aviso y dejan seguir.
+    AppConfirmDialog.choose<void>(
+      context,
+      title: 'Cupo superado',
+      message: 'Este productor ha superado el cupo autorizado por la certificadora. '
+          'Registrar esta producción puede incumplir los requisitos de certificación.',
+      tone: AppDialogTone.danger,
+      details: Column(
+        children: exceeded.map((s) => Padding(
+          padding: const EdgeInsets.only(bottom: AppDimensions.spacingSmall),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+            decoration: BoxDecoration(
+              color: AppColors.errorLight,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Este productor ha superado el cupo autorizado por la certificadora. '
-              'Registrar esta producción puede incumplir los requisitos de certificación.',
-              style: AppTextStyles.bodyText,
-            ),
-            const SizedBox(height: AppDimensions.spacingMedium),
-            ...exceeded.map((s) => Padding(
-              padding: const EdgeInsets.only(bottom: AppDimensions.spacingSmall),
-              child: Container(
-                padding: const EdgeInsets.all(AppDimensions.paddingSmall),
-                decoration: BoxDecoration(
-                  color: AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.certName,
+                  style: AppTextStyles.captionText.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.certName,
-                      style: AppTextStyles.captionText.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingXSmall),
-                    Text(
-                      'Cupo: ${s.cupoKg.toStringAsFixed(1)} kg  •  '
-                      'Producido: ${s.acumuladoKg.toStringAsFixed(1)} kg  •  '
-                      '+${(s.acumuladoKg - s.cupoKg).toStringAsFixed(1)} kg',
-                      style: AppTextStyles.captionText.copyWith(color: AppColors.error),
-                    ),
-                  ],
+                const SizedBox(height: AppDimensions.spacingXSmall),
+                Text(
+                  'Cupo: ${s.cupoKg.toStringAsFixed(1)} kg  •  '
+                  'Producido: ${s.acumuladoKg.toStringAsFixed(1)} kg  •  '
+                  '+${(s.acumuladoKg - s.cupoKg).toStringAsFixed(1)} kg',
+                  style: AppTextStyles.captionText.copyWith(color: AppColors.error),
                 ),
-              ),
-            )),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'CANCELAR',
-              style: AppTextStyles.bodyText.copyWith(color: AppColors.textSecondary),
+              ],
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.textWhite,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-              ),
-            ),
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('CONTINUAR DE TODAS FORMAS'),
-          ),
-        ],
+        )).toList(),
       ),
+      actions: const [
+        AppDialogAction('Cancelar', null),
+        AppDialogAction('Continuar de todas formas', null, style: AppDialogActionStyle.destructive),
+      ],
     );
   }
 
@@ -636,31 +635,29 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
 
     if (selected != null) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF2E7D32), width: 2),
-          borderRadius: BorderRadius.circular(10),
-          color: const Color(0xFFF1F8E9),
+          border: Border.all(color: AppColors.success, width: 1.5),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          color: AppColors.successLight,
         ),
         child: Row(
           children: [
-            const Icon(Icons.person, color: Color(0xFF2E7D32), size: 22),
+            const Icon(Icons.check_circle, color: AppColors.success, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    selected.fullName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.black,
-                    ),
+                    _displayName(selected),
+                    style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'DNI: ${selected.dni}',
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    'DNI ${selected.dni}',
+                    style: AppTextStyles.captionText.copyWith(color: AppColors.primaryDark),
                   ),
                 ],
               ),
@@ -670,10 +667,11 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                 _searchController.clear();
                 _onProducerChanged(null);
               },
-              child: const Text(
-                'Cambiar',
-                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.success,
+                visualDensity: VisualDensity.compact,
               ),
+              child: const Text('Cambiar'),
             ),
           ],
         ),
@@ -685,51 +683,39 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
+        AppTextField(
           controller: _searchController,
           onChanged: (_) => setState(() {}),
-          style: const TextStyle(color: Colors.black, fontSize: 15),
-          decoration: InputDecoration(
-            hintText: 'Buscar por nombre o DNI',
-            hintStyle: const TextStyle(color: Colors.black54),
-            prefixIcon: const Icon(Icons.search, color: Colors.black54),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.black54),
-                    onPressed: () => setState(() => _searchController.clear()),
-                  )
-                : null,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
-            ),
-          ),
+          hintText: 'Buscar por nombre o DNI',
+          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Limpiar búsqueda',
+                  onPressed: () => setState(() => _searchController.clear()),
+                )
+              : null,
         ),
         const SizedBox(height: 6),
         Text(
           '${filtered.length} productor${filtered.length == 1 ? '' : 'es'}',
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
+          style: AppTextStyles.captionText.copyWith(color: AppColors.primaryDark),
         ),
         const SizedBox(height: 4),
         Container(
           constraints: const BoxConstraints(maxHeight: 240),
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFBDBDBD)),
-            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
           child: filtered.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
+              ? Padding(
+                  padding: const EdgeInsets.all(AppDimensions.paddingMedium),
                   child: Center(
                     child: Text(
                       'No se encontraron productores',
-                      style: TextStyle(color: Colors.black, fontSize: 14),
+                      style: AppTextStyles.bodyText,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 )
@@ -737,7 +723,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, i) {
                     final p = filtered[i];
                     return InkWell(
@@ -746,31 +732,29 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                         _onProducerChanged(p.id);
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         child: Row(
                           children: [
-                            const Icon(Icons.person_outline, size: 20, color: Colors.black54),
+                            const Icon(Icons.person_outline, size: 20, color: AppColors.primary),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    p.fullName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: Colors.black,
-                                    ),
+                                    _displayName(p),
+                                    style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
-                                    'DNI: ${p.dni}',
-                                    style: const TextStyle(fontSize: 12, color: Colors.black),
+                                    'DNI ${p.dni}',
+                                    style: AppTextStyles.captionText.copyWith(color: AppColors.primaryDark),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right, color: Colors.black38, size: 20),
+                            const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
                           ],
                         ),
                       ),
@@ -841,7 +825,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
               ),
               SizedBox(height: context.responsiveSpacing),
               AppButton(
-                text: 'REINTENTAR',
+                text: 'Reintentar',
                 onPressed: _loadProducers,
                 type: AppButtonType.secondary,
               ),
@@ -862,11 +846,10 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                   )
                 else if (_plots.isEmpty)
                   Text(
-                    'Este productor no tiene parcelas registradas',
-                    style: AppTextStyles.bodyText.copyWith(
-                      color: AppColors.textSecondary,
-                      fontStyle: FontStyle.italic,
-                    ),
+                    _canAddPlot
+                        ? 'Este productor no tiene parcelas activas. Agregue una para continuar.'
+                        : 'Este productor no tiene parcelas activas. Pida a un administrador que agregue una.',
+                    style: AppTextStyles.bodyText.copyWith(color: AppColors.primaryDark),
                     textAlign: TextAlign.center,
                   )
                 else
@@ -885,6 +868,16 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                         widget.plotController.text = newValue ?? '';
                       });
                     },
+                  ),
+                if (!_isLoadingPlots && _canAddPlot)
+                  Align(
+                    alignment: _plots.isEmpty ? Alignment.center : Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _addPlot,
+                      icon: const Icon(Icons.add_location_alt_outlined),
+                      label: const Text('Agregar parcela'),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                    ),
                   ),
               ],
               if (widget.plotController.text.isNotEmpty) ...[
@@ -926,7 +919,7 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         _buildLocationSection(context),
         SizedBox(height: context.responsiveSpacing * 1.5),
         AppButton(
-          text: 'CONTINUAR',
+          text: 'Continuar',
           onPressed: _canContinue ? _handleContinue : null,
         ),
         SizedBox(height: context.responsiveSpacing * 0.75),
@@ -943,11 +936,25 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
   }
 
   Widget _buildLocationSection(BuildContext context) {
+    // Acciones de texto: el texto se ajusta en varias líneas en vez de
+    // desbordarse en pantallas angostas.
+    Widget action(IconData icon, String label, VoidCallback onTap) => TextButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 18),
+          label: Text(label, textAlign: TextAlign.start),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            visualDensity: VisualDensity.compact,
+            alignment: Alignment.centerLeft,
+          ),
+        );
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppDimensions.paddingSmall + AppDimensions.paddingXSmall),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.infoLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -955,11 +962,13 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
         children: [
           Row(
             children: [
-              Icon(Icons.location_on, size: 20, color: AppColors.primary),
+              const Icon(Icons.location_on_outlined, size: 20, color: AppColors.primary),
               const SizedBox(width: 8),
-              Text(
-                'Ubicación del registro',
-                style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'Ubicación del registro',
+                  style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
@@ -972,9 +981,11 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Detectando ubicación...',
-                  style: AppTextStyles.bodyText.copyWith(color: AppColors.textSecondary),
+                Expanded(
+                  child: Text(
+                    'Detectando ubicación...',
+                    style: AppTextStyles.captionText.copyWith(color: AppColors.primaryDark),
+                  ),
                 ),
               ],
             )
@@ -987,38 +998,19 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       _locationError!,
-                      style: AppTextStyles.bodyText.copyWith(
-                        color: AppColors.warning,
-                        fontSize: 13,
-                      ),
+                      style: AppTextStyles.captionText.copyWith(color: AppColors.warning),
                     ),
                   ),
                 AppTextField(
                   controller: _manualLocationController,
                   label: 'Escriba la ubicación',
-                  hintText: 'Ej: Finca El Roble, Vereda La Esperanza',
+                  hintText: 'Ej: Finca El Roble',
                   onChanged: (value) {
                     widget.onLocationTextChanged(value);
                   },
                 ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: _detectLocation,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.refresh, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Reintentar detección automática',
-                        style: AppTextStyles.bodyText.copyWith(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 4),
+                action(Icons.refresh, 'Reintentar detección automática', _detectLocation),
               ],
             )
           else
@@ -1026,38 +1018,23 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                    const Icon(Icons.check_circle, size: 18, color: AppColors.success),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Ubicación detectada (${widget.locationLatitude?.toStringAsFixed(4)}, ${widget.locationLongitude?.toStringAsFixed(4)})',
-                        style: AppTextStyles.bodyText.copyWith(fontSize: 13),
+                        style: AppTextStyles.captionText.copyWith(color: AppColors.primaryDark),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _isEditingLocation = true;
-                    });
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Corregir ubicación manualmente',
-                        style: AppTextStyles.bodyText.copyWith(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 4),
+                action(
+                  Icons.edit_outlined,
+                  'Corregir ubicación manualmente',
+                  () => setState(() => _isEditingLocation = true),
                 ),
               ],
             ),
@@ -1065,4 +1042,4 @@ class _ProducerSelectionStepState extends ConsumerState<ProducerSelectionStep> {
       ),
     );
   }
-}
+}

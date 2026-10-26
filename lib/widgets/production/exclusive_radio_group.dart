@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/models/batch_cert.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class ExclusiveRadioGroup extends StatelessWidget {
   final String groupName;
@@ -42,7 +43,7 @@ class ExclusiveRadioGroup extends StatelessWidget {
                 Text(
                   ' *',
                   style: AppTextStyles.bodyText.copyWith(
-                    color: Colors.red,
+                    color: AppColors.error,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

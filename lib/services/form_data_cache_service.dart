@@ -5,7 +5,10 @@ import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/services/batch_cert_service.dart';
+import 'package:panela_sys/services/certified_workers_service.dart';
+import 'package:panela_sys/services/recent_batches_service.dart';
 import 'package:drift/drift.dart' as drift;
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Centralized service for managing form data cache
 ///
@@ -19,6 +22,10 @@ import 'package:drift/drift.dart' as drift;
 class FormDataCacheService {
   final AppDatabase _db;
   final CoopModulesService _coopModulesService;
+
+  /// Fecha de la última actualización COMPLETA de los datos para trabajar
+  /// sin señal (ver [refreshAllFormData]); se muestra en la pantalla de inicio.
+  static const _lastRefreshedAtKey = 'form_data_last_refreshed_at';
 
   FormDataCacheService({
     required AppDatabase db,
@@ -68,7 +75,7 @@ class FormDataCacheService {
 
     try {
       // Fetch from Supabase
-      final modules = await _coopModulesService.getModules();
+      final modules = await _coopModulesService.fetchFromSupabase();
 
       DebugLogger.info('FormDataCacheService', 'refreshCoopModules',
           'Fetched ${modules.length} modules from Supabase');
@@ -155,6 +162,38 @@ class FormDataCacheService {
     }
   }
 
+  /// Refresh certified workers cache (desplegable del Control de personal
+  /// operario sin señal)
+  Future<void> refreshCertifiedWorkers() async {
+    DebugLogger.info('FormDataCacheService', 'refreshCertifiedWorkers',
+        'Refreshing certified workers from Supabase');
+
+    try {
+      await CertifiedWorkersService(db: _db).refreshCache();
+
+      DebugLogger.info('FormDataCacheService', 'refreshCertifiedWorkers',
+          'Certified workers cache refreshed successfully');
+    } catch (e, st) {
+      DebugLogger.error('FormDataCacheService', 'refreshCertifiedWorkers',
+          'Error refreshing certified workers: $e',
+          stackTrace: st);
+      rethrow;
+    }
+  }
+
+  /// Refresh recent production batches cache (lotes de los últimos 30 días,
+  /// para elegir el lote de un control sin señal)
+  Future<void> refreshRecentBatches() async {
+    try {
+      await RecentBatchesService(db: _db).refreshCache();
+    } catch (e, st) {
+      DebugLogger.error('FormDataCacheService', 'refreshRecentBatches',
+          'Error refreshing recent batches: $e',
+          stackTrace: st);
+      rethrow;
+    }
+  }
+
   /// Refresh all form data caches from Supabase
   ///
   /// This method should be called after successful login to ensure
@@ -165,6 +204,8 @@ class FormDataCacheService {
   /// - Plots (for production forms) - depends on producers
   /// - Cooperative modules
   /// - Batch certificates (for production forms)
+  /// - Certified workers (for the worker control form)
+  /// - Recent production batches (last 30 days, for the worker control form)
   ///
   /// IMPORTANT: Producers must be refreshed BEFORE plots because
   /// plots need to resolve producer local IDs during cache refresh.
@@ -188,10 +229,14 @@ class FormDataCacheService {
       await Future.wait([
         refreshCoopModules(),
         refreshBatchCerts(),
+        refreshCertifiedWorkers(),
+        refreshRecentBatches(),
         // Add more refresh calls as needed:
         // refreshProductTypes(),
         // refreshDocumentTypes(),
       ]);
+
+      await _saveLastRefreshedAt(DateTime.now());
 
       DebugLogger.info('FormDataCacheService', 'refreshAllFormData',
           'All form data refreshed successfully');
@@ -217,11 +262,16 @@ class FormDataCacheService {
       await Future.wait([
         _db.coopModulesDao.clear(),
         _db.batchCertsDao.clear(),
+        _db.certifiedWorkersDao.clear(),
+        _db.cachedProductionBatchesDao.clear(),
+        // pending_submissions NO se borra: son registros sin enviar (el
+        // cierre de sesión se bloquea mientras haya pendientes).
         _db.producersDao.deleteSynced(),  // Only delete synced, keep pending
         _db.plotsDao.deleteSynced(),      // Only delete synced, keep pending
         // Add more clear calls as needed:
         // _db.productTypesDao.clear(),
         // _db.documentTypesDao.clear(),
+        _clearLastRefreshedAt(),
       ]);
 
       DebugLogger.info('FormDataCacheService', 'clearAllCache',
@@ -232,6 +282,30 @@ class FormDataCacheService {
           stackTrace: st);
       rethrow;
     }
+  }
+
+  // ==================== ÚLTIMA ACTUALIZACIÓN ====================
+
+  /// Cuándo se actualizaron por última vez TODOS los datos para trabajar sin
+  /// señal, o null si nunca (o si se borraron al cerrar sesión).
+  Future<DateTime?> getLastRefreshedAt() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final millis = prefs.getInt(_lastRefreshedAtKey);
+      return millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveLastRefreshedAt(DateTime at) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lastRefreshedAtKey, at.millisecondsSinceEpoch);
+  }
+
+  Future<void> _clearLastRefreshedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastRefreshedAtKey);
   }
 
   // ==================== UTILITY METHODS ====================

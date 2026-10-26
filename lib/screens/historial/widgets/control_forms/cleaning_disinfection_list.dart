@@ -15,11 +15,11 @@ import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 Color _cleaningTypeColor(CleaningType type) {
   switch (type) {
     case CleaningType.daily:
-      return const Color(0xFF1565C0);
+      return AppColors.cleaningDaily;
     case CleaningType.general:
-      return const Color(0xFFE65100);
+      return AppColors.cleaningGeneral;
     case CleaningType.deep:
-      return const Color(0xFF6A1B9A);
+      return AppColors.cleaningDeep;
   }
 }
 
@@ -212,7 +212,7 @@ class _CleaningCard extends StatelessWidget {
           if (hasObservations)
             Padding(
               padding: EdgeInsets.only(left: context.responsiveSpacing / 2),
-              child: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+              child: const Icon(Icons.info_outline, color: AppColors.warning, size: 20),
             ),
         ],
       ),
@@ -223,22 +223,22 @@ class _CleaningCard extends StatelessWidget {
             Container(
               padding: context.responsivePadding,
               decoration: BoxDecoration(
-                color: Colors.orange[50],
+                color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                border: Border.all(color: Colors.orange[200]!),
+                border: Border.all(color: AppColors.warningBorder),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.orange[900]),
+                    Icon(Icons.info_outline, size: 16, color: AppColors.warningDark),
                     const SizedBox(width: 8),
                     Text('Observaciones Generales:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange[900])),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.warningDark)),
                   ]),
                   const SizedBox(height: 8),
                   Text(generalObservations,
-                      style: TextStyle(fontSize: 12, color: Colors.orange[900])),
+                      style: TextStyle(fontSize: 12, color: AppColors.warningDark)),
                 ],
               ),
             ),
@@ -260,7 +260,7 @@ class _CleaningCard extends StatelessWidget {
               margin: EdgeInsets.only(bottom: context.responsiveSpacing),
               padding: context.responsivePadding,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                 border: Border.all(color: AppColors.inputBorder),
               ),
@@ -291,7 +291,7 @@ class _CleaningCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
+                        Icon(Icons.check_circle, size: 14, color: AppColors.successDark),
                         const SizedBox(width: 8),
                         Expanded(child: Text(item.pointDescription,
                             style: const TextStyle(fontSize: 12))),

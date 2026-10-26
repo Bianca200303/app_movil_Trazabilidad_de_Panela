@@ -236,7 +236,7 @@ class _HistorialExitsSectionState extends State<HistorialExitsSection> {
                       child: Text(
                         'AUTOCONSUMO',
                         style: AppTextStyles.bodyText.copyWith(
-                          color: const Color(0xFF2E7D32),
+                          color: AppColors.successDark,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -310,7 +310,7 @@ class HistorialMobileDataView extends StatelessWidget {
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
             border: Border.all(
-              color: isPending ? const Color(0xFFFF9800) : AppColors.inputBorder,
+              color: isPending ? AppColors.warning : AppColors.inputBorder,
               width: isPending ? 2 : AppDimensions.inputBorderWidth,
             ),
           ),
@@ -323,12 +323,12 @@ class HistorialMobileDataView extends StatelessWidget {
                   children: [
                     if (isPending) ...[
                       const Icon(Icons.sync_problem,
-                          size: 16, color: Color(0xFFFF9800)),
+                          size: 16, color: AppColors.warning),
                       SizedBox(width: context.responsiveSpacing / 4),
                       Text(
                         'Por Sincronizar',
                         style: AppTextStyles.captionText.copyWith(
-                          color: const Color(0xFFFF9800),
+                          color: AppColors.warning,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

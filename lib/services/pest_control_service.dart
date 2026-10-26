@@ -4,70 +4,43 @@
 
 import 'package:panela_sys/models/pest_control.dart';
 import 'package:panela_sys/models/production_date_group.dart';
+import 'package:panela_sys/services/production_dates_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 /// Service for managing pest control records
 class PestControlService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
+  final ProductionDatesService _productionDates;
+
+  PestControlService({
+    PendingSubmissionsService? pending,
+    ProductionDatesService? productionDates,
+  })  : _pending = pending ?? PendingSubmissionsService(),
+        _productionDates = productionDates ?? ProductionDatesService();
 
   // =====================================================
   // Create Operations
   // =====================================================
 
-  /// Creates a complete pest control record with batch insert
-  ///
-  /// This method performs:
-  /// 1. Insert parent record (pest_controls)
-  /// 2. Insert bait record if provided (pest_control_bait_records)
-  /// 3. Insert insect record if provided (pest_control_insect_records)
-  ///
-  /// Returns the created parent record
-  ///
-  /// Throws if:
-  /// - Neither baitRecord nor insectRecord is provided
-  /// - Duplicate record exists for module+date (UNIQUE constraint)
-  /// - User doesn't have permission (RLS)
-  /// - Database error occurs
-  Future<PestControl> createPestControl(
-    CreatePestControlRequest request,
-  ) async {
-    try {
-      // Validation: at least one type of control must be provided
-      if (request.baitRecord == null && request.insectRecord == null) {
-        throw Exception(
-          'Debe proporcionar al menos un tipo de control (cebos o insectos)',
-        );
-      }
-
-      // 1. Insert parent record
-      final parentResponse = await _supabase
-          .from('pest_controls')
-          .insert(request.toParentJson())
-          .select()
-          .single();
-
-      final parentId = parentResponse['id'] as String;
-
-      // 2. Insert bait record if provided
-      if (request.baitRecord != null) {
-        final baitJson = request.baitRecord!.toJson();
-        baitJson['pest_control_id'] = parentId;
-        await _supabase.from('pest_control_bait_records').insert(baitJson);
-      }
-
-      // 3. Insert insect record if provided
-      if (request.insectRecord != null) {
-        final insectJson = request.insectRecord!.toJson();
-        insectJson['pest_control_id'] = parentId;
-        await _supabase.from('pest_control_insect_records').insert(insectJson);
-      }
-
-      // 4. Return created parent record
-      return PestControl.fromJson(parentResponse);
-    } catch (e) {
-      throw Exception('Error al crear registro de control de plagas: $e');
+  /// Registra un control de plagas nuevo (cabecera + cebos y/o insectos),
+  /// con o sin señal (ver PendingSubmissionsService.submit). Se envía con la
+  /// RPC atómica e idempotente submit_pest_control.
+  Future<SubmissionOutcome> submitPestControl(CreatePestControlRequest request) {
+    if (request.baitRecord == null && request.insectRecord == null) {
+      throw ArgumentError('Debe proporcionar al menos un tipo de control (cebos o insectos)');
     }
+    return _pending.submit(
+      kind: SubmissionKinds.pestControl,
+      payload: {
+        ...request.toParentJson(),
+        'bait_record': request.baitRecord?.toJson(),
+        'insect_record': request.insectRecord?.toJson(),
+      },
+    );
   }
 
   // =====================================================
@@ -204,34 +177,27 @@ class PestControlService {
     }
   }
 
-  Future<bool> hasControlOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final response = await _supabase
-          .from('pest_controls')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('control_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay control de plagas de este módulo ese día? (servidor + pendientes)
+  Future<bool> hasControlOnDate(String moduleId, DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.pestControl,
+      matches: (p) => p['coop_module_id'] == moduleId && p['control_date'] == dateStr,
+      serverCheck: () async {
+        final response = await _supabase
+            .from('pest_controls')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('control_date', dateStr)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
-  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = date.toIso8601String().split('T')[0];
-      final response = await _supabase
-          .from('production_batches')
-          .select('id, producers!inner(coop_module_id)')
-          .eq('producers.coop_module_id', moduleId)
-          .eq('process_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Hubo producción en el módulo ese día? (con o sin señal)
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) {
+    return _productionDates.hasProductionOnDate(moduleId, date);
   }
 
   // =====================================================

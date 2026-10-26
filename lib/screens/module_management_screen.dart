@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
+import 'package:panela_sys/core/supabase_paging.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ModuleManagementScreen extends StatefulWidget {
   const ModuleManagementScreen({super.key});
@@ -23,16 +26,57 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
   List<CoopModule> _modules = [];
   int _nameFieldKey = 0;
 
+  /// Productores activos por módulo (para ubicarse entre muchos módulos).
+  Map<String, int> _producerCounts = {};
+
+  final _searchController = TextEditingController();
+
+  /// A partir de cuántos módulos se muestra el buscador.
+  static const _searchThreshold = 6;
+
+  /// La lista se dibuja por tandas: con cientos de módulos, construir todas
+  /// las filas de una vez hacía lenta la pantalla.
+  static const _pageSize = 40;
+  int _shown = _pageSize;
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() => setState(() => _shown = _pageSize));
     _loadModules();
+    _loadProducerCounts();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProducerCounts() async {
+    try {
+      final rows = await fetchAllRows(() => Supabase.instance.client
+          .from('producers')
+          .select('id, coop_module_id')
+          .eq('cooperative_id', AppConfig.current.id)
+          .eq('is_active', true)
+          .order('id'));
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final id = row['coop_module_id'] as String?;
+        if (id != null) counts[id] = (counts[id] ?? 0) + 1;
+      }
+      if (mounted) setState(() => _producerCounts = counts);
+    } catch (_) {
+      // Sin conexión: la lista se muestra igual, sin los conteos.
+    }
+  }
+
+  List<CoopModule> get _visibleModules {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _modules;
+    return _modules.where((m) => m.name.toLowerCase().contains(query)).toList();
   }
 
   Future<void> _loadModules() async {
@@ -156,6 +200,62 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
     }
   }
 
+  Widget _buildModulesList() {
+    final visible = _visibleModules;
+    final countsLoaded = _producerCounts.isNotEmpty;
+    return FormGroup(
+      children: [
+        Column(
+          children: [
+            const AppTitle(title: 'Módulos existentes'),
+            if (!_isLoading && _modules.isNotEmpty)
+              Text(
+                _modules.length == 1 ? '1 módulo' : '${_modules.length} módulos',
+                style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary),
+              ),
+          ],
+        ),
+        if (_modules.length >= _searchThreshold)
+          AppTextField(
+            controller: _searchController,
+            hintText: 'Buscar módulo',
+            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+            suffixIcon: _searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Limpiar búsqueda',
+                    onPressed: _searchController.clear,
+                  ),
+          ),
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_modules.isEmpty)
+          Text('No hay módulos registrados.', style: AppTextStyles.bodyText)
+        else if (visible.isEmpty)
+          Text('Ningún módulo coincide con la búsqueda.', style: AppTextStyles.bodyText)
+        else ...[
+          AppEntityList(
+            children: [
+              for (final module in visible.take(_shown))
+                _ModuleTile(
+                  module: module,
+                  producerCount: countsLoaded ? (_producerCounts[module.id] ?? 0) : null,
+                  onEdit: () => _showEditDialog(module),
+                ),
+            ],
+          ),
+          if (visible.length > _shown)
+            AppButton(
+              text: 'Mostrar más (${visible.length - _shown} restantes)',
+              type: AppButtonType.secondary,
+              onPressed: () => setState(() => _shown += _pageSize),
+            ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -196,7 +296,7 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
                           enabled: !_isSaving,
                         ),
                         AppButton(
-                          text: 'CREAR MÓDULO',
+                          text: 'Crear módulo',
                           onPressed: _createModule,
                           isLoading: _isSaving,
                         ),
@@ -210,20 +310,7 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
                 // Existing modules list
                 AppCard(
                   padding: context.responsivePadding,
-                  child: FormGroup(
-                    children: [
-                      const AppTitle(title: 'Módulos existentes'),
-                      if (_isLoading)
-                        const Center(child: CircularProgressIndicator())
-                      else if (_modules.isEmpty)
-                        const Text('No hay módulos registrados.')
-                      else
-                        ..._modules.map((module) => _ModuleTile(
-                              module: module,
-                              onEdit: () => _showEditDialog(module),
-                            )),
-                    ],
-                  ),
+                  child: _buildModulesList(),
                 ),
               ],
             ),
@@ -236,28 +323,30 @@ class _ModuleManagementScreenState extends State<ModuleManagementScreen> {
 
 class _ModuleTile extends StatelessWidget {
   final CoopModule module;
+  final int? producerCount;
   final VoidCallback onEdit;
 
-  const _ModuleTile({required this.module, required this.onEdit});
+  const _ModuleTile({required this.module, required this.producerCount, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          const Icon(Icons.circle, size: 8, color: AppColors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(module.name, style: AppTextStyles.bodyText),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            color: AppColors.primary,
-            tooltip: 'Editar',
-            onPressed: onEdit,
-          ),
-        ],
+    return AppEntityTile(
+      title: module.name,
+      icon: Icons.view_module_outlined,
+      accent: AppColors.primary,
+      subtitle: switch (producerCount) {
+        null => null,
+        0 => 'Sin productores',
+        1 => '1 productor',
+        final n => '$n productores',
+      },
+      onTap: onEdit,
+      trailing: IconButton(
+        icon: const Icon(Icons.edit_outlined, size: 20),
+        color: AppColors.primary,
+        tooltip: 'Editar',
+        visualDensity: VisualDensity.compact,
+        onPressed: onEdit,
       ),
     );
   }

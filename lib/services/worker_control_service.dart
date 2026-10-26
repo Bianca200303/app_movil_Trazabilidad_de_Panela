@@ -1,48 +1,51 @@
+import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/models/worker_control.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WorkerControlService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
 
-  Future<WorkerControl> createWorkerControl(
-    CreateWorkerControlRequest request,
-  ) async {
-    try {
-      // 1. PREPARAR LA CABECERA
-      final headerData = request.toHeaderJson();
-      
-      // TRUCO DE COMPATIBILIDAD: Como tu tabla original 'worker_controls' 
-      // probablemente exige que la columna 'worker_name' no esté vacía (NOT NULL),
-      // le ponemos un texto genérico. Así no rompemos tu historial.
-      headerData['worker_name'] = 'Registro Grupal (${request.workers.length} operarios)';
+  WorkerControlService({PendingSubmissionsService? pending})
+      : _pending = pending ?? PendingSubmissionsService();
 
-      // 2. INSERTAR CABECERA
-      final headerResponse = await _supabase
-          .from('worker_controls')
-          .insert(headerData)
-          .select()
-          .single();
-
-      final headerId = headerResponse['id'];
-
-      // 3. INSERTAR DETALLES (Los trabajadores)
-      if (request.workers.isNotEmpty) {
-        // Convertimos la lista de objetos WorkerEvaluation a una lista de JSONs
-        final itemsData = request.workers
-            .map((worker) => worker.toJson(headerId))
-            .toList();
-
-        // Supabase permite insertar una lista completa de golpe (Bulk Insert)
-        await _supabase.from('worker_control_items').insert(itemsData);
-      }
-
-      // 4. RETORNAR RESULTADO
-      // Devolvemos la cabecera para que la app no se queje y siga su flujo normal
-      return WorkerControl.fromJson(headerResponse);
-      
-    } catch (e) {
-      throw Exception('Error al crear control de trabajadores: $e');
+  /// Registra un control nuevo, con o sin señal.
+  ///
+  /// Siempre se guarda primero en el celular y, si hay señal, se envía en el
+  /// momento ([SubmissionOutcome.sent]); si no, queda pendiente y se envía
+  /// solo al volver la señal ([SubmissionOutcome.queued]). Si el lote fue
+  /// creado sin señal en este celular ([productionBatchLocalId]), el control
+  /// espera a que ese lote se envíe primero.
+  ///
+  /// Si el servidor rechaza el registro en el momento, lanza el error (y el
+  /// registro no queda pendiente).
+  Future<SubmissionOutcome> submitNewControl({
+    String? productionBatchId,
+    int? productionBatchLocalId,
+    required WorkArea workArea,
+    String? observations,
+    required List<WorkerEvaluation> workers,
+  }) async {
+    if ((productionBatchId == null) == (productionBatchLocalId == null)) {
+      throw ArgumentError('Se requiere el lote del servidor o el lote local, uno de los dos');
     }
+    if (workers.isEmpty) {
+      throw ArgumentError('El control debe tener al menos un trabajador');
+    }
+
+    return _pending.submit(
+      kind: SubmissionKinds.workerControl,
+      productionBatchLocalId: productionBatchLocalId,
+      payload: {
+        'cooperative_id': AppConfig.current.id,
+        'production_batch_id': productionBatchId,
+        'work_area': workArea.code,
+        'observations': observations,
+        'items': workers.map((w) => w.toItemJson()).toList(),
+      },
+    );
   }
 
   // Get worker controls by production batch
@@ -106,15 +109,25 @@ class WorkerControlService {
           .from('worker_controls')
           .select('*, worker_control_items(*), production_batches!inner(process_date, panela_kg, confitillo_kg, producers!inner(first_name, last_name, dni, coop_modules(name))), registered_by_user:users!worker_controls_created_by_fkey(first_name, last_name)')
           .eq('cooperative_id', cooperativeId)
-          .gte('created_at', from.toIso8601String().split('T')[0])
-          .lte('created_at', '${to.toIso8601String().split('T')[0]}T23:59:59')
+          // Por la fecha de producción del lote (la que muestra la tarjeta y
+          // usa la web), no por created_at: un control registrado sin señal
+          // recibe created_at recién al subirse, días después.
+          .gte('production_batches.process_date', from.toIso8601String().split('T')[0])
+          .lte('production_batches.process_date', to.toIso8601String().split('T')[0])
           .order('created_at', ascending: false);
 
-      return (response as List).map((json) {
+      final rows = (response as List).cast<Map<String, dynamic>>()
+        ..sort((a, b) {
+          final da = (a['production_batches'] as Map?)?['process_date'] as String? ?? '';
+          final db = (b['production_batches'] as Map?)?['process_date'] as String? ?? '';
+          return db.compareTo(da); // más reciente primero
+        });
+
+      return rows.map((json) {
         final batch = json['production_batches'] as Map<String, dynamic>?;
         final producer = batch?['producers'] as Map<String, dynamic>?;
         final regUser = json['registered_by_user'] as Map<String, dynamic>?;
-        final control = WorkerControl.fromJson(json as Map<String, dynamic>);
+        final control = WorkerControl.fromJson(json);
         return {
           'control': control,
           'producer_dni': producer?['dni'] as String?,

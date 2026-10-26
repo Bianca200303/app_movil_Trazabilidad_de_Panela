@@ -117,7 +117,7 @@ class _HistorialPeriodFilterState extends State<HistorialPeriodFilter> {
                   child: Text(
                     labels[p]!,
                     style: AppTextStyles.captionText.copyWith(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                      color: isSelected ? AppColors.textWhite : AppColors.textSecondary,
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),

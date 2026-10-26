@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
+import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/services/cooperative_preferences_service.dart';
 
@@ -58,7 +59,7 @@ class _CooperativeSelectionScreenState
         setState(() {
           _isLoading = false;
           _errorMessage =
-              'Código incorrecto. Verifica el código con tu cooperativa.';
+              'Código incorrecto. Verifique el código con su cooperativa.';
         });
         return;
       }
@@ -73,7 +74,7 @@ class _CooperativeSelectionScreenState
       setState(() {
         _isLoading = false;
         _errorMessage =
-            'No se pudo verificar el código. Revisa tu conexión e intenta de nuevo.';
+            'No se pudo verificar el código. Revise su conexión e intente de nuevo.';
       });
     }
   }
@@ -101,6 +102,10 @@ class _CooperativeSelectionScreenState
     });
   }
 
+  /// Celular pequeño (angosto o bajo): márgenes, íconos y espacios menores
+  /// para que el formulario entre sin desplazarse.
+  bool get _compact => context.isSmallScreen;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,7 +114,7 @@ class _CooperativeSelectionScreenState
         child: Center(
           child: SingleChildScrollView(
             padding:
-                const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                EdgeInsets.symmetric(horizontal: _compact ? 16 : 32, vertical: _compact ? 16 : 24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: AnimatedSwitcher(
@@ -132,9 +137,9 @@ class _CooperativeSelectionScreenState
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(
+        Icon(
           Icons.agriculture_rounded,
-          size: 72,
+          size: _compact ? 56 : 72,
           color: AppColors.primary,
         ),
         const SizedBox(height: 16),
@@ -148,13 +153,13 @@ class _CooperativeSelectionScreenState
         ),
         const SizedBox(height: 8),
         Text(
-          'Ingresa el código proporcionado por tu cooperativa para continuar.',
+          'Ingrese el código proporcionado por su cooperativa para continuar.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
         ),
-        const SizedBox(height: 32),
+        SizedBox(height: _compact ? 20 : 32),
         Form(
           key: _formKey,
           child: Column(
@@ -166,7 +171,7 @@ class _CooperativeSelectionScreenState
                 textCapitalization: TextCapitalization.characters,
                 decoration: InputDecoration(
                   labelText: 'Código de cooperativa',
-                  hintText: 'Ingresa tu código',
+                  hintText: 'Ingrese su código',
                   filled: true,
                   fillColor: AppColors.inputFill,
                   border: OutlineInputBorder(
@@ -204,7 +209,7 @@ class _CooperativeSelectionScreenState
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Ingresa el código de tu cooperativa';
+                    return 'Ingrese el código de su cooperativa';
                   }
                   return null;
                 },
@@ -272,9 +277,9 @@ class _CooperativeSelectionScreenState
             ],
           ),
         ),
-        const SizedBox(height: 40),
+        SizedBox(height: _compact ? 24 : 40),
         Text(
-          'Este código solo se ingresa una vez.\nSi no lo tienes, contacta al administrador de tu cooperativa.',
+          'Este código solo se ingresa una vez.\nSi no lo tiene, contacte al administrador de su cooperativa.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.textTertiary,
@@ -292,14 +297,14 @@ class _CooperativeSelectionScreenState
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(
+        Icon(
           Icons.check_circle_outline_rounded,
-          size: 72,
+          size: _compact ? 56 : 72,
           color: AppColors.success,
         ),
         const SizedBox(height: 16),
         Text(
-          '¿Esta es tu cooperativa?',
+          '¿Esta es su cooperativa?',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: AppColors.textPrimary,
@@ -310,7 +315,7 @@ class _CooperativeSelectionScreenState
 
         // Tarjeta con el nombre de la cooperativa
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          padding: EdgeInsets.symmetric(vertical: _compact ? 14 : 20, horizontal: _compact ? 16 : 24),
           decoration: BoxDecoration(
             color: AppColors.infoLight,
             borderRadius: BorderRadius.circular(12),
@@ -333,7 +338,7 @@ class _CooperativeSelectionScreenState
           ),
         ),
 
-        const SizedBox(height: 32),
+        SizedBox(height: _compact ? 20 : 32),
 
         // Botón confirmar
         SizedBox(

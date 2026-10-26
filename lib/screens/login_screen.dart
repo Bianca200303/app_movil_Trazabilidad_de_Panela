@@ -10,6 +10,7 @@ import 'package:panela_sys/services/cooperative_preferences_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
+import 'package:panela_sys/providers/form_data_refresh_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -118,6 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         try {
           await ref.read(formDataCacheServiceProvider).refreshAllFormData();
+          await ref.read(formDataRefreshProvider.notifier).reload();
         } catch (e) {
           // Don't block login if cache refresh fails
           if (mounted) {
@@ -146,7 +148,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error de conexión. Verifica tu internet e intenta de nuevo.',
+          message: 'Error de conexión. Verifique su internet e intente de nuevo.',
           type: SnackBarType.error,
         );
       }
@@ -163,108 +165,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       showSyncStatus: false,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: context.responsiveHorizontalPadding.copyWith(
-            top: context.responsivePadding.top,
-            bottom: context.responsivePadding.bottom,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: context.responsiveCardWidth,
-              minHeight: context.screenSize.height - (context.responsivePadding.vertical),
-            ),
-            child: IntrinsicHeight(
-              child: AppCard(
-                padding: context.responsivePadding,
-                child: Form(
-                  key: _formKey,
-                  child: FormGroup(
-                    children: [
-                      Image.asset(AppConfig.current.logoPath, height: 64),
-                      const SizedBox(height: 12),
-                      AppTitle(
-                        title: AppConfig.current.displayTitle,
-                      ),
+      // AppCard ya centra, limita el ancho y desplaza si no entra (p. ej. con
+      // el teclado abierto en un celular pequeño).
+      child: AppCard(
+        padding: context.responsivePadding,
+        child: Form(
+          key: _formKey,
+          child: FormGroup(
+            children: [
+              Image.asset(AppConfig.current.logoPath, height: 64),
+              const SizedBox(height: 12),
+              AppTitle(
+                title: AppConfig.current.displayTitle,
+              ),
 
-                      AppTextField(
-                        label: 'DNI',
-                        controller: _identifierController,
-                        keyboardType: TextInputType.number,
-                        maxLength: 8,
-                        validator: _validateDNI,
-                        enabled: !_isLoading,
-                      ),
+              AppTextField(
+                label: 'DNI',
+                controller: _identifierController,
+                keyboardType: TextInputType.number,
+                maxLength: 8,
+                validator: _validateDNI,
+                enabled: !_isLoading,
+              ),
 
-                      // Botón rápido: aparece al completar los 8 dígitos del DNI
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 200),
-                        child: _dniComplete
-                            ? Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.tonal(
-                                    onPressed: _isLoading ? null : _signInWithDni,
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Usar DNI como contraseña',
-                                      style: TextStyle(fontSize: 15),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-
-                      AppTextField(
-                        label: 'Contraseña',
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        validator: _validatePassword,
-                        enabled: !_isLoading,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword 
-                                ? Icons.visibility_off 
-                                : Icons.visibility,
-                            color: AppColors.textSecondary,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
-                      ),
-                      
-                      AppButton(
-                        text: 'INICIAR SESIÓN',
-                        onPressed: _signIn,
-                        isLoading: _isLoading,
-                      ),
-
-                      // Link para corregir la cooperativa si se eligió mal
-                      TextButton(
-                        onPressed: _isLoading ? null : _changeCooperative,
-                        child: Text(
-                          '¿Cooperativa incorrecta? Cambiar',
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 13,
+              // Botón rápido: aparece al completar los 8 dígitos del DNI
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                child: _dniComplete
+                    ? Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.tonal(
+                            onPressed: _isLoading ? null : _signInWithDni,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Usar DNI como contraseña',
+                              style: TextStyle(fontSize: 15),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
+
+              AppTextField(
+                label: 'Contraseña',
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                validator: _validatePassword,
+                enabled: !_isLoading,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword 
+                        ? Icons.visibility_off 
+                        : Icons.visibility,
+                    color: AppColors.textSecondary,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+              ),
+              
+              AppButton(
+                text: 'INICIAR SESIÓN',
+                onPressed: _signIn,
+                isLoading: _isLoading,
+              ),
+
+              // Link para corregir la cooperativa si se eligió mal
+              TextButton(
+                onPressed: _isLoading ? null : _changeCooperative,
+                child: Text(
+                  '¿Cooperativa incorrecta? Cambiar',
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 13,
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

@@ -145,17 +145,17 @@ class _ModuleAndDateStepState extends State<ModuleAndDateStep> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
+                    color: AppColors.successLight,
                     borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                      const Icon(Icons.agriculture_outlined, size: 16, color: AppColors.successDark),
                       const SizedBox(width: 6),
                       Text(
                         'Día con producción registrada',
                         style: AppTextStyles.captionText.copyWith(
-                          color: const Color(0xFF2E7D32),
+                          color: AppColors.successDark,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

@@ -75,7 +75,7 @@ class _ProductReturnsListState extends State<ProductReturnsList> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[400]),
+                  Icon(Icons.inbox_outlined, size: 48, color: AppColors.textTertiary),
                   const SizedBox(height: 12),
                   Text('No hay devoluciones en este período.', style: AppTextStyles.captionText, textAlign: TextAlign.center),
                 ],

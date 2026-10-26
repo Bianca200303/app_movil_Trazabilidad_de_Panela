@@ -3,6 +3,7 @@
 // 4-Step Wizard Implementation
 // =====================================================
 
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,7 @@ import 'package:panela_sys/models/pest_control.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/pest_control_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/pest_control/bait_control_step.dart';
 import 'package:panela_sys/widgets/pest_control/insect_control_step.dart';
@@ -124,7 +126,7 @@ class _PestControlRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al cargar módulos: $e',
+          message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'),
           type: SnackBarType.error,
         );
         setState(() => _isLoadingModules = false);
@@ -143,18 +145,13 @@ class _PestControlRegistrationScreenState
         final hasExisting = await _pestControlService.hasControlOnDate(_selectedModuleId!, _selectedDate!);
         if (!mounted) return;
         if (hasExisting) {
-          final proceed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Ya hay un control este día', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              content: const Text('Ya existe un control de plagas para este módulo en esta fecha.\n\n¿Deseas registrar otro igualmente?', style: TextStyle(fontSize: 16)),
-              actions: [
-                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
-                TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
-              ],
-            ),
+          final proceed = await AppConfirmDialog.show(
+            context,
+            title: 'Ya hay un control este día',
+            message: 'Ya existe un control de plagas para este módulo en esta fecha.\n\n¿Desea registrar otro igualmente?',
+            confirmLabel: 'Continuar',
           );
-          if (proceed != true || !mounted) return;
+          if (!proceed || !mounted) return;
           _duplicateWarningAcknowledged = true;
         }
       }
@@ -177,7 +174,7 @@ class _PestControlRegistrationScreenState
 
   void _previousStep() {
     if (_currentStep == 0) {
-      _showExitConfirmation();
+      _leave();
     } else {
       setState(() {
         _currentStep--;
@@ -310,31 +307,6 @@ class _PestControlRegistrationScreenState
     return true;
   }
 
-  void _showExitConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar registro'),
-        content: const Text(
-          '¿Estás seguro de que deseas cancelar? Se perderán todos los datos ingresados.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Continuar editando'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go(AppRoutes.controlFormsModulo.path);
-            },
-            child: const Text('Sí, cancelar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -423,12 +395,12 @@ class _PestControlRegistrationScreenState
         insectRecord: insectRequest,
       );
 
-      await _pestControlService.createPestControl(request);
+      final outcome = await _pestControlService.submitPestControl(request);
 
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Control de plagas registrado exitosamente',
+          message: outcome.message('Control de plagas registrado exitosamente'),
           type: SnackBarType.success,
         );
         context.go(AppRoutes.controlFormsModulo.path);
@@ -437,7 +409,7 @@ class _PestControlRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al guardar: $e',
+          message: userErrorMessage(e, action: 'No se pudo guardar'),
           type: SnackBarType.error,
         );
       }
@@ -494,7 +466,7 @@ class _PestControlRegistrationScreenState
     return FormSection(
       children: [
         AppBackButton(
-          onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+          onPressed: _leave,
           isExpanded: true,
         ),
         SizedBox(height: context.responsiveSpacing),
@@ -554,15 +526,15 @@ class _PestControlRegistrationScreenState
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
+                    color: AppColors.successLight,
                     borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                      const Icon(Icons.agriculture_outlined, size: 16, color: AppColors.successDark),
                       const SizedBox(width: 6),
                       Text('Día con producción registrada',
-                        style: AppTextStyles.captionText.copyWith(color: const Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
+                        style: AppTextStyles.captionText.copyWith(color: AppColors.successDark, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -708,8 +680,23 @@ class _PestControlRegistrationScreenState
   // Build
   // =====================================================
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _selectedDate != null;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsModulo.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       hasTopLabel: true,
       topLabelText: 'Control de Plagas',

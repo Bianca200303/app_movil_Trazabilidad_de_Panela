@@ -43,7 +43,7 @@ class SelectableExitCard extends StatelessWidget {
         padding: context.responsivePadding,
         decoration: BoxDecoration(
           color: alreadyInspected
-              ? Colors.grey.shade100
+              ? AppColors.surfaceVariant
               : isSelected
                   ? AppColors.primary.withValues(alpha: 0.1)
                   : AppColors.surfaceVariant,
@@ -62,18 +62,18 @@ class SelectableExitCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
+                  color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.orange.shade400),
+                  border: Border.all(color: AppColors.warningBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_circle, size: 14, color: Colors.orange.shade700),
+                    Icon(Icons.check_circle, size: 14, color: AppColors.warningDark),
                     const SizedBox(width: 4),
                     Text('Ya inspeccionado',
                         style: AppTextStyles.captionText.copyWith(
-                          color: Colors.orange.shade800,
+                          color: AppColors.warningDark,
                           fontWeight: FontWeight.w600,
                         )),
                   ],
@@ -141,7 +141,7 @@ class SelectableExitCard extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(context.responsiveSpacing / 2),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: AppColors.surface.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                   border: Border.all(
                     color: AppColors.inputBorder.withValues(alpha: 0.5),

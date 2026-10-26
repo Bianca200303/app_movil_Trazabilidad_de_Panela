@@ -7,16 +7,17 @@ import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/models/coop_module.dart';
-import 'package:panela_sys/models/plot.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
-import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/services/producer_service.dart';
+import 'package:panela_sys/widgets/common/app_button.dart';
+import 'package:panela_sys/widgets/common/app_snackbar.dart';
 import 'package:panela_sys/widgets/forms/module_search_field.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/forms/radio_group.dart';
 
-/// Diálogo de edición de productor y sus parcelas.
+/// Diálogo de edición de los datos del productor. Las parcelas se gestionan
+/// aparte, con "Parcelas" en la tarjeta del productor (showProducerPlotsSheet).
 ///
 /// Soporta dos modos:
 /// - Productor sincronizado (id = UUID): edita directamente en Supabase.
@@ -42,7 +43,6 @@ class ProducerEditDialog extends ConsumerStatefulWidget {
 
 class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
   late final ProducerService _producerService;
-  late final PlotService _plotService;
   late final CoopModulesService _modulesService;
 
   final _formKey = GlobalKey<FormState>();
@@ -53,15 +53,6 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
   List<CoopModule> _modules = [];
   String? _selectedModuleId;
   String _memberStatus = 'SOCIO';
-
-  // Existing plots loaded from service
-  List<Plot> _plots = [];
-  // Map: plot.id → controller for editing name
-  final Map<String, TextEditingController> _plotControllers = {};
-
-  // New plots pending to be created on save
-  final List<String> _plotsToAdd = [];
-  final _newPlotNameController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -77,7 +68,6 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
 
     final db = ref.read(appDatabaseProvider);
     _producerService = ProducerService(db: db);
-    _plotService = PlotService(db: db);
     _modulesService = CoopModulesService(db: db);
 
     _producerId = widget.producerData['id'].toString();
@@ -114,7 +104,7 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
           setState(() {
             _isLoading = false;
             _loadError =
-                'Necesitas conexión a internet para editar registros sincronizados.';
+                'Necesita conexión a internet para editar productores ya sincronizados.';
           });
           return;
         }
@@ -138,17 +128,10 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
             matchedModule.id.isNotEmpty ? matchedModule.id : null;
       }
 
-      // Load producer's plots
-      final plots = await _plotService.getPlotsForEdit(_producerId);
-      for (final plot in plots) {
-        _plotControllers[plot.id] = TextEditingController(text: plot.name);
-      }
-
       if (mounted) {
         setState(() {
           _modules = modules;
           _selectedModuleId = resolvedModuleId;
-          _plots = plots;
           _isLoading = false;
         });
       }
@@ -162,47 +145,12 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
     }
   }
 
-  // ── Agregar parcela ──────────────────────────────────────────────────────────
-
-  void _addNewPlot() {
-    final name = _newPlotNameController.text.trim();
-
-    // Validate: if names required for this cooperative
-    if (AppConfig.current.features.requirePlotNames && name.isEmpty) {
-      _showSnack('Ingresa el nombre de la parcela', isError: true);
-      return;
-    }
-
-    // Check duplicate among existing and pending
-    if (name.isNotEmpty) {
-      final existsInCurrent = _plots.any(
-        (p) => p.name.toLowerCase() == name.toLowerCase(),
-      );
-      final existsInPending = _plotsToAdd.any(
-        (n) => n.toLowerCase() == name.toLowerCase(),
-      );
-      if (existsInCurrent || existsInPending) {
-        _showSnack('Ya existe una parcela con ese nombre', isError: true);
-        return;
-      }
-    }
-
-    setState(() {
-      _plotsToAdd.add(name);
-      _newPlotNameController.clear();
-    });
-  }
-
-  void _removePendingPlot(int index) {
-    setState(() => _plotsToAdd.removeAt(index));
-  }
-
   // ── Guardar ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedModuleId == null) {
-      _showSnack('Selecciona un módulo', isError: true);
+      _showSnack('Seleccione un módulo', isError: true);
       return;
     }
 
@@ -225,46 +173,10 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
       if (_isSynced) {
         // ── Productor sincronizado: actualiza en Supabase ──────────────────
         await _producerService.updateProducer(_producerId, request);
-
-        // Actualiza nombres de parcelas existentes
-        for (final plot in _plots) {
-          final controller = _plotControllers[plot.id];
-          if (controller != null) {
-            final newName = controller.text.trim();
-            if (newName != plot.name) {
-              await _plotService.updatePlot(
-                plot.id,
-                CreatePlotRequest(name: newName, producerId: _producerId),
-              );
-            }
-          }
-        }
-
-        // Agrega nuevas parcelas
-        for (final name in _plotsToAdd) {
-          await _plotService.addPlotForEdit(_producerId, name);
-        }
       } else {
         // ── Productor pendiente: actualiza en DB local ─────────────────────
         final localId = int.parse(_producerId);
         await _producerService.updateLocalPendingProducer(localId, request);
-
-        // Actualiza nombres de parcelas existentes localmente
-        for (final plot in _plots) {
-          final controller = _plotControllers[plot.id];
-          if (controller != null) {
-            final newName = controller.text.trim();
-            if (newName != plot.name) {
-              await _plotService.updateLocalPendingPlot(
-                  int.parse(plot.id), newName);
-            }
-          }
-        }
-
-        // Agrega nuevas parcelas localmente
-        for (final name in _plotsToAdd) {
-          await _plotService.addPlotForEdit(_producerId, name);
-        }
       }
 
       if (mounted) {
@@ -285,11 +197,10 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-      ),
+    AppSnackBar.show(
+      context,
+      message: message,
+      type: isError ? SnackBarType.error : SnackBarType.success,
     );
   }
 
@@ -303,10 +214,6 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
     _namesController.dispose();
     _surnamesController.dispose();
     _appagropCodeController.dispose();
-    _newPlotNameController.dispose();
-    for (final c in _plotControllers.values) {
-      c.dispose();
-    }
     super.dispose();
   }
 
@@ -349,19 +256,19 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.edit, color: Colors.white, size: 20),
+          const Icon(Icons.edit, color: AppColors.textWhite, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Editar productor',
               style: AppTextStyles.bodyText.copyWith(
-                color: Colors.white,
+                color: AppColors.textWhite,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
+            icon: const Icon(Icons.close, color: AppColors.textWhite),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             onPressed: () => Navigator.of(context).pop(),
@@ -387,11 +294,11 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off, color: Colors.grey, size: 48),
+            const Icon(Icons.wifi_off, color: AppColors.warning, size: 48),
             const SizedBox(height: 12),
             Text(
               _loadError!,
-              style: AppTextStyles.bodyText.copyWith(color: Colors.grey[600]),
+              style: AppTextStyles.bodyText,
               textAlign: TextAlign.center,
             ),
           ],
@@ -458,66 +365,25 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
             onChanged: (v) => setState(() => _memberStatus = v ?? 'SOCIO'),
           ),
 
-          // ── Sección de parcelas ────────────────────────────────────────────
-          const SizedBox(height: 20),
-          const Divider(),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.landscape, size: 16, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text('Parcelas', style: AppTextStyles.fieldLabel),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Parcelas existentes (editar nombre)
-          if (_plots.isNotEmpty) ...[
-            ..._plots.map((plot) => _buildPlotEditor(plot)),
-            const SizedBox(height: 8),
-          ],
-
-          // Parcelas pendientes de agregar
-          if (_plotsToAdd.isNotEmpty) ...[
-            ..._plotsToAdd.asMap().entries.map(
-                  (entry) => _buildPendingPlotChip(entry.key, entry.value),
-                ),
-            const SizedBox(height: 8),
-          ],
-
-          // Input para agregar nueva parcela
-          _buildAddPlotRow(),
-
           const SizedBox(height: 24),
 
           // Botones de acción
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  text: 'Cancelar',
+                  type: AppButtonType.secondary,
                   onPressed:
                       _isSaving ? null : () => Navigator.of(context).pop(),
-                  child: const Text('CANCELAR'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('GUARDAR'),
+                child: AppButton(
+                  text: 'Guardar',
+                  onPressed: _save,
+                  isLoading: _isSaving,
                 ),
               ),
             ],
@@ -565,110 +431,6 @@ class _ProducerEditDialogState extends ConsumerState<ProducerEditDialog> {
                   ),
                 ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Tarjeta para editar el nombre de una parcela existente.
-  Widget _buildPlotEditor(Plot plot) {
-    final controller = _plotControllers[plot.id]!;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-        border: Border.all(color: AppColors.inputBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.tag, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                'Código: ${plot.code}',
-                style: AppTextStyles.smallText
-                    .copyWith(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          AppTextField(
-            label: 'Nombre de parcela',
-            controller: controller,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Chip que representa una parcela nueva aún no guardada.
-  Widget _buildPendingPlotChip(int index, String name) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.add_location_alt_outlined,
-              size: 15, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name.isEmpty ? 'Parcela sin nombre' : name,
-              style: AppTextStyles.smallText.copyWith(
-                color: AppColors.primary,
-                fontStyle:
-                    name.isEmpty ? FontStyle.italic : FontStyle.normal,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () => _removePendingPlot(index),
-            child: const Icon(Icons.close, size: 16, color: AppColors.primary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Fila de input + botón para agregar una nueva parcela.
-  Widget _buildAddPlotRow() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: AppTextField(
-            label: null,
-            hintText: AppConfig.current.features.requirePlotNames
-                ? 'Nombre de parcela (requerido)'
-                : 'Nombre de parcela (opcional)',
-            controller: _newPlotNameController,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.add, color: Colors.white),
-              onPressed: _addNewPlot,
-              tooltip: 'Agregar parcela',
-            ),
           ),
         ),
       ],

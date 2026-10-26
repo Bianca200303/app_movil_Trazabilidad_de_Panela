@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:panela_sys/screens/home_screen.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class AccountCreationScreen extends StatefulWidget {
   const AccountCreationScreen({super.key});
@@ -31,7 +32,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF8B5A2B),
+          color: AppColors.backgroundBrown,
           image: _buildBackgroundImage(),
         ),
         child: SafeArea(
@@ -40,7 +41,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Card(
-                  color: Colors.white.withValues(alpha: 0.9),
+                  color: AppColors.surface.withValues(alpha: 0.9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15.0),
                   ),
@@ -75,7 +76,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                           controller: _namesController,
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: AppColors.surface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8.0),
                               borderSide: BorderSide.none,
@@ -94,7 +95,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                           controller: _surnamesController,
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: AppColors.surface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8.0),
                               borderSide: BorderSide.none,
@@ -114,7 +115,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: AppColors.surface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8.0),
                               borderSide: BorderSide.none,
@@ -131,7 +132,7 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColors.surface,
                             borderRadius: BorderRadius.circular(8.0),
                           ),
                           child: DropdownButtonFormField<String>(
@@ -164,8 +165,8 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
                             Navigator.push(context, MaterialPageRoute(builder: (context)=> const HomeScreen()));
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0066BB),
-                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.textWhite,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8.0),

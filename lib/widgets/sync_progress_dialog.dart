@@ -6,7 +6,9 @@ import 'package:panela_sys/models/sync_models.dart';
 /// Dialog showing synchronization progress
 ///
 /// Displays current module being synced and progress bar.
-/// Auto-closes when sync completes.
+/// Auto-closes when sync completes. Al cerrarse devuelve (vía showDialog) el
+/// error de la sincronización, o null si terminó bien: sin esto el error se
+/// perdía y la pantalla anunciaba "Datos subidos correctamente" igual.
 class SyncProgressDialog extends StatelessWidget {
   final Stream<SyncProgress> syncStream;
 
@@ -27,9 +29,10 @@ class SyncProgressDialog extends StatelessWidget {
             if (snapshot.connectionState == ConnectionState.done) {
               // Capture navigator before async gap
               final navigator = Navigator.of(context);
+              final error = snapshot.error;
               Future.microtask(() {
                 if (navigator.canPop()) {
-                  navigator.pop();
+                  navigator.pop(error);
                 }
               });
             }

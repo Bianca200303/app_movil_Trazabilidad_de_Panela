@@ -1,3 +1,4 @@
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/equipment_maintenance_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class MaintenanceControlRegistrationScreen extends ConsumerStatefulWidget {
@@ -105,7 +107,7 @@ class _MaintenanceControlRegistrationScreenState
         });
         AppSnackBar.show(
           context,
-          message: 'Error al cargar módulos: $e',
+          message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'),
           type: SnackBarType.error,
         );
       }
@@ -211,14 +213,12 @@ class _MaintenanceControlRegistrationScreenState
         responsiblePerson: _responsiblePersonController.text.trim(),
       );
 
-      // Submit to service
-      await _maintenanceService.createRecord(request);
+      final outcome = await _maintenanceService.submitRecord(request);
 
-      // Show success message and navigate
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Registro de mantenimiento guardado exitosamente',
+          message: outcome.message('Registro de mantenimiento guardado exitosamente'),
           type: SnackBarType.success,
         );
         context.go(AppRoutes.controlFormsProduccion.path);
@@ -227,7 +227,7 @@ class _MaintenanceControlRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al registrar mantenimiento: $e',
+          message: userErrorMessage(e, action: 'No se pudo registrar el mantenimiento'),
           type: SnackBarType.error,
         );
       }
@@ -244,8 +244,24 @@ class _MaintenanceControlRegistrationScreenState
   // BUILD
   // ============================================================================
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _maintenanceType != null ||
+      [_equipmentNameController, _maintenanceCauseController, _materialsUsedController, _durationController, _responsiblePersonController].any((c) => c.text.trim().isNotEmpty);
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsProduccion.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _leave,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     if (_isLoadingModules) {
       return const AppScaffold(
         hasTopLabel: true,
@@ -276,7 +292,7 @@ class _MaintenanceControlRegistrationScreenState
                 child: FormGroup(
                   children: [
                     AppBackButton(
-                      onPressed: () => context.go(AppRoutes.controlFormsProduccion.path),
+                      onPressed: _leave,
                       isExpanded: false,
                     ),
                     SizedBox(height: context.responsiveSpacing),
@@ -532,12 +548,14 @@ class _MaintenanceControlRegistrationScreenState
                     // ============================================================
                     // Responsible Person
                     // ============================================================
-                    AppTextField(
+                    // Sugiere los certificados del módulo; un técnico externo
+                    // se escribe a mano.
+                    CertifiedWorkerNameField(
                       label: 'Responsable del mantenimiento',
+                      moduleId: _selectedModuleId,
                       controller: _responsiblePersonController,
                       validator: (value) =>
                           _validateRequired(value, 'Responsable'),
-                      hintText: 'Nombre completo',
                     ),
 
                     SizedBox(height: context.responsiveSpacing),
@@ -558,8 +576,7 @@ class _MaintenanceControlRegistrationScreenState
                           SizedBox(height: context.responsiveSpacing / 2),
                           AppBackButton(
                             label: 'Cancelar',
-                            onPressed: () =>
-                                context.go(AppRoutes.controlFormsProduccion.path),
+                            onPressed: _leave,
                             isExpanded: true,
                           ),
                         ],
@@ -570,8 +587,7 @@ class _MaintenanceControlRegistrationScreenState
                           Expanded(
                             child: AppBackButton(
                               label: 'Cancelar',
-                              onPressed: () =>
-                                  context.go(AppRoutes.controlFormsProduccion.path),
+                              onPressed: _leave,
                             ),
                           ),
                           SizedBox(width: context.responsiveSpacing / 2),

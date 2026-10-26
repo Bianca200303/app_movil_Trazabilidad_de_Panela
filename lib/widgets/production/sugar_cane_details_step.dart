@@ -73,7 +73,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
           'Datos ingresados',
           style: AppTextStyles.bodyText.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
+            color: AppColors.textPrimary,
           ),
         ),
         SizedBox(height: context.responsiveSpacing),
@@ -219,7 +219,7 @@ class SugarCaneDetailsStep extends StatelessWidget {
           'Cálculos automáticos',
           style: AppTextStyles.bodyText.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
+            color: AppColors.textPrimary,
           ),
         ),
         SizedBox(height: context.responsiveSpacing),
@@ -261,9 +261,9 @@ class SugarCaneDetailsStep extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: AppColors.infoLight,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
+            border: Border.all(color: AppColors.infoBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,14 +272,14 @@ class SugarCaneDetailsStep extends StatelessWidget {
                 'Nota importante:',
                 style: AppTextStyles.bodyText.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade800,
+                  color: AppColors.primaryDark,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Si algún valor calculado no cuadra, puede volver al paso anterior para corregir los datos ingresados.',
                 style: AppTextStyles.bodyTextSecondary.copyWith(
-                  color: Colors.blue.shade700,
+                  color: AppColors.primaryDark,
                 ),
               ),
             ],
@@ -311,9 +311,9 @@ class SugarCaneDetailsStep extends StatelessWidget {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: AppColors.successLight,
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-            border: Border.all(color: Colors.green.shade200),
+            border: Border.all(color: AppColors.successBorder),
           ),
           padding: EdgeInsets.symmetric(
             horizontal: AppDimensions.paddingMedium,
@@ -326,14 +326,14 @@ class SugarCaneDetailsStep extends StatelessWidget {
                 value,
                 style: AppTextStyles.bodyText.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green.shade800,
+                  color: AppColors.successDark,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 formula,
                 style: AppTextStyles.captionText.copyWith(
-                  color: Colors.green.shade700,
+                  color: AppColors.successDark,
                   fontStyle: FontStyle.italic,
                 ),
               ),

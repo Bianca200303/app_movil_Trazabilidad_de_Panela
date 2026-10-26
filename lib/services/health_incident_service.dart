@@ -1,25 +1,23 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/models/health_incident.dart';
 import 'package:panela_sys/models/production_date_group.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 
 class HealthIncidentService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
 
-  // Create a new health incident
-  Future<HealthIncident> createIncident(
-    CreateHealthIncidentRequest request,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('health_incidents')
-          .insert(request.toJson())
-          .select()
-          .single();
+  HealthIncidentService({PendingSubmissionsService? pending})
+      : _pending = pending ?? PendingSubmissionsService();
 
-      return HealthIncident.fromJson(response);
-    } catch (e) {
-      throw Exception('Error al crear el incidente de salud: $e');
-    }
+  /// Registra un incidente nuevo, con o sin señal (ver
+  /// PendingSubmissionsService.submit). created_by lo pone el trigger.
+  Future<SubmissionOutcome> submitIncident(CreateHealthIncidentRequest request) {
+    return _pending.submit(
+      kind: SubmissionKinds.healthIncident,
+      payload: request.toJson(),
+    );
   }
 
   // Get incident by ID
@@ -128,20 +126,28 @@ class HealthIncidentService {
     }
   }
 
-  Future<bool> hasIncidentForEmployeeOnDate(String moduleId, String employeeName, DateTime date) async {
-    try {
-      final dateStr = date.toIso8601String().split('T')[0];
-      final response = await _supabase
-          .from('health_incidents')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('registration_date', dateStr)
-          .ilike('employee_name', employeeName.trim())
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay un incidente de esta persona en este módulo ese día?
+  /// (servidor + pendientes en el celular)
+  Future<bool> hasIncidentForEmployeeOnDate(String moduleId, String employeeName, DateTime date) {
+    final dateStr = date.toIso8601String().split('T')[0];
+    final name = employeeName.trim();
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.healthIncident,
+      matches: (p) =>
+          p['coop_module_id'] == moduleId &&
+          p['registration_date'] == dateStr &&
+          (p['employee_name'] as String?)?.trim().toLowerCase() == name.toLowerCase(),
+      serverCheck: () async {
+        final response = await _supabase
+            .from('health_incidents')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('registration_date', dateStr)
+            .ilike('employee_name', name)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
   // Delete incident

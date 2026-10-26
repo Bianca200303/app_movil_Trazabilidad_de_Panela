@@ -3,6 +3,7 @@
 // Dynamic Wizard Implementation (2-10 steps based on selected areas)
 // =====================================================
 
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,7 @@ import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/cleaning_disinfection_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 
 class CleaningDisinfectionRegistrationScreen extends ConsumerStatefulWidget {
@@ -94,7 +96,7 @@ class _CleaningDisinfectionRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al cargar módulos: $e',
+          message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'),
           type: SnackBarType.error,
         );
         setState(() => _isLoadingModules = false);
@@ -133,60 +135,42 @@ class _CleaningDisinfectionRegistrationScreenState
             .where((a) => !coveredAreas.contains(a))
             .toList();
 
-        final choice = await showDialog<String>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text(
-              'Ya hay un registro de limpieza este día',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Otro usuario ya registró limpieza para este módulo hoy.',
-                  style: TextStyle(fontSize: 16),
-                ),
-                if (coveredAreas.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Áreas ya cubiertas:',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  ...coveredAreas.map((a) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '• ${CleaningAreas.getDisplayName(a)}',
-                      style: const TextStyle(fontSize: 15),
+        final choice = await AppConfirmDialog.choose<String?>(
+          context,
+          title: 'Ya hay un registro de limpieza este día',
+          message: 'Otro usuario ya registró limpieza para este módulo hoy. '
+              '¿Cómo desea continuar?',
+          details: coveredAreas.isEmpty
+              ? null
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Áreas ya cubiertas:',
+                      style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold),
                     ),
-                  )),
-                ],
-                const SizedBox(height: 12),
-                const Text(
-                  '¿Cómo deseas continuar?',
-                  style: TextStyle(fontSize: 16),
+                    const SizedBox(height: 6),
+                    ...coveredAreas.map((a) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '• ${CleaningAreas.getDisplayName(a)}',
+                        style: AppTextStyles.bodyText,
+                      ),
+                    )),
+                  ],
                 ),
-              ],
+          actions: [
+            const AppDialogAction('Cancelar', null),
+            AppDialogAction(
+              'Elegir mis áreas',
+              'all',
+              style: missingAreas.isEmpty
+                  ? AppDialogActionStyle.primary
+                  : AppDialogActionStyle.secondary,
             ),
-            actionsAlignment: MainAxisAlignment.center,
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(null),
-                child: const Text('CANCELAR', style: TextStyle(fontSize: 15)),
-              ),
-              if (missingAreas.isNotEmpty)
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop('missing'),
-                  child: const Text('ÁREAS FALTANTES', style: TextStyle(fontSize: 15)),
-                ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop('all'),
-                child: const Text('ELEGIR MIS ÁREAS', style: TextStyle(fontSize: 15)),
-              ),
-            ],
-          ),
+            if (missingAreas.isNotEmpty)
+              const AppDialogAction('Áreas faltantes', 'missing', style: AppDialogActionStyle.primary),
+          ],
         );
         if (choice == null || !mounted) return;
         _duplicateWarningAcknowledged = true;
@@ -206,7 +190,7 @@ class _CleaningDisinfectionRegistrationScreenState
 
   void _previousStep() {
     if (_currentStep == 0) {
-      _showExitConfirmation();
+      _leave();
     } else {
       setState(() {
         _currentStep--;
@@ -254,31 +238,6 @@ class _CleaningDisinfectionRegistrationScreenState
     }
 
     return true;
-  }
-
-  void _showExitConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar registro'),
-        content: const Text(
-          '¿Estás seguro de que deseas cancelar? Se perderán todos los datos ingresados.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Continuar editando'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go(AppRoutes.controlFormsModulo.path);
-            },
-            child: const Text('Sí, cancelar'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _pickDate() async {
@@ -343,12 +302,12 @@ class _CleaningDisinfectionRegistrationScreenState
             : _observationsController.text.trim(),
       );
 
-      await _cleaningService.createCleaningRecord(request);
+      final outcome = await _cleaningService.submitCleaningRecord(request);
 
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Registro de limpieza guardado exitosamente',
+          message: outcome.message('Registro de limpieza guardado exitosamente'),
           type: SnackBarType.success,
         );
         context.go(AppRoutes.controlFormsModulo.path);
@@ -357,7 +316,7 @@ class _CleaningDisinfectionRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al guardar: $e',
+          message: userErrorMessage(e, action: 'No se pudo guardar'),
           type: SnackBarType.error,
         );
       }
@@ -372,8 +331,23 @@ class _CleaningDisinfectionRegistrationScreenState
   // UI Rendering
   // =====================================================
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _selectedDate != null;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsModulo.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     if (_isLoadingModules) {
       return const AppScaffold(
         child: Center(child: CircularProgressIndicator()),
@@ -432,7 +406,7 @@ class _CleaningDisinfectionRegistrationScreenState
         children: [
           // Back button at the top
           AppBackButton(
-            onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+            onPressed: _leave,
             isExpanded: true,
           ),
           SizedBox(height: context.responsiveSpacing),
@@ -502,17 +476,17 @@ class _CleaningDisinfectionRegistrationScreenState
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
+                  color: AppColors.successLight,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.agriculture_outlined, size: 16, color: Color(0xFF2E7D32)),
+                    const Icon(Icons.agriculture_outlined, size: 16, color: AppColors.successDark),
                     const SizedBox(width: 6),
                     Text(
                       'Día con producción registrada',
                       style: AppTextStyles.captionText.copyWith(
-                        color: const Color(0xFF2E7D32),
+                        color: AppColors.successDark,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -649,7 +623,7 @@ class _CleaningDisinfectionRegistrationScreenState
               margin: EdgeInsets.only(bottom: context.responsiveSpacing / 2),
               padding: context.responsivePadding,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                 border: Border.all(
                   color: AppColors.inputBorder,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
@@ -36,27 +37,35 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En pantallas angostas los botones se compactan (menos relleno) para
+    // que el texto no se corte ni obligue a más scroll.
+    final compact = ScreenUtils.isSmallScreen(context);
     return SizedBox(
       width: isExpanded ? double.infinity : null,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
-        style: _getButtonStyle(),
-        child: _buildButtonContent(),
+        style: _getButtonStyle(compact),
+        child: _buildButtonContent(compact),
       ),
     );
   }
 
-  ButtonStyle _getButtonStyle() {
+  ButtonStyle _getButtonStyle(bool compact) {
+    final mainPadding = EdgeInsets.symmetric(
+      vertical: compact ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall : AppDimensions.paddingButton,
+      horizontal: compact ? AppDimensions.paddingMedium : AppDimensions.paddingLarge,
+    );
+    final optionPadding = EdgeInsets.symmetric(
+      vertical: compact ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall : AppDimensions.paddingMedium,
+      horizontal: compact ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall : AppDimensions.paddingMedium,
+    );
     switch (type) {
       case AppButtonType.primary:
         return ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textWhite,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimensions.paddingButton,
-            horizontal: AppDimensions.paddingLarge,
-          ),
+          padding: mainPadding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
@@ -67,10 +76,7 @@ class AppButton extends StatelessWidget {
           backgroundColor: AppColors.surface,
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimensions.paddingButton,
-            horizontal: AppDimensions.paddingLarge,
-          ),
+          padding: mainPadding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
             side: BorderSide(
@@ -95,10 +101,7 @@ class AppButton extends StatelessWidget {
           backgroundColor: AppColors.surface,
           foregroundColor: AppColors.textPrimary,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimensions.paddingMedium,
-            horizontal: AppDimensions.paddingMedium,
-          ),
+          padding: optionPadding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
             side: BorderSide(
@@ -112,10 +115,7 @@ class AppButton extends StatelessWidget {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textWhite,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimensions.paddingMedium,
-            horizontal: AppDimensions.paddingMedium,
-          ),
+          padding: optionPadding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
@@ -138,10 +138,7 @@ class AppButton extends StatelessWidget {
           backgroundColor: AppColors.error,
           foregroundColor: AppColors.textWhite,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(
-            vertical: AppDimensions.paddingButton,
-            horizontal: AppDimensions.paddingLarge,
-          ),
+          padding: mainPadding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           ),
@@ -150,7 +147,7 @@ class AppButton extends StatelessWidget {
     }
   }
 
-  Widget _buildButtonContent() {
+  Widget _buildButtonContent(bool compact) {
     if (isLoading) {
       return const SizedBox(
         height: AppDimensions.iconSmall,
@@ -163,8 +160,8 @@ class AppButton extends StatelessWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: AppDimensions.iconMedium),
-          const SizedBox(width: AppDimensions.spacingMedium),
+          Icon(icon, size: compact ? AppDimensions.iconSmall : AppDimensions.iconMedium),
+          SizedBox(width: compact ? AppDimensions.spacingSmall : AppDimensions.spacingMedium),
           Flexible(
             child: Text(
               text,

@@ -5,6 +5,7 @@ import 'package:panela_sys/models/user_model.dart';
 import 'package:panela_sys/services/user_service.dart';
 import 'package:panela_sys/services/auth_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
+import 'package:panela_sys/widgets/sync/sign_out_blocked_dialog.dart';
 
 class UsersListScreen extends StatefulWidget {
   const UsersListScreen({super.key});
@@ -83,7 +84,12 @@ class _UsersListScreenState extends State<UsersListScreen> {
               color: AppColors.textSecondary,
             ),
             onPressed: () async {
-              await authService.signOut();
+              try {
+                await authService.signOut();
+              } on PendingSyncBlocksSignOutException catch (e) {
+                if (context.mounted) await showSignOutBlockedDialog(context, e);
+                return;
+              }
               if (context.mounted) {
                 Navigator.of(context).pushReplacementNamed('/login');
               }

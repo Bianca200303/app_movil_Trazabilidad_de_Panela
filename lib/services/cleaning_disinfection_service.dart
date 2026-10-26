@@ -3,59 +3,44 @@
 // =====================================================
 
 import 'package:panela_sys/models/cleaning_disinfection.dart';
+import 'package:panela_sys/core/offline/network_detector.dart';
 import 'package:panela_sys/models/production_date_group.dart';
+import 'package:panela_sys/services/production_dates_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 /// Service for managing cleaning and disinfection records
 class CleaningDisinfectionService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
+  final ProductionDatesService _productionDates;
+
+  CleaningDisinfectionService({
+    PendingSubmissionsService? pending,
+    ProductionDatesService? productionDates,
+  })  : _pending = pending ?? PendingSubmissionsService(),
+        _productionDates = productionDates ?? ProductionDatesService();
 
   // =====================================================
   // Create Operations
   // =====================================================
 
-  /// Creates a complete cleaning disinfection record with batch insert
+  /// Registra una limpieza nueva (cabecera + puntos), con o sin señal (ver
+  /// PendingSubmissionsService.submit). Se envía con la RPC atómica e
+  /// idempotente submit_cleaning_disinfection.
   ///
-  /// This method performs:
-  /// 1. Insert parent record (cleaning_disinfections)
-  /// 2. Batch insert child records (cleaning_disinfection_items)
-  ///
-  /// Returns the created parent record
-  ///
-  /// Throws if:
-  /// - Duplicate record exists for module+date (UNIQUE constraint)
-  /// - User doesn't have permission (RLS)
-  /// - Database error occurs
-  Future<CleaningDisinfection> createCleaningRecord(
-    CreateCleaningDisinfectionRequest request,
-  ) async {
-    try {
-      // 1. Insert parent record
-      final parentResponse = await _supabase
-          .from('cleaning_disinfections')
-          .insert(request.toParentJson())
-          .select()
-          .single();
-
-      final parentId = parentResponse['id'] as String;
-
-      // 2. Batch insert child records (all items at once)
-      if (request.items.isNotEmpty) {
-        final itemsJson = request.items.map((item) {
-          final json = item.toJson();
-          json['cleaning_disinfection_id'] = parentId;
-          return json;
-        }).toList();
-
-        await _supabase.from('cleaning_disinfection_items').insert(itemsJson);
-      }
-
-      // 3. Return created parent record
-      return CleaningDisinfection.fromJson(parentResponse);
-    } catch (e) {
-      throw Exception('Error creating cleaning record: $e');
-    }
+  /// Si el servidor la rechaza en el momento (p. ej. UNIQUE de módulo+fecha),
+  /// lanza el error.
+  Future<SubmissionOutcome> submitCleaningRecord(CreateCleaningDisinfectionRequest request) {
+    return _pending.submit(
+      kind: SubmissionKinds.cleaningDisinfection,
+      payload: {
+        ...request.toParentJson(),
+        'items': request.items.map((item) => item.toJson()).toList(),
+      },
+    );
   }
 
   // =====================================================
@@ -185,58 +170,61 @@ class CleaningDisinfectionService {
     }
   }
 
+  /// Áreas ya cubiertas por registros de limpieza de ese módulo y día:
+  /// guardados en el celular sin enviar + (con señal) los del servidor.
   Future<List<String>> getAreasCoveredOnDate(
     String moduleId,
     DateTime date,
   ) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final areas = <String>{
+      for (final p in await _pending.pendingPayloads(SubmissionKinds.cleaningDisinfection))
+        if (p['coop_module_id'] == moduleId && p['cleaning_date'] == dateStr)
+          for (final item in p['items'] as List) (item as Map<String, dynamic>)['area_code'] as String,
+    };
+    if (!await NetworkDetector().isConnected) return areas.toList();
+
     try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final records = await _supabase
           .from('cleaning_disinfections')
           .select('id')
           .eq('coop_module_id', moduleId)
           .eq('cleaning_date', dateStr);
-      if ((records as List).isEmpty) return [];
-      final ids = records.map((r) => r['id'] as String).toList();
-      final items = await _supabase
-          .from('cleaning_disinfection_items')
-          .select('area_code')
-          .inFilter('cleaning_disinfection_id', ids);
-      final areas = (items as List).map((i) => i['area_code'] as String).toSet().toList();
-      return areas;
+      if ((records as List).isNotEmpty) {
+        final ids = records.map((r) => r['id'] as String).toList();
+        final items = await _supabase
+            .from('cleaning_disinfection_items')
+            .select('area_code')
+            .inFilter('cleaning_disinfection_id', ids);
+        areas.addAll((items as List).map((i) => i['area_code'] as String));
+      }
     } catch (_) {
-      return [];
+      // Orientativo: si falla la consulta, se muestra solo lo del celular.
     }
+    return areas.toList();
   }
 
-  Future<bool> hasCleaningOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final response = await _supabase
-          .from('cleaning_disinfections')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('cleaning_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay limpieza registrada de este módulo ese día? (servidor + pendientes)
+  Future<bool> hasCleaningOnDate(String moduleId, DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.cleaningDisinfection,
+      matches: (p) => p['coop_module_id'] == moduleId && p['cleaning_date'] == dateStr,
+      serverCheck: () async {
+        final response = await _supabase
+            .from('cleaning_disinfections')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('cleaning_date', dateStr)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
-  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = date.toIso8601String().split('T')[0];
-      final response = await _supabase
-          .from('production_batches')
-          .select('id, producers!inner(coop_module_id)')
-          .eq('producers.coop_module_id', moduleId)
-          .eq('process_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Hubo producción en el módulo ese día? (con o sin señal)
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) {
+    return _productionDates.hasProductionOnDate(moduleId, date);
   }
 
   // =====================================================

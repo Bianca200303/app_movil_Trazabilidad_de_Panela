@@ -9,7 +9,10 @@ class CoopModulesService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final AppDatabase? _db;
 
-  CoopModulesService({AppDatabase? db}) : _db = db;
+  /// Usa siempre la base local (AppDatabase es única en la app) para que la
+  /// lista de módulos funcione sin señal en cualquier pantalla, aunque quien
+  /// cree el servicio no le pase [db].
+  CoopModulesService({AppDatabase? db}) : _db = db ?? AppDatabase();
 
   /// Fetches all modules available for the current user's cooperative
   ///

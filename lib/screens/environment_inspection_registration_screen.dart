@@ -1,3 +1,4 @@
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/environment_inspection_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
@@ -80,7 +82,7 @@ class _EnvironmentInspectionRegistrationScreenState
       setState(() => _isLoadingModules = false);
       if (mounted) {
         AppSnackBar.show(context,
-            message: 'Error al cargar módulos: $e', type: SnackBarType.error);
+            message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'), type: SnackBarType.error);
       }
     }
   }
@@ -113,27 +115,14 @@ class _EnvironmentInspectionRegistrationScreenState
       setState(() => _isCheckingStep0 = false);
 
       if (hasExisting) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Inspección ya registrada'),
-            content: const Text(
-              'Ya existe una inspección para este módulo en esta fecha. '
-              '¿Deseas registrar otra igualmente?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('CANCELAR'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('CONTINUAR'),
-              ),
-            ],
-          ),
+        final proceed = await AppConfirmDialog.show(
+          context,
+          title: 'Inspección ya registrada',
+          message: 'Ya existe una inspección para este módulo en esta fecha. '
+              '¿Desea registrar otra igualmente?',
+          confirmLabel: 'Continuar',
         );
-        if (proceed != true || !mounted) return;
+        if (!proceed || !mounted) return;
       }
 
       setState(() => _currentStep = 1);
@@ -142,7 +131,7 @@ class _EnvironmentInspectionRegistrationScreenState
       if (mounted) {
         setState(() => _isCheckingStep0 = false);
         AppSnackBar.show(context,
-            message: 'Error al verificar: $e', type: SnackBarType.error);
+            message: userErrorMessage(e, action: 'No se pudo verificar'), type: SnackBarType.error);
       }
     }
   }
@@ -179,27 +168,7 @@ class _EnvironmentInspectionRegistrationScreenState
 
   void _previousStep() {
     if (_currentStep == 0) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('¿Salir de la inspección?'),
-          content: const Text(
-              'Se perderán los datos ingresados. ¿Deseas continuar?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('CANCELAR'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                context.go(AppRoutes.controlFormsModulo.path);
-              },
-              child: const Text('SALIR'),
-            ),
-          ],
-        ),
-      );
+      _leave();
     } else {
       setState(() => _currentStep--);
       _scrollToTop();
@@ -229,7 +198,7 @@ class _EnvironmentInspectionRegistrationScreenState
         }
       }
 
-      await _inspectionService.createInspection(
+      final outcome = await _inspectionService.submitInspection(
         CreateEnvironmentInspectionRequest(
           coopModuleId: _selectedModuleId!,
           inspectionDate: _selectedDate,
@@ -240,14 +209,14 @@ class _EnvironmentInspectionRegistrationScreenState
 
       if (mounted) {
         AppSnackBar.show(context,
-            message: 'Inspección registrada exitosamente',
+            message: outcome.message('Inspección registrada exitosamente'),
             type: SnackBarType.success);
         context.go(AppRoutes.controlFormsModulo.path);
       }
     } catch (e) {
       if (mounted) {
         AppSnackBar.show(context,
-            message: 'Error al guardar la inspección: $e',
+            message: userErrorMessage(e, action: 'No se pudo guardar la inspección'),
             type: SnackBarType.error);
       }
     } finally {
@@ -311,8 +280,23 @@ class _EnvironmentInspectionRegistrationScreenState
     }
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _selectedDate != null;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsModulo.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       hasTopLabel: true,
       topLabelText: 'Inspección de Ambientes',

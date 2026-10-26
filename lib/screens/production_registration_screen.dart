@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
+import 'package:panela_sys/widgets/common/unsaved_changes_guard.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/production/producer_selection_step.dart';
 import 'package:panela_sys/widgets/production/date_selection_step.dart';
@@ -28,6 +29,7 @@ import 'package:panela_sys/core/production_calculator.dart';
 import 'package:panela_sys/services/location_service.dart';
 import 'package:panela_sys/models/producer_quota_status.dart';
 import 'package:panela_sys/services/producer_quota_service.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class ProductionRegistrationScreen extends ConsumerStatefulWidget {
   const ProductionRegistrationScreen({super.key});
@@ -175,8 +177,23 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     super.dispose();
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _producerController.text.trim().isNotEmpty;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.home.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       child: Center(
         child: SingleChildScrollView(
@@ -392,13 +409,11 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
   }
 
   void _previousStep() {
-    setState(() {
-      if (_currentStep > 0) {
-        _currentStep--;
-      } else {
-        context.go(AppRoutes.home.path);
-      }
-    });
+    if (_currentStep == 0) {
+      _leave();
+      return;
+    }
+    setState(() => _currentStep--);
     _scrollToTop();
   }
 
@@ -470,7 +485,9 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
 
       // Load plot (overrides producer if plot has defaults)
       if (plotId.isNotEmpty) {
-        final plot = await PlotService().getPlotById(plotId);
+        // Con la base local: la parcela y sus % por defecto salen de la caché
+        // y así también se aplican sin conexión.
+        final plot = await PlotService(db: ref.read(appDatabaseProvider)).getPlotById(plotId);
         if (plot != null) {
           _selectedPlot = plot;
           if (plot.defaultExtractionPercentage != null) {
@@ -536,7 +553,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Debe seleccionar ${group.displayName}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
         return;
@@ -580,7 +597,7 @@ class _ProductionRegistrationScreenState extends ConsumerState<ProductionRegistr
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
       ),
     );
   }

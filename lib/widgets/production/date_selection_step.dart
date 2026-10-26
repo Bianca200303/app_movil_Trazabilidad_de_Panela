@@ -6,6 +6,7 @@ import 'package:panela_sys/widgets/production/production_step_header.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class DateSelectionStep extends StatefulWidget {
   final TextEditingController harvestDateController;
@@ -194,7 +195,7 @@ class _DateSelectionStepState extends State<DateSelectionStep> {
           SizedBox(height: context.responsiveSpacing),
           Text(
             _dateOrderError!,
-            style: AppTextStyles.bodyText.copyWith(color: Colors.red),
+            style: AppTextStyles.bodyText.copyWith(color: AppColors.error),
           ),
         ],
         SizedBox(height: context.responsiveSpacing * 1.5),

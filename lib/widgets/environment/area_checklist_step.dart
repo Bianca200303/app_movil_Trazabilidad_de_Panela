@@ -6,6 +6,7 @@ import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/environment/inspection_item_widget.dart';
 import 'package:panela_sys/core/screen_utils.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 // Helper class to hold item data
 class ItemChecklistData {
@@ -93,19 +94,19 @@ class AreaChecklistStep extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: AppColors.warningLight,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade300),
+              border: Border.all(color: AppColors.warningBorder),
             ),
             child: Row(
               children: [
-                Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                Icon(Icons.warning_amber, color: AppColors.warningDark),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '$nonCompliantCount ítems marcados como No Conforme en esta área',
                     style: TextStyle(
-                      color: Colors.orange.shade900,
+                      color: AppColors.warningDark,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

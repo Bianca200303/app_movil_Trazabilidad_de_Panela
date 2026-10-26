@@ -8,6 +8,7 @@ import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/production_calculator.dart';
 import 'package:panela_sys/models/producer.dart';
 import 'package:panela_sys/models/plot.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class ResultsInputStep extends StatelessWidget {
   final TextEditingController juiceQuantityController;
@@ -98,9 +99,9 @@ class ResultsInputStep extends StatelessWidget {
         SizedBox(height: context.responsiveSpacing * 0.25),
         Container(
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: AppColors.successLight,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.green.shade200),
+            border: Border.all(color: AppColors.successBorder),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -112,14 +113,14 @@ class ResultsInputStep extends StatelessWidget {
                     : '0%',
                 style: AppTextStyles.bodyText.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green.shade800,
+                  color: AppColors.successDark,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 _getDefaultHintText('extraction'),
                 style: AppTextStyles.captionText.copyWith(
-                  color: Colors.green.shade700,
+                  color: AppColors.successDark,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -134,9 +135,9 @@ class ResultsInputStep extends StatelessWidget {
         SizedBox(height: context.responsiveSpacing * 0.25),
         Container(
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: AppColors.successLight,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.green.shade200),
+            border: Border.all(color: AppColors.successBorder),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -148,14 +149,14 @@ class ResultsInputStep extends StatelessWidget {
                     : '0%',
                 style: AppTextStyles.bodyText.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green.shade800,
+                  color: AppColors.successDark,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 _getDefaultHintText('cachaza'),
                 style: AppTextStyles.captionText.copyWith(
-                  color: Colors.green.shade700,
+                  color: AppColors.successDark,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -166,9 +167,9 @@ class ResultsInputStep extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: AppColors.infoLight,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
+            border: Border.all(color: AppColors.infoBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,7 +178,7 @@ class ResultsInputStep extends StatelessWidget {
                 'Constantes del proceso:',
                 style: AppTextStyles.bodyText.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade800,
+                  color: AppColors.primaryDark,
                 ),
               ),
               const SizedBox(height: 4),
@@ -191,7 +192,7 @@ class ResultsInputStep extends StatelessWidget {
                 Text(
                   '• Densidad de caña: ${density.toStringAsFixed(2)} kg/L',
                   style: AppTextStyles.bodyTextSecondary.copyWith(
-                    color: Colors.blue.shade700,
+                    color: AppColors.primaryDark,
                   ),
                 ),
               ],

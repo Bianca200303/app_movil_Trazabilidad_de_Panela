@@ -1,4 +1,3 @@
-import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/network_detector.dart';
 import 'package:panela_sys/core/offline/offline_config.dart';
@@ -6,6 +5,8 @@ import 'package:panela_sys/core/offline/debug_logger.dart';
 import 'package:panela_sys/services/sync/producers_sync_service.dart';
 import 'package:panela_sys/services/sync/plots_sync_service.dart';
 import 'package:panela_sys/services/sync/production_sync_service.dart';
+import 'package:panela_sys/services/sync/pending_count.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/models/sync_models.dart';
 
 /// Main synchronization orchestrator
@@ -26,6 +27,7 @@ class SyncService {
   /// 1. Producers (must sync first)
   /// 2. Plots (depends on producers)
   /// 3. Production batches (depends on producers and plots)
+  /// 4. Controles pendientes (pueden depender de un lote del paso 3)
   ///
   /// Yields progress after each entity is synced.
   /// Throws if no internet connection is available.
@@ -96,11 +98,12 @@ class SyncService {
     }
 
     // Sync production batches (after plots) - if enabled
+    final productionSync = ProductionSyncService(_db);
     if (OfflineConfig.instance.features.production) {
       DebugLogger.info('SyncService', 'syncAll',
           '=== INICIANDO SYNC DE LOTES DE PRODUCCIÓN ===');
 
-      await for (final _ in ProductionSyncService(_db).sync()) {
+      await for (final _ in productionSync.sync()) {
         synced++;
         DebugLogger.debug('SyncService', 'syncAll',
             'Progress: $synced/$total (${((synced / total) * 100).toStringAsFixed(1)}%)');
@@ -116,44 +119,32 @@ class SyncService {
           '=== SYNC DE LOTES DE PRODUCCIÓN COMPLETADO ===');
     }
 
+    // Controles guardados sin señal (bandeja genérica). Van al final porque
+    // pueden depender de un lote creado sin señal que se acaba de enviar.
+    DebugLogger.info('SyncService', 'syncAll',
+        '=== INICIANDO SYNC DE CONTROLES PENDIENTES ===');
+
+    await for (final _ in PendingSubmissionsService(db: _db).sync()) {
+      synced++;
+      yield SyncProgress(
+        module: 'Controles',
+        current: synced,
+        total: total,
+      );
+    }
+
     DebugLogger.info('SyncService', 'syncAll',
         'Sincronización general completada: $synced/$total items synced');
+
+    // Un lote rechazado no frenó a los demás ni a los controles; se avisa
+    // recién al final.
+    if (productionSync.rejectedCount > 0) {
+      throw ProductionBatchesRejectedException(
+        productionSync.rejectedCount,
+        productionSync.firstRejectionReason!,
+      );
+    }
   }
 
-  /// Calculate total pending items across all enabled modules
-  Future<int> _getTotalPending() async {
-    DebugLogger.debug('SyncService', '_getTotalPending',
-        'Calculando total de items pendientes');
-
-    int count = 0;
-
-    if (OfflineConfig.instance.features.producers) {
-      final producersCount = await _db.producersDao.countPending();
-      final plotsCount = await _db.plotsDao.countPending();
-
-      DebugLogger.debug('SyncService', '_getTotalPending',
-          'Productores pendientes: $producersCount');
-      DebugLogger.debug(
-          'SyncService', '_getTotalPending', 'Parcelas pendientes: $plotsCount');
-
-      count += producersCount + plotsCount;
-    }
-
-    if (OfflineConfig.instance.features.production) {
-      final productionCount = await _db.productionBatchesDao.countPending(AppConfig.current.id);
-
-      DebugLogger.debug('SyncService', '_getTotalPending',
-          'Lotes de producción pendientes: $productionCount');
-
-      count += productionCount;
-    }
-
-    // Add other modules when implemented
-    // if (OfflineConfig.instance.features.exits) { ... }
-
-    DebugLogger.debug(
-        'SyncService', '_getTotalPending', 'Total pendientes: $count');
-
-    return count;
-  }
+  Future<int> _getTotalPending() => countPendingSync(_db);
 }

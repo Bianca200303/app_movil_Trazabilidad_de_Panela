@@ -35,7 +35,7 @@ class UnderConstructionScreen extends StatelessWidget {
                   const Icon(
                     Icons.construction,
                     size: 64,
-                    color: Colors.orange,
+                    color: AppColors.warning,
                   ),
                   Text(
                     'Pantalla en construcción',

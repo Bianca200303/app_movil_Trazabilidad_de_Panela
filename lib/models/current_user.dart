@@ -70,4 +70,11 @@ class CurrentUser {
   bool get hasModuleRestriction => role == UserRole.adminModulo || role == UserRole.tecnicoCampo;
   bool get canManageUsers => role == UserRole.adminSistema;
   bool get canManageModules => role == UserRole.adminSistema;
+  /// Agregar, editar y dar de baja parcelas después del registro del
+  /// productor (la base de datos aplica la misma regla).
+  bool get canManagePlots =>
+      role == UserRole.adminSistema || role == UserRole.adminModulo;
+  /// Editar datos de productores (la base de datos aplica la misma regla).
+  bool get canManageProducers =>
+      role == UserRole.adminSistema || role == UserRole.adminModulo;
 }

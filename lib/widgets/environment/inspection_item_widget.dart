@@ -120,7 +120,7 @@ class _InspectionItemWidgetState extends State<InspectionItemWidget> {
                       decoration: BoxDecoration(
                         color: AppColors.error,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        border: Border.all(color: AppColors.textWhite, width: 1.5),
                       ),
                     ),
                   ),
@@ -134,9 +134,9 @@ class _InspectionItemWidgetState extends State<InspectionItemWidget> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.amber,
+                        color: AppColors.warning,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        border: Border.all(color: AppColors.textWhite, width: 1.5),
                       ),
                     ),
                   ),

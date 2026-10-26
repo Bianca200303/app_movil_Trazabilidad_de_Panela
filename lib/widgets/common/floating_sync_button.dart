@@ -73,10 +73,10 @@ class FloatingSyncButton extends ConsumerWidget {
       width: double.infinity,
       padding: EdgeInsets.all(context.responsivePadding.left),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E0), // Light orange background
+        color: AppColors.warningLight, // Light orange background
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         border: Border.all(
-          color: const Color(0xFFFF9800), // Orange border
+          color: AppColors.warning, // Orange border
           width: 1.5,
         ),
       ),
@@ -84,7 +84,7 @@ class FloatingSyncButton extends ConsumerWidget {
         children: [
           const Icon(
             Icons.wifi_off,
-            color: Color(0xFFFF9800),
+            color: AppColors.warning,
             size: 20,
           ),
           SizedBox(width: context.responsiveSpacing / 2),
@@ -92,7 +92,7 @@ class FloatingSyncButton extends ConsumerWidget {
             child: Text(
               'Sin conexión - Los datos se subirán al conectarse',
               style: AppTextStyles.smallText.copyWith(
-                color: const Color(0xFFE65100), // Dark orange text
+                color: AppColors.warningDark, // Dark orange text
               ),
             ),
           ),

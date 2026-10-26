@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
@@ -28,6 +29,11 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showTopLabel = hasTopLabel && topLabelText != null;
+    final gutter = ScreenUtils.isSmallScreen(context)
+        ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall
+        : AppDimensions.paddingMedium;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -36,34 +42,53 @@ class AppScaffold extends ConsumerWidget {
             // Sync status banner/button (transversal - appears on all screens)
             if (showSyncStatus)
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimensions.paddingMedium,
-                  AppDimensions.paddingMedium,
-                  AppDimensions.paddingMedium,
-                  0,
-                ),
+                // Medio margen: si no hay aviso de sincronización, este espacio
+                // queda vacío sobre la cabecera.
+                padding: EdgeInsets.fromLTRB(gutter, gutter / 2, gutter, 0),
                 child: FloatingSyncButton(
                   onSyncPressed: onSyncPressed,
                   readOnly: onSyncPressed == null,
                 ),
               ),
-            if (hasTopLabel && topLabelText != null)
+            // Título y "Regresar" comparten una sola fila: apilados ocupaban
+            // casi un tercio de la altura en celulares pequeños.
+            if (showTopLabel || showBackButton)
               Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Text(
-                    topLabelText!,
-                    style: AppTextStyles.topLabel,
-                  ),
-                ),
-              ),
-            if (showBackButton)
-              Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-                child: AppBackButton(
-                  onPressed: onBack,
-                  isExpanded: false,
+                padding: EdgeInsets.fromLTRB(gutter, gutter / 2, gutter, gutter / 2),
+                child: Row(
+                  children: [
+                    if (showBackButton)
+                      // Con título al lado, en pantallas pequeñas basta la
+                      // flecha: el botón con texto le quitaba medio ancho.
+                      showTopLabel && ScreenUtils.isSmallScreen(context)
+                          ? IconButton(
+                              onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+                              tooltip: 'Regresar',
+                              icon: const Icon(Icons.arrow_back),
+                              color: AppColors.primary,
+                              style: IconButton.styleFrom(
+                                side: const BorderSide(color: AppColors.primary, width: 1.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                                ),
+                              ),
+                            )
+                          : AppBackButton(
+                              onPressed: onBack,
+                              isExpanded: false,
+                            ),
+                    if (showBackButton && showTopLabel)
+                      SizedBox(width: gutter),
+                    if (showTopLabel)
+                      Expanded(
+                        child: Text(
+                          topLabelText!,
+                          style: AppTextStyles.topLabel,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             Expanded(child: child),

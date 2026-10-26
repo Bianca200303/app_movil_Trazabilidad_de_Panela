@@ -221,6 +221,14 @@ class WorkerEvaluation {
   Map<String, dynamic> toJson(String workerControlId) {
     return {
       'worker_control_id': workerControlId,
+      ...toItemJson(),
+    };
+  }
+
+  /// Datos del trabajador sin el id de la cabecera (lo asigna el servidor
+  /// en submit_worker_control).
+  Map<String, dynamic> toItemJson() {
+    return {
       'worker_name': workerName,
       'uniform_complete': uniformComplete,
       'no_makeup': noMakeup,

@@ -12,6 +12,12 @@ class Plots extends Table {
   TextColumn get name => text()();
   TextColumn get code => text()();
 
+  /// % por defecto de la parcela (los del último lote, o los que fijó un
+  /// administrador). Se guardan para que el registro de producción los use
+  /// también sin conexión; null = se usa el del productor o el del sistema.
+  RealColumn get defaultExtractionPercentage => real().nullable()();
+  RealColumn get defaultCachazaPercentage => real().nullable()();
+
   /// Foreign key to local producers table
   IntColumn get producerLocalId => integer()();
 

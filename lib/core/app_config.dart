@@ -88,13 +88,23 @@ class AppConfig {
     return dotenv.env['SUPABASE_URL'] ?? '';
   }
 
+  /// IP de la PC que corre Supabase local, para probar en un celular físico:
+  ///   flutter run --dart-define=LOCAL_SUPABASE_HOST=192.168.1.50
+  /// El celular debe estar en la misma red WiFi que la PC.
+  static const String _localSupabaseHostOverride =
+      String.fromEnvironment('LOCAL_SUPABASE_HOST');
+
   static String _getLocalSupabaseUrl() {
+    if (_localSupabaseHostOverride.isNotEmpty) {
+      return 'http://$_localSupabaseHostOverride:54321';
+    }
     if (kIsWeb) {
       return 'http://127.0.0.1:54321';
     }
     try {
       if (Platform.isAndroid) {
-        // En emulador usa 10.0.2.2; en celular físico con cable, usa la IP de tu PC.
+        // 10.0.2.2 es la PC vista desde el emulador; en celular físico
+        // usar LOCAL_SUPABASE_HOST.
         return 'http://10.0.2.2:54321';
       }
     } catch (_) {}

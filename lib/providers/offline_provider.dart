@@ -1,13 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/core/offline/network_detector.dart';
-import 'package:panela_sys/core/offline/offline_config.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
 import 'package:panela_sys/services/producer_service.dart';
 import 'package:panela_sys/services/plot_service.dart';
 import 'package:panela_sys/services/form_data_cache_service.dart';
 import 'package:panela_sys/services/sync/sync_service.dart';
+import 'package:panela_sys/services/sync/pending_count.dart';
 import 'package:panela_sys/services/sync/auto_sync_service.dart';
 import 'package:panela_sys/models/auto_sync_event.dart';
 
@@ -35,38 +34,19 @@ final connectivityProvider = StreamProvider<bool>((ref) {
 
 /// Provider for total pending sync count
 ///
-/// Polls database every 30 seconds to count pending items across all enabled modules.
-/// Returns total count of producers + plots + production + exits (when enabled).
+/// Polls database every 30 seconds to count pending items across all enabled
+/// modules (ver countPendingSync). Emite también al arrancar, para no
+/// esperar 30 s la primera vez.
 final syncPendingCountProvider = StreamProvider<int>((ref) async* {
   final db = ref.watch(appDatabaseProvider);
 
   DebugLogger.debug('syncPendingCountProvider', 'create',
       'Starting pending count stream (polling every 30s)');
 
+  yield await countPendingSync(db);
+
   await for (final _ in Stream.periodic(const Duration(seconds: 30))) {
-    int count = 0;
-
-    if (OfflineConfig.instance.features.producers) {
-      final producersCount = await db.producersDao.countPending();
-      final plotsCount = await db.plotsDao.countPending();
-
-      count += producersCount + plotsCount;
-
-      DebugLogger.debug('syncPendingCountProvider', 'poll',
-          'Pending: $producersCount producers, $plotsCount plots');
-    }
-
-    if (OfflineConfig.instance.features.production) {
-      final productionCount = await db.productionBatchesDao.countPending(AppConfig.current.id);
-
-      count += productionCount;
-
-      DebugLogger.debug('syncPendingCountProvider', 'poll',
-          'Production pending: $productionCount');
-    }
-
-    // Add other modules when enabled
-    // if (OfflineConfig.instance.features.exits) { ... }
+    final count = await countPendingSync(db);
 
     DebugLogger.debug('syncPendingCountProvider', 'poll',
         'Total pending count: $count');

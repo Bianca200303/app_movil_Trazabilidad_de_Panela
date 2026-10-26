@@ -126,7 +126,7 @@ class ActionsTakenStep extends StatelessWidget {
             padding: EdgeInsets.only(top: context.responsiveSpacing),
             child: const Text(
               'Selecciona al menos una acción. Si eligió "Otro", especifica cuál.',
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: TextStyle(color: AppColors.error, fontSize: 12),
             ),
           )
         else if (!_validate())
@@ -134,7 +134,7 @@ class ActionsTakenStep extends StatelessWidget {
             padding: EdgeInsets.only(top: context.responsiveSpacing),
             child: const Text(
               'Selecciona al menos una acción tomada',
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: TextStyle(color: AppColors.error, fontSize: 12),
             ),
           ),
         SizedBox(height: context.responsiveSpacing * 2),
@@ -158,7 +158,7 @@ class ActionsTakenStep extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Falta completar: ${missingFields.join(', ')}'),
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.error,
                 ),
               );
               return;

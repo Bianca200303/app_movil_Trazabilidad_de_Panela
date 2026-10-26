@@ -210,12 +210,12 @@ class _StowageCard extends StatelessWidget {
                   Row(children: [
                     _Tag(
                       label: isApto ? 'APTO' : 'NO APTO',
-                      color: isApto ? Colors.green[700]! : Colors.red[700]!,
+                      color: isApto ? AppColors.successDark : AppColors.errorDark,
                     ),
                     SizedBox(width: context.responsiveSpacing / 2),
                     _Tag(
                       label: '$compliant/$total checks',
-                      color: compliant == total ? Colors.green[700]! : AppColors.warning,
+                      color: compliant == total ? AppColors.successDark : AppColors.warning,
                     ),
                   ]),
                 ],

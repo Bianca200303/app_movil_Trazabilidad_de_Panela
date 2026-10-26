@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panela_sys/screens/success_registration_screen.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
+import 'package:panela_sys/widgets/common/unsaved_changes_guard.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/forms/app_text_field.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
@@ -113,7 +114,7 @@ class _ProducerRegistrationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al cargar módulos: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -214,7 +215,7 @@ class _ProducerRegistrationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Ingresa un DNI válido primero'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -225,7 +226,7 @@ class _ProducerRegistrationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Ingresa el nombre de la parcela'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -242,7 +243,7 @@ class _ProducerRegistrationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Ya agregaste una parcela con este nombre'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
         return;
@@ -283,7 +284,7 @@ class _ProducerRegistrationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('El nombre de la parcela es requerido'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -302,7 +303,7 @@ class _ProducerRegistrationScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Ya existe una parcela con ese nombre'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -333,7 +334,7 @@ class _ProducerRegistrationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor selecciona un módulo'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -343,7 +344,7 @@ class _ProducerRegistrationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Agrega al menos una parcela'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -355,7 +356,7 @@ class _ProducerRegistrationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('APPAGROP es requerido'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -428,7 +429,7 @@ class _ProducerRegistrationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -544,8 +545,24 @@ class _ProducerRegistrationScreenState
     super.dispose();
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _plots.isNotEmpty ||
+      [_namesController, _surnamesController, _dniController, _plotNameController].any((c) => c.text.trim().isNotEmpty);
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.home.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _leave,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
     final hasLockedModule = (currentUser?.hasModuleRestriction ?? false) && (currentUser?.moduleIds.length == 1);
     return AppScaffold(
@@ -561,7 +578,7 @@ class _ProducerRegistrationScreenState
             ),
             child: AppCard(
               hasBackButton: true,
-              onBack: () => context.go(AppRoutes.home.path),
+              onBack: _leave,
               padding: context.responsivePadding,
               child: Form(
                 key: _formKey,

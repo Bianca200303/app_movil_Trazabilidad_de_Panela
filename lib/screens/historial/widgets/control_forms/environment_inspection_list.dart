@@ -149,11 +149,11 @@ class _EnvironmentInspectionCard extends StatelessWidget {
     final Color backgroundColor;
     final Color badgeColor;
     if (compliancePercentage == 100) {
-      backgroundColor = Colors.green[50]!;
+      backgroundColor = AppColors.successLight;
       badgeColor = AppColors.success;
     } else {
-      backgroundColor = Colors.orange[50]!;
-      badgeColor = Colors.orange[700]!;
+      backgroundColor = AppColors.warningLight;
+      badgeColor = AppColors.warningDark;
     }
 
     return HistorialExpandableCard(
@@ -203,7 +203,7 @@ class _EnvironmentInspectionCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(context.responsiveSpacing / 2),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
             ),
             child: Column(
@@ -227,17 +227,17 @@ class _EnvironmentInspectionCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.orange[100],
+                color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber, color: Colors.orange[900], size: 16),
+                  Icon(Icons.warning_amber, color: AppColors.warningDark, size: 16),
                   SizedBox(width: context.responsiveSpacing / 4),
                   Expanded(
                     child: Text(
                       '$nonCompliantItems ítems requieren acciones correctivas',
-                      style: TextStyle(color: Colors.orange[900], fontSize: 12, fontWeight: FontWeight.w500),
+                      style: TextStyle(color: AppColors.warningDark, fontSize: 12, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],

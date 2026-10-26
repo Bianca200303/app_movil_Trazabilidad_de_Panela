@@ -179,8 +179,8 @@ class _BatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final allOk = group.isFullyCompliant;
-    final badgeColor = allOk ? AppColors.success : Colors.orange[700]!;
-    final bgColor = allOk ? Colors.green[50]! : Colors.orange[50]!;
+    final badgeColor = allOk ? AppColors.success : AppColors.warningDark;
+    final bgColor = allOk ? AppColors.successLight : AppColors.warningLight;
     final processDate = group.processDate != null
         ? AppDateUtils.formatDDMMYYYY(DateTime.parse(group.processDate!))
         : null;
@@ -288,13 +288,13 @@ class _AreaSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final areaOk = control.isFullyCompliant;
-    final color = areaOk ? AppColors.success : Colors.orange[700]!;
+    final color = areaOk ? AppColors.success : AppColors.warningDark;
 
     return Container(
       margin: EdgeInsets.only(bottom: context.responsiveSpacing),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         border: Border.all(color: AppColors.inputBorder),
       ),
@@ -348,7 +348,7 @@ class _WorkerRow extends StatelessWidget {
     final count = worker.complianceCount;
     const total = 9;
     final isOk = count == total;
-    final color = isOk ? AppColors.success : Colors.orange[700]!;
+    final color = isOk ? AppColors.success : AppColors.warningDark;
     final failed = isOk ? <String>[] : _failedCriteria(worker);
 
     return Padding(
@@ -380,7 +380,7 @@ class _WorkerRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 22, top: 2),
               child: Text(failed.join(' · '),
-                  style: TextStyle(fontSize: 11, color: Colors.orange[800])),
+                  style: TextStyle(fontSize: 11, color: AppColors.warningDark)),
             ),
         ],
       ),

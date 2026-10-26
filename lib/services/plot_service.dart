@@ -49,37 +49,6 @@ class PlotService {
     }
   }
 
-  /// Creates a new plot for a producer (code auto-generated if not provided)
-  Future<model.Plot> createPlot(CreatePlotRequest request) async {
-    try {
-      final insertData = {
-        'name': request.name,
-        'producer_id': request.producerId,
-      };
-
-      // Only include code if explicitly provided
-      if (request.code != null && request.code!.isNotEmpty) {
-        insertData['code'] = request.code!;
-      }
-
-      final response = await _supabase
-          .from('plots')
-          .insert(insertData)
-          .select()
-          .single();
-
-      return model.Plot.fromJson(response);
-    } catch (e) {
-      if (e is PostgrestException) {
-        // Handle unique constraint violation for plot name/code per producer
-        if (e.code == '23505' && e.message.contains('unique_plot_name_code_per_producer')) {
-          throw Exception('Ya existe una parcela con este nombre y código para este productor');
-        }
-      }
-      throw Exception('Error al crear parcela: $e');
-    }
-  }
-
   /// Creates multiple plots for a producer with offline-first approach
   ///
   /// If offline is enabled:
@@ -382,37 +351,6 @@ class PlotService {
     }
   }
 
-  /// Updates a plot
-  Future<model.Plot> updatePlot(String plotId, CreatePlotRequest request) async {
-    try {
-      final updateData = {
-        'name': request.name,
-        'producer_id': request.producerId,
-      };
-
-      // Only update code if explicitly provided
-      if (request.code != null && request.code!.isNotEmpty) {
-        updateData['code'] = request.code!;
-      }
-
-      final response = await _supabase
-          .from('plots')
-          .update(updateData)
-          .eq('id', plotId)
-          .select()
-          .single();
-
-      return model.Plot.fromJson(response);
-    } catch (e) {
-      if (e is PostgrestException) {
-        if (e.code == '23505' && e.message.contains('unique_plot_name_code_per_producer')) {
-          throw Exception('Ya existe una parcela con este nombre y código para este productor');
-        }
-      }
-      throw Exception('Error al actualizar parcela: $e');
-    }
-  }
-
   /// Soft deletes a plot (sets is_active to false)
   Future<void> deletePlot(String plotId) async {
     try {
@@ -499,7 +437,7 @@ class PlotService {
       final remote = await getPlotsByProducerId(producerId);
 
       // 5. Update cache
-      await _cachePlots(remote, producerLocalId);
+      await _cachePlots(remote, producerLocalId, producerId);
 
       return remote;
     } catch (e, st) {
@@ -525,7 +463,7 @@ class PlotService {
 
       final remote = await getPlotsByProducerId(producerId);
       final producerLocalId = await _resolveProducerLocalId(producerId);
-      await _cachePlots(remote, producerLocalId);
+      await _cachePlots(remote, producerLocalId, producerId);
 
       DebugLogger.debug('PlotService', '_refreshPlotsInBackground',
           'Background refresh completed');
@@ -537,7 +475,11 @@ class PlotService {
   }
 
   /// Cache plots from remote API
-  Future<void> _cachePlots(List<model.Plot> plots, int producerLocalId) async {
+  Future<void> _cachePlots(
+    List<model.Plot> plots,
+    int producerLocalId,
+    String remoteProducerId,
+  ) async {
     if (_db == null) return;
 
     DebugLogger.info('PlotService', '_cachePlots',
@@ -545,17 +487,13 @@ class PlotService {
 
     try {
       // Convert to local Companions with synced status
-      final localPlots = plots.map((p) => PlotsCompanion.insert(
-        name: p.name,
-        code: p.code,
-        producerLocalId: producerLocalId,
-        syncStatus: drift.Value(SyncStatus.synced.value),
-        remoteId: drift.Value(p.id),
-        remoteProducerId: drift.Value(p.producerId),
-        syncedAt: drift.Value(DateTime.now()),
-      )).toList();
+      final localPlots =
+          plots.map((p) => _toCacheCompanion(p, producerLocalId)).toList();
 
-      await _db.plotsDao.cacheFromRemote(localPlots);
+      await _db.plotsDao.cacheFromRemote(
+        localPlots,
+        onlyForRemoteProducerId: remoteProducerId,
+      );
 
       DebugLogger.info('PlotService', '_cachePlots',
           'Successfully cached ${plots.length} plots');
@@ -599,78 +537,26 @@ class PlotService {
       code: local.code,
       producerId: producerId,
       isActive: true,
+      defaultExtractionPercentage: local.defaultExtractionPercentage,
+      defaultCachazaPercentage: local.defaultCachazaPercentage,
       createdAt: local.createdAt,
       updatedAt: local.createdAt,
     );
   }
 
-  /// Get plots for editing a producer
-  ///
-  /// If producerId is numeric → fetches from local DB (pending producer).
-  /// If producerId is a UUID → fetches from Supabase (synced producer).
-  Future<List<model.Plot>> getPlotsForEdit(String producerId) async {
-    final localId = int.tryParse(producerId);
-
-    if (localId != null && _db != null) {
-      DebugLogger.info('PlotService', 'getPlotsForEdit',
-          'Fetching plots from local DB for pending producer: $localId');
-
-      final localPlots = await _db.plotsDao.getByProducerLocalId(localId);
-      return localPlots
-          .map((p) => model.Plot(
-                id: p.id.toString(),
-                name: p.name,
-                code: p.code,
-                producerId: producerId,
-                isActive: true,
-                createdAt: p.createdAt,
-                updatedAt: p.createdAt,
-              ))
-          .toList();
-    }
-
-    DebugLogger.info('PlotService', 'getPlotsForEdit',
-        'Fetching plots from Supabase for synced producer: $producerId');
-    return await getPlotsByProducerId(producerId);
-  }
-
-  /// Adds a single plot to a producer during edit.
-  ///
-  /// - Pending producer (numeric id): saves locally, offline-capable.
-  /// - Synced producer (UUID): requires internet. Tries offline-first via
-  ///   [createMultiplePlots]; falls back to direct Supabase insert if the
-  ///   producer is not found in local cache.
-  Future<void> addPlotForEdit(String producerId, String name) async {
-    final isLocalId = int.tryParse(producerId) != null;
-
-    if (isLocalId) {
-      // Pending producer — fully offline-capable
-      await createMultiplePlots(producerId, [PlotData(name: name)]);
-      return;
-    }
-
-    // Synced producer — we require internet (checked at dialog open)
-    try {
-      await createMultiplePlots(producerId, [PlotData(name: name)]);
-    } catch (e) {
-      DebugLogger.warning('PlotService', 'addPlotForEdit',
-          'createMultiplePlots failed ($e), falling back to direct insert');
-      // Fallback: create directly in Supabase (producer not in local cache)
-      await createPlot(CreatePlotRequest(name: name, producerId: producerId));
-    }
-  }
-
-  /// Updates a local pending plot's name (not yet synced to Supabase)
-  Future<void> updateLocalPendingPlot(int localId, String name) async {
-    if (_db == null) throw Exception('Base de datos no disponible');
-
-    DebugLogger.info('PlotService', 'updateLocalPendingPlot',
-        'Actualizando parcela pendiente: localId=$localId, name=$name');
-
-    await _db.plotsDao.updateLocal(localId: localId, name: name);
-
-    DebugLogger.info('PlotService', 'updateLocalPendingPlot',
-        'Parcela pendiente actualizada localmente');
+  /// Fila de caché local (sincronizada) para una parcela del servidor.
+  PlotsCompanion _toCacheCompanion(model.Plot p, int producerLocalId) {
+    return PlotsCompanion.insert(
+      name: p.name,
+      code: p.code,
+      producerLocalId: producerLocalId,
+      defaultExtractionPercentage: drift.Value(p.defaultExtractionPercentage),
+      defaultCachazaPercentage: drift.Value(p.defaultCachazaPercentage),
+      syncStatus: drift.Value(SyncStatus.synced.value),
+      remoteId: drift.Value(p.id),
+      remoteProducerId: drift.Value(p.producerId),
+      syncedAt: drift.Value(DateTime.now()),
+    );
   }
 
   /// Refresh plots cache from Supabase (public wrapper)
@@ -713,11 +599,6 @@ class PlotService {
         return;
       }
 
-      // Clear all synced plots ONCE before caching new data
-      DebugLogger.info('PlotService', 'refreshCache',
-          'Clearing all synced plots before batch insert');
-      await _db!.plotsDao.deleteSynced();
-
       // Convert all plots to PlotsCompanion for batch insert
       final allPlotsCompanions = <PlotsCompanion>[];
 
@@ -725,26 +606,18 @@ class PlotService {
         final producerLocalId = entry.key;
         final producerPlots = entry.value;
 
-        final companions = producerPlots.map((p) => PlotsCompanion.insert(
-          name: p.name,
-          code: p.code,
-          producerLocalId: producerLocalId,
-          syncStatus: drift.Value(SyncStatus.synced.value),
-          remoteId: drift.Value(p.id),
-          remoteProducerId: drift.Value(p.producerId),
-          syncedAt: drift.Value(DateTime.now()),
-        )).toList();
+        final companions = producerPlots
+            .map((p) => _toCacheCompanion(p, producerLocalId))
+            .toList();
 
         allPlotsCompanions.addAll(companions);
       }
 
-      // Insert all plots in a single batch operation
+      // Actualiza conservando los ids locales (ver PlotsDao.cacheFromRemote)
       DebugLogger.info('PlotService', 'refreshCache',
-          'Inserting ${allPlotsCompanions.length} plots in batch');
+          'Caching ${allPlotsCompanions.length} plots');
 
-      await _db!.batch((batch) {
-        batch.insertAll(_db.plotsDao.plots, allPlotsCompanions);
-      });
+      await _db!.plotsDao.cacheFromRemote(allPlotsCompanions);
 
       DebugLogger.info('PlotService', 'refreshCache',
           'Successfully cached ${plots.length - failedCount}/${plots.length} plots');
@@ -752,6 +625,107 @@ class PlotService {
       DebugLogger.error('PlotService', 'refreshCache',
           'Error refreshing cache: $e', stackTrace: st);
       rethrow;
+    }
+  }
+
+  // ── Gestión de parcelas (solo administradores) ─────────────────────────────
+  //
+  // Requieren conexión. La base de datos solo deja escribir parcelas a
+  // admin_sistema, admin_modulo y admin_web; si otro rol lo intenta, el
+  // INSERT falla (42501) y el UPDATE no afecta filas: ambos casos se
+  // muestran como falta de permiso.
+
+  static const _noPermission =
+      'Solo los administradores pueden modificar parcelas';
+
+  /// Todas las parcelas de un productor sincronizado, activas primero.
+  Future<List<model.Plot>> getPlotsForManagement(String producerId) async {
+    final response = await _supabase
+        .from('plots')
+        .select()
+        .eq('producer_id', producerId)
+        .order('is_active', ascending: false)
+        .order('name')
+        .order('code');
+    return (response as List).map((json) => model.Plot.fromJson(json)).toList();
+  }
+
+  /// Crea ([id] null) o actualiza una parcela. El código lo asigna la base
+  /// de datos al crear. Los % vacíos (null) quedan sin valor por defecto
+  /// propio: se usará el del productor o el del sistema.
+  Future<model.Plot> savePlot({
+    String? id,
+    required String producerId,
+    required String name,
+    double? defaultExtractionPercentage,
+    double? defaultCachazaPercentage,
+  }) async {
+    final data = {
+      'name': name.trim(),
+      'default_extraction_percentage': defaultExtractionPercentage,
+      'default_cachaza_percentage': defaultCachazaPercentage,
+    };
+    try {
+      final List response;
+      if (id == null) {
+        response = await _supabase
+            .from('plots')
+            .insert({...data, 'producer_id': producerId})
+            .select();
+      } else {
+        response = await _supabase
+            .from('plots')
+            .update({...data, 'updated_at': DateTime.now().toUtc().toIso8601String()})
+            .eq('id', id)
+            .select();
+      }
+      if (response.isEmpty) throw Exception(_noPermission);
+      await _refreshProducerPlotsCache(producerId);
+      return model.Plot.fromJson(response.first as Map<String, dynamic>);
+    } on PostgrestException catch (e) {
+      throw Exception(_plotWriteError(e));
+    }
+  }
+
+  /// Da de baja (false) o reactiva (true) una parcela. Una parcela dada de
+  /// baja deja de aparecer al registrar producción; los lotes ya
+  /// registrados con ella no cambian.
+  Future<void> setPlotActive(String id, String producerId, bool isActive) async {
+    try {
+      final List response = await _supabase
+          .from('plots')
+          .update({
+            'is_active': isActive,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', id)
+          .select('id');
+      if (response.isEmpty) throw Exception(_noPermission);
+      await _refreshProducerPlotsCache(producerId);
+    } on PostgrestException catch (e) {
+      throw Exception(_plotWriteError(e));
+    }
+  }
+
+  String _plotWriteError(PostgrestException e) {
+    if (e.code == '42501') return _noPermission;
+    if (e.code == '23505') return 'Este productor ya tiene una parcela con ese nombre';
+    return 'No se pudo guardar la parcela';
+  }
+
+  /// Pone al día la caché local de las parcelas de un productor para que el
+  /// cambio se vea enseguida al registrar producción (también sin conexión).
+  /// Si falla no interrumpe: la caché se refresca igual en la próxima
+  /// actualización de datos.
+  Future<void> _refreshProducerPlotsCache(String producerId) async {
+    if (_db == null) return;
+    try {
+      final remote = await getPlotsByProducerId(producerId);
+      final producerLocalId = await _resolveProducerLocalId(producerId);
+      await _cachePlots(remote, producerLocalId, producerId);
+    } catch (e) {
+      DebugLogger.warning('PlotService', '_refreshProducerPlotsCache',
+          'No se pudo actualizar la caché de parcelas: $e');
     }
   }
 }

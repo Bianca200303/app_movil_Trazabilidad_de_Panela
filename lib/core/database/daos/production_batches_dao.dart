@@ -70,11 +70,33 @@ class ProductionBatchesDao extends DatabaseAccessor<AppDatabase>
         syncStatus: Value(SyncStatus.synced.value),
         remoteId: Value(remoteId),
         syncedAt: Value(DateTime.now()),
+        syncError: const Value(null),
       ),
     );
 
     DebugLogger.debug('ProductionBatchesDao', 'markAsSynced',
         'Batch marked as synced');
+  }
+
+  /// Guarda el motivo por el que el servidor rechazó el lote. Sigue
+  /// pendiente (se reintenta en cada sincronización) pero ya no frena a los
+  /// demás.
+  Future<void> markSyncRejected(int localId, String reason) async {
+    await (update(productionBatches)..where((b) => b.id.equals(localId)))
+        .write(ProductionBatchesCompanion(syncError: Value(reason)));
+  }
+
+  /// Asigna el id fijo del celular a un lote que no lo tenga (lotes de
+  /// antes de la v13 que no pasaron por la migración) y lo devuelve. Se
+  /// guarda ANTES de enviar: si se generara en cada intento, un reenvío
+  /// tras un corte de señal duplicaría el lote en el servidor.
+  Future<String> ensureClientId(ProductionBatchLocal batch, String Function() generate) async {
+    final existing = batch.clientId;
+    if (existing != null) return existing;
+    final clientId = generate();
+    await (update(productionBatches)..where((b) => b.id.equals(batch.id)))
+        .write(ProductionBatchesCompanion(clientId: Value(clientId)));
+    return clientId;
   }
 
   /// Get production batch by local ID

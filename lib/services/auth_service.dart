@@ -4,7 +4,20 @@ import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/models/current_user.dart';
 import 'package:panela_sys/services/form_data_cache_service.dart';
+import 'package:panela_sys/services/sync/pending_count.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
+
+/// No se puede cerrar sesión: hay registros guardados en el celular que
+/// todavía no se enviaron (se perderían o se subirían con otro usuario).
+class PendingSyncBlocksSignOutException implements Exception {
+  final int pendingCount;
+  const PendingSyncBlocksSignOutException(this.pendingCount);
+
+  @override
+  String toString() =>
+      'Tiene $pendingCount registro(s) sin enviar. Conéctese a internet y '
+      'sincronice antes de cerrar sesión.';
+}
 
 class SignInResult {
   final AuthResponse authResponse;
@@ -73,8 +86,17 @@ class AuthService {
   }
 
   // Sign out
+  //
+  // Lanza [PendingSyncBlocksSignOutException] si quedan registros sin enviar.
   Future<void> signOut() async {
     DebugLogger.info('AuthService', 'signOut', 'Iniciando cierre de sesión');
+
+    final pending = await countPendingSync(AppDatabase());
+    if (pending > 0) {
+      DebugLogger.warning('AuthService', 'signOut',
+          'Cierre de sesión bloqueado: $pending registros sin enviar');
+      throw PendingSyncBlocksSignOutException(pending);
+    }
 
     try {
       // 1. Clear local cache - use singleton AppDatabase to avoid multiple instances

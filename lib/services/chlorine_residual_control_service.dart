@@ -6,57 +6,38 @@ import 'package:intl/intl.dart';
 import 'package:panela_sys/core/app_config.dart';
 import 'package:panela_sys/models/chlorine_residual_control.dart';
 import 'package:panela_sys/models/production_date_group.dart';
+import 'package:panela_sys/services/production_dates_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Service for managing chlorine residual control records
 class ChlorineResidualControlService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
+  final ProductionDatesService _productionDates;
+
+  ChlorineResidualControlService({
+    PendingSubmissionsService? pending,
+    ProductionDatesService? productionDates,
+  })  : _pending = pending ?? PendingSubmissionsService(),
+        _productionDates = productionDates ?? ProductionDatesService();
 
   // =====================================================
   // Create Operations
   // =====================================================
 
-  /// Creates a new chlorine residual control record
+  /// Registra un control nuevo, con o sin señal (ver
+  /// PendingSubmissionsService.submit): con señal se envía en el momento; sin
+  /// señal queda guardado en el celular y se envía al volver la señal.
   ///
-  /// Throws:
-  /// - Exception if duplicate record exists (UNIQUE constraint on module+date+time)
-  /// - Exception if user doesn't have permission (RLS)
-  /// - Exception if measurements are outside valid range (CHECK constraint)
-  Future<ChlorineResidualControl> createControl(
-    CreateChlorineResidualControlRequest request,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('chlorine_residual_controls')
-          .insert(request.toJson())
-          .select('''
-            *,
-            module:coop_modules(name)
-          ''').single();
-
-      // Extract joined data
-      final moduleName =
-          response['module'] != null ? response['module']['name'] as String : null;
-
-      return ChlorineResidualControl.fromJson({
-        ...response,
-        'module_name': moduleName,
-      });
-    } on PostgrestException catch (e) {
-      // Handle unique constraint violation
-      if (e.code == '23505') {
-        throw Exception(
-            'Ya existe un control para este módulo en esta fecha y hora');
-      }
-      // Handle check constraint violation
-      if (e.code == '23514') {
-        throw Exception(
-            'Las mediciones deben estar entre 0 y 10 ppm');
-      }
-      throw Exception('Error al crear control de cloro: ${e.message}');
-    } catch (e) {
-      throw Exception('Error al crear control de cloro: $e');
-    }
+  /// Si el servidor lo rechaza en el momento (p. ej. UNIQUE de
+  /// módulo+fecha+hora, mediciones fuera de rango), lanza el error.
+  Future<SubmissionOutcome> submitControl(CreateChlorineResidualControlRequest request) {
+    return _pending.submit(
+      kind: SubmissionKinds.chlorineControl,
+      payload: request.toJson(),
+    );
   }
 
   // =====================================================
@@ -170,38 +151,47 @@ class ChlorineResidualControlService {
     }
   }
 
-  Future<bool> hasControlOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final response = await _supabase
-          .from('chlorine_residual_controls')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('control_date', dateStr)
-          .eq('cooperative_id', AppConfig.current.id)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay un control de este módulo ese día? (servidor + pendientes)
+  Future<bool> hasControlOnDate(String moduleId, DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.chlorineControl,
+      matches: (p) => p['coop_module_id'] == moduleId && p['control_date'] == dateStr,
+      serverCheck: () async {
+        final response = await _supabase
+            .from('chlorine_residual_controls')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('control_date', dateStr)
+            .eq('cooperative_id', AppConfig.current.id)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
-  Future<bool> hasControlOnDateTime(String moduleId, DateTime date, String time) async {
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final timeStr = time.split(':').length == 3 ? time : '$time:00';
-      final response = await _supabase
-          .from('chlorine_residual_controls')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('control_date', dateStr)
-          .eq('control_time', timeStr)
-          .eq('cooperative_id', AppConfig.current.id)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay un control de este módulo ese día a esa hora exacta?
+  Future<bool> hasControlOnDateTime(String moduleId, DateTime date, String time) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final timeStr = time.split(':').length == 3 ? time : '$time:00';
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.chlorineControl,
+      matches: (p) =>
+          p['coop_module_id'] == moduleId &&
+          p['control_date'] == dateStr &&
+          p['control_time'] == timeStr,
+      serverCheck: () async {
+        final response = await _supabase
+            .from('chlorine_residual_controls')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('control_date', dateStr)
+            .eq('control_time', timeStr)
+            .eq('cooperative_id', AppConfig.current.id)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
   Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
@@ -410,44 +400,28 @@ class ChlorineResidualControlService {
     }
   }
 
+  /// Días con producción del módulo, marcando los que ya tienen control
+  /// (con o sin señal, ver ProductionDatesService).
   Future<List<ProductionDateGroup>> getProductionDateGroups(
     String moduleId,
     DateTime from,
     DateTime to,
-  ) async {
-    try {
-      final fromStr = from.toIso8601String().split('T')[0];
-      final toStr = to.toIso8601String().split('T')[0];
-      final results = await Future.wait([
-        _supabase
-            .from('production_batches')
-            .select('process_date, panela_kg, producers!inner(coop_module_id)')
-            .eq('producers.coop_module_id', moduleId)
-            .gte('process_date', fromStr)
-            .lte('process_date', toStr),
-        _supabase
+  ) {
+    return _productionDates.groupsForModule(
+      moduleId: moduleId,
+      from: from,
+      to: to,
+      kind: SubmissionKinds.chlorineControl,
+      dateKey: 'control_date',
+      recordedOnServer: () async {
+        final response = await _supabase
             .from('chlorine_residual_controls')
             .select('control_date')
             .eq('coop_module_id', moduleId)
-            .gte('control_date', fromStr)
-            .lte('control_date', toStr),
-      ]);
-      final batchesByDate = <String, ({int count, double panela})>{};
-      for (final b in results[0] as List) {
-        final d = b['process_date'] as String;
-        final p = (b['panela_kg'] as num?)?.toDouble() ?? 0.0;
-        final c = batchesByDate[d];
-        batchesByDate[d] = c == null ? (count: 1, panela: p) : (count: c.count + 1, panela: c.panela + p);
-      }
-      final recorded = <String>{for (final r in results[1] as List) r['control_date'] as String};
-      return (batchesByDate.entries.map((e) => ProductionDateGroup(
-        date: DateTime.parse(e.key),
-        batchCount: e.value.count,
-        totalPanelaKg: e.value.panela,
-        alreadyRecorded: recorded.contains(e.key),
-      )).toList()..sort((a, b) => b.date.compareTo(a.date)));
-    } catch (e) {
-      throw Exception('Error al cargar fechas de producción: $e');
-    }
+            .gte('control_date', DateFormat('yyyy-MM-dd').format(from))
+            .lte('control_date', DateFormat('yyyy-MM-dd').format(to));
+        return {for (final r in response as List) r['control_date'] as String};
+      },
+    );
   }
 }

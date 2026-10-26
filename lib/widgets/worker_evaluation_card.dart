@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/widgets/forms/yes_no_field.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 /// Componente que representa un trabajador añadido.
 /// Utiliza un ExpansionTile para permitir la edición in situ.
@@ -20,10 +21,10 @@ class WorkerEvaluationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Colors.green.shade50,
+      color: AppColors.successLight,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: Colors.green.shade300),
+        side: BorderSide(color: AppColors.successBorder),
         borderRadius: BorderRadius.circular(8),
       ),
       margin: const EdgeInsets.only(bottom: 8),
@@ -34,10 +35,10 @@ class WorkerEvaluationCard extends StatelessWidget {
         ),
         subtitle: const Text(
           'Toca para ver o editar detalles',
-          style: TextStyle(color: Colors.black87, fontSize: 12),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 12),
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          icon: const Icon(Icons.delete_outline, color: AppColors.error),
           onPressed: onDelete,
           tooltip: 'Eliminar trabajador',
         ),

@@ -67,16 +67,16 @@ class IdentificationDataStep extends StatelessWidget {
               onChanged: onModuleChanged,
             ),
             SizedBox(height: context.responsiveSpacing),
-            AppTextField(
+            CertifiedWorkerNameField(
               label: 'Nombre del personal',
+              moduleId: selectedModuleId,
               controller: employeeNameController,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Ingresa el nombre del personal';
+                  return 'Ingrese el nombre del personal';
                 }
                 return null;
               },
-              hintText: 'Ej: Juan Pérez',
             ),
             SizedBox(height: context.responsiveSpacing),
             RawAutocomplete<String>(
@@ -199,7 +199,7 @@ class IdentificationDataStep extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(message),
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.error,
                 ),
               );
               return;

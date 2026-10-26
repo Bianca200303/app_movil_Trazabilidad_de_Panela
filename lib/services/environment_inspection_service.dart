@@ -1,38 +1,37 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:panela_sys/models/environment_inspection.dart';
 import 'package:panela_sys/models/production_date_group.dart';
+import 'package:panela_sys/services/production_dates_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
 
 class EnvironmentInspectionService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PendingSubmissionsService _pending;
+  final ProductionDatesService _productionDates;
 
-  // Create inspection with all items atomically via RPC (un solo insert falla
-  // o aplica todo junto; ver migración create_environment_inspection_rpc).
-  Future<EnvironmentInspection> createInspection(
-    CreateEnvironmentInspectionRequest request,
-  ) async {
-    try {
-      final inspectionDate = request.inspectionDate ?? DateTime.now();
-      final inspectionId = await _supabase.rpc(
-        'create_environment_inspection',
-        params: {
-          'p_coop_module_id': request.coopModuleId,
-          'p_inspection_date': inspectionDate.toIso8601String().split('T')[0],
-          'p_cooperative_id': request.cooperativeId,
-          'p_items': request.items.map((item) => item.toJson()).toList(),
-        },
-      ) as String;
+  EnvironmentInspectionService({
+    PendingSubmissionsService? pending,
+    ProductionDatesService? productionDates,
+  })  : _pending = pending ?? PendingSubmissionsService(),
+        _productionDates = productionDates ?? ProductionDatesService();
 
-      final created = await getInspectionById(inspectionId);
-      if (created == null) {
-        throw Exception('La inspección se creó pero no se pudo recuperar');
-      }
-      return created;
-    } catch (e) {
-      throw Exception('Error al crear la inspección de ambiente: $e');
-    }
+  /// Registra una inspección nueva (cabecera + ítems), con o sin señal (ver
+  /// PendingSubmissionsService.submit). Se envía con la RPC atómica e
+  /// idempotente submit_environment_inspection.
+  Future<SubmissionOutcome> submitInspection(CreateEnvironmentInspectionRequest request) {
+    final inspectionDate = request.inspectionDate ?? DateTime.now();
+    return _pending.submit(
+      kind: SubmissionKinds.environmentInspection,
+      payload: {
+        'coop_module_id': request.coopModuleId,
+        'inspection_date': inspectionDate.toIso8601String().split('T')[0],
+        'cooperative_id': request.cooperativeId,
+        'items': request.items.map((item) => item.toJson()).toList(),
+      },
+    );
   }
 
-  // Get inspection by ID with all items
   Future<EnvironmentInspection?> getInspectionById(String id) async {
     try {
       final response = await _supabase
@@ -155,34 +154,27 @@ class EnvironmentInspectionService {
     }
   }
 
-  Future<bool> hasInspectionOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = date.toIso8601String().split('T')[0];
-      final response = await _supabase
-          .from('environment_inspections')
-          .select('id')
-          .eq('coop_module_id', moduleId)
-          .eq('inspection_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Ya hay una inspección de este módulo ese día? (servidor + pendientes)
+  Future<bool> hasInspectionOnDate(String moduleId, DateTime date) {
+    final dateStr = date.toIso8601String().split('T')[0];
+    return _pending.existsOnServerOrPending(
+      kind: SubmissionKinds.environmentInspection,
+      matches: (p) => p['coop_module_id'] == moduleId && p['inspection_date'] == dateStr,
+      serverCheck: () async {
+        final response = await _supabase
+            .from('environment_inspections')
+            .select('id')
+            .eq('coop_module_id', moduleId)
+            .eq('inspection_date', dateStr)
+            .limit(1);
+        return (response as List).isNotEmpty;
+      },
+    );
   }
 
-  Future<bool> hasProductionOnDate(String moduleId, DateTime date) async {
-    try {
-      final dateStr = date.toIso8601String().split('T')[0];
-      final response = await _supabase
-          .from('production_batches')
-          .select('id, producers!inner(coop_module_id)')
-          .eq('producers.coop_module_id', moduleId)
-          .eq('process_date', dateStr)
-          .limit(1);
-      return (response as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+  /// ¿Hubo producción en el módulo ese día? (con o sin señal)
+  Future<bool> hasProductionOnDate(String moduleId, DateTime date) {
+    return _productionDates.hasProductionOnDate(moduleId, date);
   }
 
   // Production dates with batch summary for a module in a date range.

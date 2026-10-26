@@ -7,6 +7,7 @@ import 'package:panela_sys/widgets/production/binary_certificate_switch.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/models/batch_cert.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class SugarCaneTypeStep extends StatelessWidget {
   final List<BatchCert> certificates;
@@ -74,7 +75,7 @@ class SugarCaneTypeStep extends StatelessWidget {
           child: Text(
             errorMessage!,
             style: AppTextStyles.bodyText.copyWith(
-              color: Colors.red,
+              color: AppColors.error,
             ),
           ),
         ),

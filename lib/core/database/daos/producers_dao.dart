@@ -209,24 +209,76 @@ class ProducersDao extends DatabaseAccessor<AppDatabase>
 
   /// Cache producers from remote (for offline dropdown usage)
   ///
-  /// Replaces all synced producers with fresh data from remote.
-  /// Preserves local pending producers (those not yet synced).
+  /// Actualiza la copia local con la lista completa del servidor CONSERVANDO
+  /// el id local de cada productor (se empareja por remoteId): los lotes y
+  /// parcelas pendientes apuntan a ese id, y si se borrara y reinsertara el
+  /// productor quedarían huérfanos y nunca se subirían.
+  ///
+  /// Los productores sincronizados que ya no vienen del servidor se borran,
+  /// salvo que algún lote o parcela pendiente todavía los use.
+  /// Los productores pendientes (sin subir) no se tocan.
   Future<void> cacheFromRemote(List<ProducersCompanion> remoteProducers) async {
     DebugLogger.info('ProducersDao', 'cacheFromRemote',
         'Caching ${remoteProducers.length} producers from remote');
 
-    // Clear all synced producers first to avoid duplicates
-    await deleteSynced();
+    await transaction(() async {
+      final existing = await (select(producers)
+            ..where((p) => p.syncStatus.equals(SyncStatus.synced.value)))
+          .get();
 
-    DebugLogger.debug('ProducersDao', 'cacheFromRemote',
-        'Cleared synced producers, inserting fresh data');
+      // Un id local por remoteId; filas repetidas o sin remoteId sobran.
+      final idByRemoteId = <String, int>{};
+      final leftovers = <int>{};
+      for (final row in existing) {
+        final remoteId = row.remoteId;
+        if (remoteId == null || idByRemoteId.containsKey(remoteId)) {
+          leftovers.add(row.id);
+        } else {
+          idByRemoteId[remoteId] = row.id;
+        }
+      }
 
-    // Insert fresh data from remote
-    await batch((batch) {
-      batch.insertAll(producers, remoteProducers);
+      final incomingRemoteIds = <String>{};
+      for (final producer in remoteProducers) {
+        final remoteId = producer.remoteId.value!;
+        incomingRemoteIds.add(remoteId);
+        final localId = idByRemoteId[remoteId];
+        if (localId == null) {
+          await into(producers).insert(producer);
+        } else {
+          await (update(producers)..where((p) => p.id.equals(localId))).write(producer);
+        }
+      }
+
+      leftovers.addAll(idByRemoteId.entries
+          .where((e) => !incomingRemoteIds.contains(e.key))
+          .map((e) => e.value));
+      final inUse = await _idsReferencedByPendingData(leftovers);
+      final toDelete = leftovers.difference(inUse);
+      if (toDelete.isNotEmpty) {
+        await (delete(producers)..where((p) => p.id.isIn(toDelete))).go();
+      }
     });
 
     DebugLogger.debug('ProducersDao', 'cacheFromRemote', 'Cache updated successfully');
+  }
+
+  /// De [candidateIds], los que todavía usa algún lote o parcela sin subir.
+  Future<Set<int>> _idsReferencedByPendingData(Set<int> candidateIds) async {
+    if (candidateIds.isEmpty) return {};
+    final db = attachedDatabase;
+    final synced = SyncStatus.synced.value;
+    final batchRefs = await (db.select(db.productionBatches)
+          ..where((b) =>
+              b.producerLocalId.isIn(candidateIds) & b.syncStatus.equals(synced).not()))
+        .map((b) => b.producerLocalId)
+        .get();
+    final plotRefs = await (db.select(db.plots)
+          ..where((p) =>
+              p.producerLocalId.isIn(candidateIds) & p.syncStatus.equals(synced).not()))
+        .map((p) => p.producerLocalId)
+        .get();
+    return {...batchRefs, ...plotRefs};
   }
 
   /// Update a local producer's fields

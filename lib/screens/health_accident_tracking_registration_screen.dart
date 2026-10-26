@@ -1,3 +1,4 @@
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:panela_sys/models/health_incident.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/health_incident_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:panela_sys/widgets/health_incident/identification_data_step.dart';
 import 'package:panela_sys/widgets/health_incident/incident_description_step.dart';
@@ -71,81 +73,22 @@ class _HealthAccidentTrackingRegistrationScreenState
     });
   }
 
-  void _showConfirmationDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXLarge),
-        ),
-        backgroundColor: AppColors.surface,
-        contentPadding: const EdgeInsets.fromLTRB(
-          AppDimensions.paddingLarge,
-          AppDimensions.paddingLarge,
-          AppDimensions.paddingLarge,
-          AppDimensions.paddingMedium,
-        ),
-        title: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-              decoration: BoxDecoration(
-                color: AppColors.infoLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.health_and_safety_outlined,
-                color: AppColors.primary,
-                size: AppDimensions.iconXLarge,
-              ),
-            ),
-            const SizedBox(height: AppDimensions.spacingMedium),
-            Text(
-              '¿Registrar nuevo caso?',
-              style: AppTextStyles.cardTitle,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        content: Text(
-          'Este formulario solo debe llenarse si algún trabajador se ha reportado enfermo o accidentado. ¿Deseas registrar un caso ahora?',
-          style: AppTextStyles.bodyTextSecondary,
-          textAlign: TextAlign.center,
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actionsPadding: const EdgeInsets.fromLTRB(
-          AppDimensions.paddingLarge,
-          AppDimensions.paddingSmall,
-          AppDimensions.paddingLarge,
-          AppDimensions.paddingLarge,
-        ),
-        actions: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppButton(
-                text: 'Sí, registrar caso',
-                type: AppButtonType.primary,
-                icon: Icons.check_circle_outline,
-                isExpanded: true,
-                onPressed: () => Navigator.of(dialogContext).pop(),
-              ),
-              const SizedBox(height: AppDimensions.spacingSmall),
-              AppButton(
-                text: 'No, todos están bien',
-                type: AppButtonType.secondary,
-                isExpanded: true,
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  context.go(AppRoutes.controlFormsModulo.path);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+  Future<void> _showConfirmationDialog() async {
+    final registerCase = await AppConfirmDialog.choose<bool>(
+      context,
+      title: '¿Registrar nuevo caso?',
+      message:
+          'Este formulario solo debe llenarse si algún trabajador se ha reportado enfermo o accidentado. ¿Desea registrar un caso ahora?',
+      tone: AppDialogTone.info,
+      icon: Icons.health_and_safety_outlined,
+      actions: const [
+        AppDialogAction('No, todos están bien', false),
+        AppDialogAction('Sí, registrar caso', true, style: AppDialogActionStyle.primary),
+      ],
     );
+    if (registerCase == false && mounted) {
+      context.go(AppRoutes.controlFormsModulo.path);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -189,7 +132,7 @@ class _HealthAccidentTrackingRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al cargar los módulos: $e',
+          message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'),
           type: SnackBarType.error,
         );
         setState(() {
@@ -207,34 +150,24 @@ class _HealthAccidentTrackingRegistrationScreenState
           _selectedModuleId!, _employeeNameController.text.trim(), date);
       if (!mounted) return;
       if (hasExisting) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Ya hay un registro este día', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            content: Text(
-              'Ya existe un incidente registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(date)}.\n\n¿Deseas registrar otro igualmente?',
-              style: const TextStyle(fontSize: 16),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
-              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
-            ],
-          ),
+        final proceed = await AppConfirmDialog.show(
+          context,
+          title: 'Ya hay un registro este día',
+          message: 'Ya existe un incidente registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(date)}.\n\n¿Desea registrar otro igualmente?',
+          confirmLabel: 'Continuar',
         );
-        if (proceed != true || !mounted) return;
+        if (!proceed || !mounted) return;
       }
     }
     if (_currentStep < 4) setState(() => _currentStep++);
   }
 
   void _goToPreviousStep() {
-    setState(() {
-      if (_currentStep > 0) {
-        _currentStep--;
-      } else {
-        context.go(AppRoutes.controlFormsModulo.path);
-      }
-    });
+    if (_currentStep == 0) {
+      _leave();
+      return;
+    }
+    setState(() => _currentStep--);
   }
 
   Future<void> _submitForm() async {
@@ -270,12 +203,12 @@ class _HealthAccidentTrackingRegistrationScreenState
         cooperativeId: AppConfig.current.id,
       );
 
-      await _incidentService.createIncident(request);
+      final outcome = await _incidentService.submitIncident(request);
 
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Incidente de salud registrado exitosamente',
+          message: outcome.message('Incidente de salud registrado exitosamente'),
           type: SnackBarType.success,
         );
         context.go(AppRoutes.controlFormsModulo.path);
@@ -284,7 +217,7 @@ class _HealthAccidentTrackingRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al guardar el incidente: $e',
+          message: userErrorMessage(e, action: 'No se pudo guardar el incidente'),
           type: SnackBarType.error,
         );
       }
@@ -403,8 +336,24 @@ class _HealthAccidentTrackingRegistrationScreenState
     }
   }
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 ||
+      [_workAreaController, _symptomsController, _otherActionController, _returnDateController].any((c) => c.text.trim().isNotEmpty);
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsModulo.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _goToPreviousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     if (_isLoading) {
       return const AppScaffold(
         child: Center(

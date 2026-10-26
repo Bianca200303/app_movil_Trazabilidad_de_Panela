@@ -1,3 +1,6 @@
+import 'package:panela_sys/core/offline/user_error_message.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,15 +10,16 @@ import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
 import 'package:panela_sys/core/utils/date_utils.dart';
-import 'package:panela_sys/models/certified_worker.dart';
 import 'package:panela_sys/models/coop_module.dart';
 import 'package:panela_sys/models/worker_control.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/screens/historial/widgets/shared/historial_period_filter.dart';
-import 'package:panela_sys/services/certified_workers_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
-import 'package:panela_sys/services/product_return_service.dart';
+import 'package:panela_sys/services/recent_batches_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/services/sync/submissions/submission_kinds.dart';
+import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/widgets/widgets.dart';
 import 'package:panela_sys/widgets/worker_evaluation_card.dart';
 
@@ -59,8 +63,8 @@ class WorkerControlRegistrationScreen extends ConsumerStatefulWidget {
 class _WorkerControlRegistrationScreenState
     extends ConsumerState<WorkerControlRegistrationScreen> {
   final _workerControlService = WorkerControlService();
-  final _productReturnService = ProductReturnService();
-  final _certifiedWorkersService = CertifiedWorkersService();
+  final _recentBatchesService = RecentBatchesService();
+  final _pendingSubmissionsDao = AppDatabase().pendingSubmissionsDao;
   final _coopModulesService = CoopModulesService();
   final _scrollController = ScrollController();
 
@@ -73,6 +77,11 @@ class _WorkerControlRegistrationScreenState
   List<Map<String, dynamic>> _availableBatches = [];
   bool _isLoadingBatches = false;
   Map<String, List<WorkerControl>> _existingByBatch = {};
+  // Sin señal no se pueden traer las áreas ya enviadas de cada lote: se
+  // avisa para no registrar dos veces la misma área.
+  bool _existingUnavailable = false;
+  // Áreas de este lote guardadas en el celular y aún no enviadas.
+  int _pendingAreasForBatch = 0;
 
   // Filtro por módulo
   List<CoopModule> _assignedModules = [];
@@ -97,11 +106,6 @@ class _WorkerControlRegistrationScreenState
   List<WorkerEvaluation> _formWorkers = [];
   final _nameController = TextEditingController();
   final _nameFocusNode = FocusNode();
-
-  // Trabajadores certificados del módulo
-  List<CertifiedWorker> _certifiedWorkers = [];
-  bool _isLoadingWorkers = false;
-  CertifiedWorker? _selectedWorker;
   bool _uniformComplete = true;
   bool _noMakeup = true;
   bool _nailsShortClean = true;
@@ -174,21 +178,36 @@ class _WorkerControlRegistrationScreenState
   Future<void> _loadBatches() async {
     setState(() { _isLoadingBatches = true; _selectedBatchId = null; _selectedBatch = null; _batchSearchController.clear(); });
     try {
-      final batches = await _productReturnService.getBatchesByRange(
+      // Con o sin señal: servidor (o su copia local de 30 días) + lotes
+      // creados en este celular aún sin enviar.
+      final batches = await _recentBatchesService.getBatches(
         _from, _to, moduleIds: _moduleIds,
       );
-      final ids = batches.map((b) => b['id'] as String).toList();
-      final existing = await _workerControlService.getControlsByBatchIds(
-        AppConfig.current.id, ids,
-      );
+      final remoteIds = batches
+          .where((b) => RecentBatchesService.localBatchIdOf(b) == null)
+          .map((b) => b['id'] as String)
+          .toList();
+
+      var existing = <String, List<WorkerControl>>{};
+      var existingUnavailable = false;
+      try {
+        existing = await _workerControlService.getControlsByBatchIds(
+          AppConfig.current.id, remoteIds,
+        );
+      } catch (_) {
+        existingUnavailable = true;
+      }
+
+      if (!mounted) return;
       setState(() {
         _availableBatches = batches;
         _existingByBatch = existing;
+        _existingUnavailable = existingUnavailable;
         _isLoadingBatches = false;
       });
     } catch (e) {
       if (mounted) {
-        AppSnackBar.show(context, message: 'Error al cargar lotes: $e', type: SnackBarType.error);
+        AppSnackBar.show(context, message: userErrorMessage(e, action: 'No se pudieron cargar los lotes'), type: SnackBarType.error);
         setState(() => _isLoadingBatches = false);
       }
     }
@@ -210,9 +229,24 @@ class _WorkerControlRegistrationScreenState
         workers: c.workersList,
       )).toList();
       _editingIndex = null;
+      _pendingAreasForBatch = 0;
       _resetForm();
     });
-    _loadCertifiedWorkers(batch);
+    _loadPendingAreas(batch);
+  }
+
+  Future<void> _loadPendingAreas(Map<String, dynamic> batch) async {
+    final localId = RecentBatchesService.localBatchIdOf(batch);
+    final remoteId = localId == null ? batch['id'] as String : null;
+    final pending = await _pendingSubmissionsDao.getByKind(
+      SubmissionKinds.workerControl,
+      AppConfig.current.id,
+    );
+    final count = pending.where((p) {
+      if (localId != null) return p.productionBatchLocalId == localId;
+      return (jsonDecode(p.payload) as Map<String, dynamic>)['production_batch_id'] == remoteId;
+    }).length;
+    if (mounted && _selectedBatch == batch) setState(() => _pendingAreasForBatch = count);
   }
 
   void _clearBatchSelection() {
@@ -220,21 +254,14 @@ class _WorkerControlRegistrationScreenState
       _selectedBatchId = null;
       _selectedBatch = null;
       _areaEntries = [];
-      _certifiedWorkers = [];
       _batchSearchController.clear();
       _resetForm();
     });
   }
 
-  Future<void> _loadCertifiedWorkers(Map<String, dynamic> batch) async {
-    final producers = batch['producers'] as Map<String, dynamic>?;
-    final moduleId = producers?['coop_module_id'] as String?;
-    if (moduleId == null) return;
-
-    setState(() => _isLoadingWorkers = true);
-    final workers = await _certifiedWorkersService.getByModule(moduleId);
-    if (mounted) setState(() { _certifiedWorkers = workers; _isLoadingWorkers = false; });
-  }
+  /// Módulo del productor del lote: de ahí salen los trabajadores sugeridos.
+  String? get _batchModuleId =>
+      (_selectedBatch?['producers'] as Map<String, dynamic>?)?['coop_module_id'] as String?;
 
   void _scrollToTop() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -264,7 +291,7 @@ class _WorkerControlRegistrationScreenState
 
   void _previousStep() {
     if (_currentStep == 0) {
-      context.go(AppRoutes.controlFormsProduccion.path);
+      _leave();
     } else if (_currentStep == 1) {
       setState(() { _currentStep = 0; _editingIndex = null; _resetForm(); });
     } else if (_currentStep == 2) {
@@ -284,7 +311,6 @@ class _WorkerControlRegistrationScreenState
 
   void _resetTempWorker() {
     _nameController.clear();
-    _selectedWorker = null;
     _uniformComplete = true; _noMakeup = true; _nailsShortClean = true;
     _nailsNoPolish = true; _handsClean = true; _noJewelry = true;
     _hairCovered = true; _noBeard = true; _noWounds = true;
@@ -302,16 +328,17 @@ class _WorkerControlRegistrationScreenState
     _scrollToTop();
   }
 
-  bool _addTempWorker() {
-    final name = _certifiedWorkers.isNotEmpty
-        ? _selectedWorker?.fullName
-        : _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
+  /// Nombre del trabajador que se está llenando (elegido de la lista o
+  /// escrito a mano), o null si el campo está vacío.
+  String? get _pendingWorkerName {
+    final name = _nameController.text.trim();
+    return name.isEmpty ? null : name;
+  }
 
+  bool _addTempWorker() {
+    final name = _pendingWorkerName;
     if (name == null) {
-      final msg = _certifiedWorkers.isNotEmpty
-          ? 'Selecciona el trabajador'
-          : 'Ingresa el nombre del trabajador';
-      AppSnackBar.show(context, message: msg, type: SnackBarType.error);
+      AppSnackBar.show(context, message: 'Elija o escriba el nombre del trabajador', type: SnackBarType.error);
       return false;
     }
     setState(() {
@@ -324,28 +351,21 @@ class _WorkerControlRegistrationScreenState
       ));
       _resetTempWorker();
     });
-    if (_certifiedWorkers.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocusNode.requestFocus());
-    }
+    _nameFocusNode.unfocus();
     return true;
   }
 
   Future<bool> _checkPendingWorker() async {
-    final pendingName = _certifiedWorkers.isNotEmpty
-        ? _selectedWorker?.fullName
-        : _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
+    final pendingName = _pendingWorkerName;
     if (pendingName == null) return true;
-    final add = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Trabajador sin añadir'),
-        content: Text('Tienes a "$pendingName" a medio registrar. ¿Añadirlo?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Descartar', style: TextStyle(color: Colors.red))),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Añadir')),
-        ],
-      ),
+    final add = await AppConfirmDialog.choose<bool>(
+      context,
+      title: 'Trabajador sin añadir',
+      message: 'Tiene a "$pendingName" a medio registrar. ¿Desea añadirlo?',
+      actions: const [
+        AppDialogAction('Descartar', false),
+        AppDialogAction('Añadir', true, style: AppDialogActionStyle.primary),
+      ],
     );
     if (add == null) return false;
     if (add) return _addTempWorker();
@@ -354,9 +374,9 @@ class _WorkerControlRegistrationScreenState
   }
 
   Future<void> _saveAreaAndContinue() async {
-    if (!await _checkPendingWorker()) return;
+    if (!await _checkPendingWorker() || !mounted) return;
     if (_formWorkers.isEmpty) {
-      AppSnackBar.show(context, message: 'Añade al menos un trabajador', type: SnackBarType.error);
+      AppSnackBar.show(context, message: 'Añada al menos un trabajador', type: SnackBarType.error);
       return;
     }
     final entry = _AreaEntry(
@@ -387,27 +407,59 @@ class _WorkerControlRegistrationScreenState
     }
     if (!await AppConfirmDialog.show(context)) return;
     setState(() => _isSaving = true);
+    final localBatchId = RecentBatchesService.localBatchIdOf(_selectedBatch!);
+    var anyQueued = false;
+    // Áreas nuevas ya guardadas en esta pasada: si una posterior falla, se
+    // quitan de la lista para que reintentar no las registre dos veces.
+    final savedNew = <_AreaEntry>{};
     try {
-      for (final entry in _areaEntries) {
-        final req = CreateWorkerControlRequest(
-          productionBatchId: _selectedBatchId!,
-          workArea: entry.workArea,
-          observations: entry.observations,
-          cooperativeId: AppConfig.current.id,
-          workers: entry.workers,
-        );
+      for (final entry in List.of(_areaEntries)) {
         if (entry.existingId != null) {
-          await _workerControlService.updateWorkerControlFull(entry.existingId!, req);
+          // Editar un área ya enviada requiere señal (solo se cargan con señal).
+          await _workerControlService.updateWorkerControlFull(
+            entry.existingId!,
+            CreateWorkerControlRequest(
+              productionBatchId: _selectedBatchId!,
+              workArea: entry.workArea,
+              observations: entry.observations,
+              cooperativeId: AppConfig.current.id,
+              workers: entry.workers,
+            ),
+          );
         } else {
-          await _workerControlService.createWorkerControl(req);
+          final outcome = await _workerControlService.submitNewControl(
+            productionBatchId: localBatchId == null ? _selectedBatchId : null,
+            productionBatchLocalId: localBatchId,
+            workArea: entry.workArea,
+            observations: entry.observations,
+            workers: entry.workers,
+          );
+          if (outcome == SubmissionOutcome.queued) anyQueued = true;
+          savedNew.add(entry);
         }
       }
       if (mounted) {
-        AppSnackBar.show(context, message: 'Control registrado exitosamente', type: SnackBarType.success);
+        AppSnackBar.show(
+          context,
+          message: anyQueued
+              ? 'Control guardado en el celular. Se enviará cuando haya conexión.'
+              : 'Control registrado exitosamente',
+          type: SnackBarType.success,
+        );
         context.go(AppRoutes.controlFormsProduccion.path);
       }
     } catch (e) {
-      if (mounted) AppSnackBar.show(context, message: 'Error al guardar: $e', type: SnackBarType.error);
+      if (!mounted) return;
+      if (savedNew.isNotEmpty) {
+        setState(() => _areaEntries.removeWhere(savedNew.contains));
+      }
+      AppSnackBar.show(
+        context,
+        message: savedNew.isEmpty
+            ? userErrorMessage(e, action: 'No se pudo guardar')
+            : userErrorMessage(e, action: 'Se guardaron ${savedNew.length} área(s); las demás no'),
+        type: SnackBarType.error,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -415,8 +467,23 @@ class _WorkerControlRegistrationScreenState
 
   // ── Build ─────────────────────────────────────────────────────────────────────
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _currentStep > 0 || _selectedBatchId != null || _areaEntries.isNotEmpty;
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsProduccion.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _previousStep,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       hasTopLabel: true,
       topLabelText: 'Control de personal operario',
@@ -450,6 +517,44 @@ class _WorkerControlRegistrationScreenState
     final processDate = processDateRaw != null
         ? AppDateUtils.formatDDMMYYYY(DateTime.parse(processDateRaw))
         : null;
+    final isLocalBatch = batch != null && RecentBatchesService.localBatchIdOf(batch) != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildLoteCard(producer, processDate),
+        if (isLocalBatch)
+          _buildNotice('Lote registrado en este celular y aún no enviado. El control '
+              'se enviará después del lote.'),
+        if (_existingUnavailable && !isLocalBatch)
+          _buildNotice('Sin conexión: no se muestran las áreas ya enviadas de este '
+              'lote. Evite registrar dos veces la misma área.'),
+        if (_pendingAreasForBatch > 0)
+          _buildNotice('Este lote tiene $_pendingAreasForBatch área(s) guardadas en '
+              'el celular, pendientes de envío.'),
+      ],
+    );
+  }
+
+  Widget _buildNotice(String text) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.warningLight,
+        border: Border.all(color: AppColors.warning),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined, color: AppColors.warning, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: AppTextStyles.captionText)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoteCard(Map<String, dynamic>? producer, String? processDate) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.06),
@@ -467,11 +572,11 @@ class _WorkerControlRegistrationScreenState
             ),
             child: Row(
               children: [
-                const Icon(Icons.inventory_2_outlined, size: 14, color: Colors.white),
+                const Icon(Icons.inventory_2_outlined, size: 14, color: AppColors.textWhite),
                 const SizedBox(width: 6),
                 const Expanded(
                   child: Text('LOTE DE PRODUCCIÓN',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                      style: TextStyle(color: AppColors.textWhite, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                 ),
               ],
             ),
@@ -529,7 +634,6 @@ class _WorkerControlRegistrationScreenState
                   _selectedBatchId = null;
                   _selectedBatch = null;
                   _areaEntries = [];
-                  _certifiedWorkers = [];
                   _batchSearchController.clear();
                   _resetForm();
                 });
@@ -584,14 +688,14 @@ class _WorkerControlRegistrationScreenState
                 children: [
                   Text(
                     '${producer['first_name']} ${producer['last_name']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
                   ),
                   if (processDate != null)
-                    Text(processDate, style: const TextStyle(fontSize: 13, color: Colors.black)),
+                    Text(processDate, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                   Text(
                     'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
                     '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
-                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
                   ),
                 ],
               ),
@@ -623,14 +727,14 @@ class _WorkerControlRegistrationScreenState
         TextField(
           controller: _batchSearchController,
           onChanged: (_) => setState(() {}),
-          style: const TextStyle(color: Colors.black, fontSize: 15),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'Buscar por nombre de productor',
-            hintStyle: const TextStyle(color: Colors.black54),
-            prefixIcon: const Icon(Icons.search, color: Colors.black54),
+            hintStyle: const TextStyle(color: AppColors.textSecondary),
+            prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
             suffixIcon: _batchSearchController.text.isNotEmpty
                 ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.black54),
+                    icon: const Icon(Icons.clear, color: AppColors.textSecondary),
                     onPressed: () => setState(() => _batchSearchController.clear()),
                   )
                 : null,
@@ -638,7 +742,7 @@ class _WorkerControlRegistrationScreenState
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
+              borderSide: const BorderSide(color: AppColors.inputBorder),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -649,13 +753,13 @@ class _WorkerControlRegistrationScreenState
         const SizedBox(height: 6),
         Text(
           '${filtered.length} lote${filtered.length == 1 ? '' : 's'}',
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 4),
         Container(
           constraints: const BoxConstraints(maxHeight: 300),
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFBDBDBD)),
+            border: Border.all(color: AppColors.inputBorder),
             borderRadius: BorderRadius.circular(10),
           ),
           child: filtered.isEmpty
@@ -664,7 +768,7 @@ class _WorkerControlRegistrationScreenState
                   child: Center(
                     child: Text(
                       'No se encontraron lotes',
-                      style: TextStyle(color: Colors.black, fontSize: 14),
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
                     ),
                   ),
                 )
@@ -672,7 +776,7 @@ class _WorkerControlRegistrationScreenState
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, i) {
                     final batch = filtered[i];
                     final id = batch['id'] as String;
@@ -691,7 +795,7 @@ class _WorkerControlRegistrationScreenState
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         child: Row(
                           children: [
-                            const Icon(Icons.inventory_2_outlined, size: 20, color: Colors.black54),
+                            const Icon(Icons.inventory_2_outlined, size: 20, color: AppColors.textSecondary),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -699,14 +803,14 @@ class _WorkerControlRegistrationScreenState
                                 children: [
                                   Text(
                                     '${producer['first_name']} ${producer['last_name']}',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black),
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.textPrimary),
                                   ),
                                   if (processDate != null)
-                                    Text(processDate, style: const TextStyle(fontSize: 12, color: Colors.black)),
+                                    Text(processDate, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
                                   Text(
                                     'Panela: ${panelaKg % 1 == 0 ? panelaKg.toInt() : panelaKg} kg'
                                     '${confitilloKg > 0 ? '  •  Confitillo: ${confitilloKg % 1 == 0 ? confitilloKg.toInt() : confitilloKg} kg' : ''}',
-                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
                                   ),
                                 ],
                               ),
@@ -715,17 +819,17 @@ class _WorkerControlRegistrationScreenState
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.15),
+                                  color: AppColors.success.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.green.shade400),
+                                  border: Border.all(color: AppColors.successBorder),
                                 ),
                                 child: Text(
                                   'Evaluado',
-                                  style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                                  style: TextStyle(fontSize: 10, color: AppColors.successDark, fontWeight: FontWeight.w600),
                                 ),
                               )
                             else
-                              const Icon(Icons.chevron_right, color: Colors.black38, size: 20),
+                              const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
                           ],
                         ),
                       ),
@@ -760,17 +864,17 @@ class _WorkerControlRegistrationScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: AppColors.warningBorder),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.edit_outlined, size: 16, color: Colors.orange.shade700),
+                  Icon(Icons.edit_outlined, size: 16, color: AppColors.warningDark),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Editando: ${_areaEntries[_editingIndex!].workArea.displayName}',
-                        style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w600)),
+                        style: TextStyle(color: AppColors.warningDark, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -865,23 +969,13 @@ class _WorkerControlRegistrationScreenState
                   style: AppTextStyles.sectionTitle,
                 ),
                 const SizedBox(height: 16),
-                if (_certifiedWorkers.isNotEmpty || _isLoadingWorkers)
-                  SearchableDropdownField<CertifiedWorker>(
-                    label: 'Nombre y Apellidos',
-                    items: _certifiedWorkers,
-                    selectedValue: _selectedWorker,
-                    labelFor: (w) => w.fullName,
-                    hintText: 'Buscar trabajador...',
-                    isLoading: _isLoadingWorkers,
-                    onChanged: (w) => setState(() => _selectedWorker = w),
-                  )
-                else
-                  AppTextField(
-                    label: 'Nombre del Trabajador',
-                    controller: _nameController,
-                    hintText: 'Ej: Juan García',
-                    focusNode: _nameFocusNode,
-                  ),
+                // Sugiere los certificados del módulo; si la persona no está
+                // en la lista, se escribe su nombre igual.
+                CertifiedWorkerNameField(
+                  moduleId: _batchModuleId,
+                  controller: _nameController,
+                  focusNode: _nameFocusNode,
+                ),
                 const SizedBox(height: 16),
                 Text('Cumplimiento de Higiene y Seguridad:', style: AppTextStyles.fieldLabel),
                 const SizedBox(height: 8),
@@ -942,18 +1036,18 @@ class _WorkerControlRegistrationScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: AppColors.successLight,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade400),
+              border: Border.all(color: AppColors.successBorder),
             ),
             child: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                Icon(Icons.check_circle, color: AppColors.success, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     '¡Área guardada correctamente!',
-                    style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.w600, fontSize: 15),
+                    style: TextStyle(color: AppColors.successDark, fontWeight: FontWeight.w600, fontSize: 15),
                   ),
                 ),
               ],
@@ -970,13 +1064,13 @@ class _WorkerControlRegistrationScreenState
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.07),
+                color: AppColors.success.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade400),
+                border: Border.all(color: AppColors.successBorder),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),
+                  Icon(Icons.check_circle, size: 18, color: AppColors.success),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -994,7 +1088,7 @@ class _WorkerControlRegistrationScreenState
                     child: Text('Editar', style: TextStyle(fontSize: 12, color: AppColors.primary)),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
                     onPressed: () => setState(() => _areaEntries.removeAt(idx)),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -1077,7 +1171,7 @@ class _StepCircle extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDone = currentStep > index;
     final isActive = currentStep == index;
-    final bgColor = (isDone || isActive) ? AppColors.primary : Colors.grey.shade300;
+    final bgColor = (isDone || isActive) ? AppColors.primary : AppColors.border;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1089,11 +1183,11 @@ class _StepCircle extends StatelessWidget {
           decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
           child: Center(
             child: isDone
-                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                ? const Icon(Icons.check, color: AppColors.textWhite, size: 20)
                 : Text(
                     '${index + 1}',
                     style: TextStyle(
-                      color: isActive ? Colors.white : Colors.grey.shade500,
+                      color: isActive ? AppColors.textWhite : AppColors.textTertiary,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -1106,7 +1200,7 @@ class _StepCircle extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
-            color: isActive ? AppColors.primary : Colors.grey.shade500,
+            color: isActive ? AppColors.primary : AppColors.textTertiary,
           ),
         ),
       ],
@@ -1127,7 +1221,7 @@ class _StepLine extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         height: 3,
         decoration: BoxDecoration(
-          color: done ? AppColors.primary : Colors.grey.shade300,
+          color: done ? AppColors.primary : AppColors.border,
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -1150,7 +1244,7 @@ class _YesNoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isYes ? Colors.green.shade600 : Colors.red.shade600;
+    final color = isYes ? AppColors.success : AppColors.error;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1158,10 +1252,10 @@ class _YesNoButton extends StatelessWidget {
         width: 52,
         height: 36,
         decoration: BoxDecoration(
-          color: selected ? color : Colors.grey.shade100,
+          color: selected ? color : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
+            color: selected ? color : AppColors.border,
             width: selected ? 2 : 1,
           ),
         ),
@@ -1171,7 +1265,7 @@ class _YesNoButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : Colors.grey.shade400,
+              color: selected ? AppColors.textWhite : AppColors.textTertiary,
             ),
           ),
         ),

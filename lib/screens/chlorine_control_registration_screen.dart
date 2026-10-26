@@ -1,3 +1,4 @@
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,8 @@ import 'package:panela_sys/models/production_date_group.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/services/chlorine_residual_control_service.dart';
 import 'package:panela_sys/services/coop_modules_service.dart';
+import 'package:panela_sys/services/sync/pending_submissions_service.dart';
+import 'package:panela_sys/core/database/app_database.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/shared/production_date_selector.dart';
 import 'package:panela_sys/widgets/widgets.dart';
@@ -83,18 +86,31 @@ class _ChlorineControlRegistrationScreenState
   Future<void> _loadProducers() async {
     setState(() => _isLoadingProducers = true);
     try {
-      final response = await _supabase
-          .from('producers')
-          .select('first_name, last_name, coop_module_id')
-          .eq('cooperative_id', AppConfig.current.id)
-          .eq('is_active', true)
-          .order('first_name');
-      var producers = (response as List)
-          .map((p) => (
-                name: '${p['first_name']} ${p['last_name']}',
-                moduleId: p['coop_module_id'] as String,
-              ))
-          .toList();
+      List<({String name, String moduleId})> producers;
+      try {
+        final response = await _supabase
+            .from('producers')
+            .select('first_name, last_name, coop_module_id')
+            .eq('cooperative_id', AppConfig.current.id)
+            .eq('is_active', true)
+            .order('first_name')
+            .timeout(const Duration(seconds: 8));
+        producers = (response as List)
+            .map((p) => (
+                  name: '${p['first_name']} ${p['last_name']}',
+                  moduleId: p['coop_module_id'] as String,
+                ))
+            .toList();
+      } catch (_) {
+        // Sin señal: productores guardados en el celular (se cargan al
+        // iniciar sesión). Solo alimentan la sugerencia del responsable.
+        final local = await AppDatabase().producersDao.getAll();
+        producers = local
+            .where((p) => p.cooperativeId == AppConfig.current.id)
+            .map((p) => (name: '${p.firstName} ${p.lastName}', moduleId: p.coopModuleId))
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+      }
       final currentUser = ref.read(currentUserProvider);
       if (currentUser != null && currentUser.hasModuleRestriction) {
         producers = producers
@@ -142,7 +158,7 @@ class _ChlorineControlRegistrationScreenState
         });
         AppSnackBar.show(
           context,
-          message: 'Error al cargar módulos: $e',
+          message: userErrorMessage(e, action: 'No se pudieron cargar los módulos'),
           type: SnackBarType.error,
         );
       }
@@ -243,21 +259,16 @@ class _ChlorineControlRegistrationScreenState
 
     if (hasOnDate) {
       final message = hasOnDateTime
-          ? '¡Atención! Ya existe un control registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(_controlDate!)} a las $timeString exactamente.\n\n¿Deseas registrar otro de todas formas?'
-          : 'Ya existe al menos un control de cloro para este módulo en esta fecha.\n\n¿Deseas registrar otro igualmente?';
+          ? 'Ya existe un control registrado para este módulo el ${AppDateUtils.formatDDMMYYYY(_controlDate!)} a las $timeString exactamente.\n\n¿Desea registrar otro de todas formas?'
+          : 'Ya existe al menos un control de cloro para este módulo en esta fecha.\n\n¿Desea registrar otro igualmente?';
       final title = hasOnDateTime ? 'Misma fecha y hora exacta' : 'Ya hay un control este día';
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          content: Text(message, style: const TextStyle(fontSize: 16)),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCELAR', style: TextStyle(fontSize: 15))),
-            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('CONTINUAR', style: TextStyle(fontSize: 15))),
-          ],
-        ),
+      final proceed = await AppConfirmDialog.show(
+        context,
+        title: title,
+        message: message,
+        confirmLabel: 'Continuar',
       );
-      if (proceed != true || !mounted) return;
+      if (!proceed || !mounted) return;
     }
 
     if (!await AppConfirmDialog.show(context)) return;
@@ -284,13 +295,12 @@ class _ChlorineControlRegistrationScreenState
         responsiblePerson: _responsiblePersonController.text.trim(),
       );
 
-      // Submit to service
-      await _chlorineService.createControl(request);
+      final outcome = await _chlorineService.submitControl(request);
 
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Control de cloro registrado exitosamente',
+          message: outcome.message('Control de cloro registrado exitosamente'),
           type: SnackBarType.success,
         );
         context.go(AppRoutes.controlFormsModulo.path);
@@ -299,7 +309,7 @@ class _ChlorineControlRegistrationScreenState
       if (mounted) {
         AppSnackBar.show(
           context,
-          message: 'Error al registrar control: $e',
+          message: userErrorMessage(e, action: 'No se pudo registrar el control'),
           type: SnackBarType.error,
         );
       }
@@ -336,13 +346,13 @@ class _ChlorineControlRegistrationScreenState
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        border: Border.all(color: Colors.orange.shade300),
+        color: AppColors.warningLight,
+        border: Border.all(color: AppColors.warningBorder),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+          Icon(Icons.warning_amber_rounded, color: AppColors.warningDark),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -352,7 +362,7 @@ class _ChlorineControlRegistrationScreenState
                   'Fuera del rango seguro (0.5-2.0 ppm)',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade900,
+                    color: AppColors.warningDark,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -360,7 +370,7 @@ class _ChlorineControlRegistrationScreenState
                       warning,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.orange.shade800,
+                        color: AppColors.warningDark,
                       ),
                     )),
               ],
@@ -375,8 +385,24 @@ class _ChlorineControlRegistrationScreenState
   // Build UI
   // =====================================================
 
+  /// Hay datos ingresados que se perderían al salir (ver UnsavedChangesGuard).
+  bool get _hasUnsavedChanges =>
+      _controlDate != null ||
+      [_m1Controller, _m2Controller, _correctiveActionsController, _observationsController, _responsiblePersonController].any((c) => c.text.trim().isNotEmpty);
+
+  void _leave() => UnsavedChangesGuard.leave(
+        context,
+        hasUnsavedChanges: _hasUnsavedChanges,
+        leave: () => context.go(AppRoutes.controlFormsModulo.path),
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UnsavedChangesGuard(
+        onBack: _leave,
+        child: _buildForm(context),
+      );
+
+  Widget _buildForm(BuildContext context) {
     return AppScaffold(
       hasTopLabel: true,
       topLabelText: 'Control de Cloro Libre Residual',
@@ -398,7 +424,7 @@ class _ChlorineControlRegistrationScreenState
                   children: [
                     // Back button
                     AppBackButton(
-                      onPressed: () => context.go(AppRoutes.controlFormsModulo.path),
+                      onPressed: _leave,
                       isExpanded: true,
                     ),
 
@@ -585,8 +611,7 @@ class _ChlorineControlRegistrationScreenState
                           SizedBox(height: context.responsiveSpacing / 2),
                           AppBackButton(
                             label: 'Cancelar',
-                            onPressed: () =>
-                                context.go(AppRoutes.controlFormsModulo.path),
+                            onPressed: _leave,
                           ),
                         ],
                       )
@@ -596,8 +621,7 @@ class _ChlorineControlRegistrationScreenState
                           Expanded(
                             child: AppBackButton(
                               label: 'Cancelar',
-                              onPressed: () =>
-                                  context.go(AppRoutes.controlFormsModulo.path),
+                              onPressed: _leave,
                             ),
                           ),
                           SizedBox(width: context.responsiveSpacing / 2),

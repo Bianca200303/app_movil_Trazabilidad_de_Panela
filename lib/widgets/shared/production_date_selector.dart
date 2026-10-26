@@ -101,7 +101,7 @@ class _ProductionDateCard extends StatelessWidget {
         padding: context.responsivePadding,
         decoration: BoxDecoration(
           color: isDisabled
-              ? Colors.grey.shade100
+              ? AppColors.surfaceVariant
               : isSelected
                   ? AppColors.primary.withValues(alpha: 0.1)
                   : AppColors.surfaceVariant,
@@ -119,20 +119,20 @@ class _ProductionDateCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
+                  color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.orange.shade400),
+                  border: Border.all(color: AppColors.warningBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.check_circle,
-                        size: 14, color: Colors.orange.shade700),
+                        size: 14, color: AppColors.warningDark),
                     const SizedBox(width: 4),
                     Text(
                       'Ya registrado',
                       style: AppTextStyles.captionText.copyWith(
-                        color: Colors.orange.shade800,
+                        color: AppColors.warningDark,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

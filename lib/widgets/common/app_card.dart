@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/widgets/common/app_back_button.dart';
@@ -19,10 +20,17 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En celulares el margen exterior es mínimo para no restarle ancho al
+    // contenido (la pantalla ya suma su propio margen horizontal).
+    final outerPadding = ScreenUtils.isSmallScreen(context)
+        ? AppDimensions.paddingXSmall
+        : ScreenUtils.isMobile(context)
+            ? AppDimensions.paddingSmall
+            : AppDimensions.paddingLarge;
     return Center(
       child: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingLarge),
+          padding: EdgeInsets.all(outerPadding),
           child: Container(
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.cardMaxWidth,
@@ -38,7 +46,7 @@ class AppCard extends StatelessWidget {
                 ),
               ),
               child: Padding(
-                padding: padding ?? const EdgeInsets.all(AppDimensions.paddingXLarge),
+                padding: padding ?? ScreenUtils.getResponsivePadding(context),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,

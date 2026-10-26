@@ -10,10 +10,14 @@ class ScreenUtils {
   /// Small screen thresholds for mobile devices
   static const double smallScreenHeight = 700;
   static const double smallScreenWidth = 400;
-  
-  /// Very small screen thresholds (like 720x1280)
-  static const double verySmallScreenHeight = 800;
-  static const double verySmallScreenWidth = 450;
+
+  /// Very small screen thresholds (gama baja: 360 dp de ancho o menos, o
+  /// pantallas muy bajas). Debe ser más estricto que "small".
+  static const double verySmallScreenHeight = 640;
+  static const double verySmallScreenWidth = 361;
+
+  /// Ancho desde el cual dos botones caben lado a lado sin cortar el texto.
+  static const double sideBySideButtonsWidth = 400;
 
   /// Get screen size from context
   static Size getScreenSize(BuildContext context) {
@@ -76,33 +80,35 @@ class ScreenUtils {
 
   /// Get responsive card width based on screen size
   static double getResponsiveCardWidth(BuildContext context) {
-    final screenWidth = getScreenSize(context).width;
-    
-    if (isVerySmallScreen(context)) {
-      return screenWidth * 0.95; // Use almost full width on very small screens
-    } else if (isSmallScreen(context)) {
-      return screenWidth * 0.90; // Use 90% width on small screens
-    } else if (isMobile(context)) {
-      return screenWidth * 0.85; // Use 85% width on mobile
-    } else {
-      return 400.0; // Fixed width for larger screens
-    }
+    // En celulares la tarjeta ocupa todo el ancho: los márgenes ya los pone
+    // el padding horizontal de la pantalla (sumar un porcentaje encima
+    // restaba ancho útil a los campos en pantallas angostas).
+    if (isMobile(context)) return double.infinity;
+    return 400.0; // Fixed width for larger screens
   }
 
   /// Check if buttons should be stacked vertically instead of horizontally
   static bool shouldStackButtons(BuildContext context) {
-    return isVerySmallScreen(context);
+    return getScreenSize(context).width < sideBySideButtonsWidth;
   }
 
-  /// Get responsive font size multiplier
+  /// Factor de tamaño de letra según la pantalla. Los tamaños base
+  /// (FontSizeConfig) están pensados para celulares de ~412 dp o más; en
+  /// pantallas más angostas o muy bajas se reducen para que quepa más
+  /// contenido con menos scroll. Se aplica una sola vez, en la raíz de la app
+  /// (ResponsiveTextScale), encima del tamaño de letra que el usuario haya
+  /// elegido en su celular.
   static double getResponsiveFontScale(BuildContext context) {
-    if (isVerySmallScreen(context)) {
-      return 0.9; // Slightly smaller text on very small screens
-    } else if (isSmallScreen(context)) {
-      return 0.95; // Slightly smaller text on small screens
-    } else {
-      return 1.0; // Normal text size
-    }
+    final size = getScreenSize(context);
+    final byWidth = size.width < verySmallScreenWidth
+        ? 0.82
+        : size.width < smallScreenWidth
+            ? 0.88
+            : size.width < mobileBreakpoint
+                ? 0.94
+                : 1.0;
+    final isShort = size.height < verySmallScreenHeight;
+    return isShort && byWidth > 0.88 ? 0.88 : byWidth;
   }
 
   /// Get responsive spacing between form elements

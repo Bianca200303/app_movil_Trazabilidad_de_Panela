@@ -8,6 +8,10 @@ import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/services/auth_service.dart';
 import 'package:panela_sys/providers/current_user_provider.dart';
 import 'package:panela_sys/widgets/widgets.dart';
+import 'package:panela_sys/widgets/sync/sign_out_blocked_dialog.dart';
+import 'package:panela_sys/widgets/sync/form_data_freshness_label.dart';
+import 'package:panela_sys/widgets/sync/pending_records_link.dart';
+import 'package:panela_sys/providers/form_data_refresh_provider.dart';
 import 'package:go_router/go_router.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -21,7 +25,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreSessionIfNeeded());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _restoreSessionIfNeeded();
+      // Al abrir la app con la sesión ya iniciada: sube lo pendiente de
+      // antes y pone al día los datos para trabajar sin señal (si hay
+      // conexión y hace falta; tras subir se vuelven a actualizar solos).
+      if (!mounted) return;
+      ref.read(autoSyncStateProvider.notifier).syncIfPending();
+      ref.read(formDataRefreshProvider.notifier).refreshIfStale();
+    });
   }
 
   Future<void> _restoreSessionIfNeeded() async {
@@ -45,6 +57,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (context.mounted) {
         context.go(AppRoutes.login.path);
       }
+    } on PendingSyncBlocksSignOutException catch (e) {
+      if (context.mounted) await showSignOutBlockedDialog(context, e);
     } catch (e) {
       if (context.mounted) {
         AppSnackBar.show(
@@ -147,11 +161,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               type: AppButtonType.option,
                               onPressed: () => context.go(AppRoutes.moduleManagement.path),
                             ),
+                            AppButton(
+                              text: 'Trabajadores certificados',
+                              icon: Icons.badge_outlined,
+                              type: AppButtonType.option,
+                              onPressed: () => context.go(AppRoutes.certifiedWorkersManagement.path),
+                            ),
                           ],
                         ],
                       ),
                     ),
                   ),
+
+                  if (!isProductor) ...[
+                    SizedBox(height: context.responsiveSpacing / 2),
+                    const FormDataFreshnessLabel(),
+                    const PendingRecordsLink(),
+                  ],
 
                   if (isOnline) ...[
                     SizedBox(height: context.responsiveSpacing),

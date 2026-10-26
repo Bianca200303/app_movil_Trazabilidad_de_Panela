@@ -59,7 +59,7 @@ class IncidentDescriptionStep extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Falta completar: Descripción de síntomas'),
-                  backgroundColor: Colors.red,
+                  backgroundColor: AppColors.error,
                 ),
               );
               return;

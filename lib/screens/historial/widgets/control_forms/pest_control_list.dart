@@ -153,8 +153,8 @@ class _PestControlCard extends StatelessWidget {
     final hasBaitData = baitRecords.isNotEmpty;
     final hasInsectData = insectRecords.isNotEmpty;
     final backgroundColor = (hasBaitData && hasInsectData)
-        ? Colors.blue[50]!
-        : (hasBaitData ? Colors.green[50]! : Colors.orange[50]!);
+        ? AppColors.infoLight
+        : (hasBaitData ? AppColors.successLight : AppColors.warningLight);
 
     return HistorialExpandableCard(
       isExpanded: isExpanded,
@@ -175,9 +175,9 @@ class _PestControlCard extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     if (hasBaitData)
-                      _badge('Cebos', Colors.green[700]!),
+                      _badge('Cebos', AppColors.successDark),
                     if (hasInsectData)
-                      _badge('Insectos', Colors.orange[700]!),
+                      _badge('Insectos', AppColors.warningDark),
                   ],
                 ),
               ],
@@ -200,14 +200,14 @@ class _PestControlCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.circle, size: 12, color: Colors.green[700]),
+                    Icon(Icons.circle, size: 12, color: AppColors.successDark),
                     const SizedBox(width: 8),
                     Text('Control de Cebos',
                         style: AppTextStyles.fieldLabel.copyWith(fontWeight: FontWeight.w600)),
@@ -244,14 +244,14 @@ class _PestControlCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.circle, size: 12, color: Colors.orange[700]),
+                    Icon(Icons.circle, size: 12, color: AppColors.warningDark),
                     const SizedBox(width: 8),
                     Text('Control de Insectos',
                         style: AppTextStyles.fieldLabel.copyWith(fontWeight: FontWeight.w600)),

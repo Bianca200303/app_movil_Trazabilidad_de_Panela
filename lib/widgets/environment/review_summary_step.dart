@@ -76,13 +76,13 @@ class ReviewSummaryStep extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isFullyCompliant
-                    ? Colors.green.shade50
-                    : Colors.orange.shade50,
+                    ? AppColors.successLight
+                    : AppColors.warningLight,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isFullyCompliant
-                      ? Colors.green.shade300
-                      : Colors.orange.shade300,
+                      ? AppColors.successBorder
+                      : AppColors.warningBorder,
                 ),
               ),
               child: Column(
@@ -96,7 +96,7 @@ class ReviewSummaryStep extends StatelessWidget {
                             : Icons.warning_amber,
                         color: isFullyCompliant
                             ? AppColors.success
-                            : Colors.orange.shade700,
+                            : AppColors.warningDark,
                         size: 32,
                       ),
                       const SizedBox(width: 12),
@@ -107,7 +107,7 @@ class ReviewSummaryStep extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           color: isFullyCompliant
                               ? AppColors.success
-                              : Colors.orange.shade900,
+                              : AppColors.warningDark,
                         ),
                       ),
                     ],
@@ -122,7 +122,7 @@ class ReviewSummaryStep extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: isFullyCompliant
                           ? AppColors.success
-                          : Colors.orange.shade900,
+                          : AppColors.warningDark,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -169,9 +169,9 @@ class ReviewSummaryStep extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: AppColors.surfaceVariant,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   children: [
@@ -214,20 +214,20 @@ class ReviewSummaryStep extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: AppColors.warningLight,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade300),
+              border: Border.all(color: AppColors.warningBorder),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700),
+                Icon(Icons.info_outline, color: AppColors.warningDark),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Esta inspección tiene $nonCompliantItems ítems no conformes. '
                     'Asegúrate de haber agregado las acciones correctivas necesarias.',
                     style: TextStyle(
-                      color: Colors.orange.shade900,
+                      color: AppColors.warningDark,
                       fontSize: 13,
                     ),
                   ),

@@ -18,6 +18,7 @@ import 'package:panela_sys/screens/worker_control_registration_screen.dart';
 import 'package:panela_sys/screens/maintenance_control_registration_screen.dart';
 import 'package:panela_sys/screens/user_management_screen.dart';
 import 'package:panela_sys/screens/module_management_screen.dart';
+import 'package:panela_sys/screens/certified_workers_management_screen.dart';
 
 class AppRoute {
   final String path;
@@ -172,6 +173,12 @@ class AppRoutes {
     screen: ModuleManagementScreen(),
   );
 
+  static const certifiedWorkersManagement = AppRoute(
+    path: '/certified-workers-management',
+    displayName: 'Trabajadores certificados',
+    screen: CertifiedWorkersManagementScreen(),
+  );
+
   // Private constructor to prevent instantiation
   AppRoutes._();
   
@@ -197,6 +204,7 @@ class AppRoutes {
     maintenanceControlRegistration,
     userManagement,
     moduleManagement,
+    certifiedWorkersManagement,
   ];
   
   // Get public routes (no authentication required)

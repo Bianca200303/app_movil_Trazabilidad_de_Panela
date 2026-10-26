@@ -161,7 +161,7 @@ class _BatchCard extends StatelessWidget {
           color: AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
           border: Border.all(
-            color: isPending ? const Color(0xFFFF9800) : AppColors.inputBorder,
+            color: isPending ? AppColors.warning : AppColors.inputBorder,
             width: isPending ? 2 : AppDimensions.inputBorderWidth,
           ),
         ),
@@ -176,16 +176,13 @@ class _BatchCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // El código del lote tiene la fila para él solo (salvo la
+                  // flecha); fecha y "Por sincronizar" van debajo y bajan de
+                  // línea si no caben, así nada se aplasta en pantallas
+                  // angostas o con letra grande.
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (isPending) ...[
-                        const Icon(Icons.sync_problem, size: 14, color: Color(0xFFFF9800)),
-                        const SizedBox(width: 4),
-                        Text('Por Sincronizar',
-                          style: AppTextStyles.captionText.copyWith(
-                            color: const Color(0xFFFF9800), fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 8),
-                      ],
                       Expanded(
                         child: Text(
                           batch['codigo_lote'] as String? ?? '—',
@@ -193,15 +190,34 @@ class _BatchCard extends StatelessWidget {
                             fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                       ),
-                      Text(
-                        batch['fecha_proceso'] as String? ?? '—',
-                        style: AppTextStyles.captionText,
-                      ),
                       SizedBox(width: context.responsiveSpacing / 2),
                       Icon(
                         isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                         size: 18, color: AppColors.textSecondary,
                       ),
+                    ],
+                  ),
+                  SizedBox(height: context.responsiveSpacing / 4),
+                  Wrap(
+                    spacing: context.responsiveSpacing / 2,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        batch['fecha_proceso'] as String? ?? '—',
+                        style: AppTextStyles.captionText,
+                      ),
+                      if (isPending)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.sync_problem, size: 14, color: AppColors.warning),
+                            const SizedBox(width: 4),
+                            Text('Por Sincronizar',
+                              style: AppTextStyles.captionText.copyWith(
+                                color: AppColors.warning, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                     ],
                   ),
                   SizedBox(height: context.responsiveSpacing / 4),
@@ -212,10 +228,11 @@ class _BatchCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: context.responsiveSpacing / 4),
-                  Row(
+                  Wrap(
+                    spacing: context.responsiveSpacing / 2,
+                    runSpacing: 2,
                     children: [
-                      _Tag(label: 'Panela $panelaKg kg', color: Colors.green[700]!),
-                      SizedBox(width: context.responsiveSpacing / 2),
+                      _Tag(label: 'Panela $panelaKg kg', color: AppColors.successDark),
                       _Tag(label: 'Caña $canaKg kg', color: AppColors.textSecondary),
                     ],
                   ),
@@ -297,7 +314,7 @@ class _SubBox extends StatelessWidget {
       margin: EdgeInsets.only(top: context.responsiveSpacing / 2),
       padding: EdgeInsets.all(context.responsiveSpacing / 2),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.5),
+        color: AppColors.surface.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         border: Border.all(color: AppColors.inputBorder.withValues(alpha: 0.5)),
       ),

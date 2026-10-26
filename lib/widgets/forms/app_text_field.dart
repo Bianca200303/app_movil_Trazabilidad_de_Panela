@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/core/theme/app_dimensions.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
@@ -25,6 +26,8 @@ class AppTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final FocusNode? focusNode;
   final TextInputAction? textInputAction;
+  /// Al presionar Enter / la acción del teclado.
+  final ValueChanged<String>? onSubmitted;
 
   const AppTextField({
     super.key,
@@ -48,6 +51,7 @@ class AppTextField extends StatelessWidget {
     this.inputFormatters,
     this.focusNode,
     this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -66,6 +70,7 @@ class AppTextField extends StatelessWidget {
           controller: controller,
           focusNode: focusNode,
           textInputAction: textInputAction,
+          onFieldSubmitted: onSubmitted,
           keyboardType: keyboardType,
           obscureText: obscureText,
           readOnly: readOnly,
@@ -133,10 +138,7 @@ class AppTextField extends StatelessWidget {
                 width: AppDimensions.inputBorderWidth,
               ),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMedium,
-              vertical: AppDimensions.paddingMedium,
-            ),
+            contentPadding: appInputContentPadding(context),
             errorStyle: AppTextStyles.bodyTextSecondary.copyWith(
               color: AppColors.error,
             ),
@@ -190,10 +192,7 @@ class AppDropdownField<T> extends StatelessWidget {
           decoration: InputDecoration(
             filled: true,
             fillColor: enabled ? AppColors.inputFill : AppColors.surfaceVariant,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMedium,
-              vertical: AppDimensions.paddingMedium,
-            ),
+            contentPadding: appInputContentPadding(context),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
               borderSide: BorderSide(
@@ -228,3 +227,14 @@ class AppDropdownField<T> extends StatelessWidget {
     );
   }
 }
+
+/// Relleno interior de los campos: más bajo en pantallas angostas para que
+/// los formularios largos quepan con menos scroll.
+EdgeInsets appInputContentPadding(BuildContext context) => EdgeInsets.symmetric(
+      horizontal: ScreenUtils.isSmallScreen(context)
+          ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall
+          : AppDimensions.paddingMedium,
+      vertical: ScreenUtils.isSmallScreen(context)
+          ? AppDimensions.paddingSmall + AppDimensions.paddingXSmall
+          : AppDimensions.paddingMedium,
+    );

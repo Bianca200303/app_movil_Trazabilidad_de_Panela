@@ -6,6 +6,7 @@ import 'package:panela_sys/widgets/common/app_back_button.dart';
 import 'package:panela_sys/widgets/common/app_button.dart';
 import 'package:panela_sys/widgets/forms/form_section.dart';
 import 'package:panela_sys/widgets/stowage/selectable_exit_card.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class ExitAndDateStep extends StatelessWidget {
   final String? selectedExitId;
@@ -72,11 +73,11 @@ class ExitAndDateStep extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+                      Icon(Icons.info_outline, size: 48, color: AppColors.textTertiary),
                       SizedBox(height: context.responsiveSpacing),
                       Text(
                         'No hay salidas en este período',
-                        style: AppTextStyles.bodyText.copyWith(color: Colors.grey[600]),
+                        style: AppTextStyles.bodyText.copyWith(color: AppColors.textPrimary),
                         textAlign: TextAlign.center,
                       ),
                     ],

@@ -30,7 +30,7 @@ class BaitStationListItem extends StatelessWidget {
     return Container(
       margin: EdgeInsets.only(bottom: context.responsiveSpacing / 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         border: Border.all(
           color: AppColors.inputBorder,

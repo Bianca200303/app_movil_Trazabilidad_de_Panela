@@ -150,7 +150,7 @@ class _HealthIncidentCard extends StatelessWidget {
     return HistorialExpandableCard(
       isExpanded: isExpanded,
       onToggle: onToggle,
-      backgroundColor: hasReturnDate ? Colors.green[50] : Colors.orange[50],
+      backgroundColor: hasReturnDate ? AppColors.successLight : AppColors.warningLight,
       header: Row(
         children: [
           Icon(hasReturnDate ? Icons.check_circle : Icons.warning,
@@ -192,7 +192,7 @@ class _HealthIncidentCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(context.responsiveSpacing / 2),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
             ),
             child: Column(
@@ -213,17 +213,17 @@ class _HealthIncidentCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.green[50],
+                color: AppColors.successLight,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                border: Border.all(color: Colors.green[200]!),
+                border: Border.all(color: AppColors.successBorder),
               ),
               child: Row(children: [
-                Icon(Icons.check_circle, size: 16, color: Colors.green[700]),
+                Icon(Icons.check_circle, size: 16, color: AppColors.successDark),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Reintegración: $returnDate',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.green[700]),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.successDark),
                   ),
                 ),
               ]),

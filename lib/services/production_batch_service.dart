@@ -11,6 +11,9 @@ import 'package:panela_sys/core/offline/network_detector.dart';
 import 'package:panela_sys/core/offline/debug_logger.dart';
 import 'package:panela_sys/core/offline/sync_status.dart';
 import 'package:drift/drift.dart' as drift;
+import 'package:panela_sys/core/offline/network_errors.dart';
+import 'package:panela_sys/core/utils/uuid_v4.dart';
+import 'package:panela_sys/services/sync/production_batch_uploader.dart';
 
 class CreateProductionBatchRequest {
   final String? batchCode; // Pre-generated batch code (optional)
@@ -76,35 +79,23 @@ class CreateProductionBatchRequest {
 }
 
 class ProductionBatchService {
-  final AppDatabase? _db;
+  final AppDatabase _db;
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  ProductionBatchService({AppDatabase? db}) : _db = db;
+  ProductionBatchService({AppDatabase? db}) : _db = db ?? AppDatabase();
 
-  /// Creates a new production batch with offline-first approach
+  /// Registra un lote nuevo, con o sin señal.
   ///
-  /// If offline is enabled:
-  /// 1. Saves to local database first (always succeeds)
-  /// 2. Attempts immediate sync if online
-  /// 3. Returns local data if sync fails
-  ///
-  /// If offline is disabled:
-  /// - Creates directly in Supabase (original behavior)
+  /// 1. Lo guarda siempre primero en el celular, con su id fijo (clientId)
+  ///    y su código definitivo (el que el técnico vio en el resumen).
+  /// 2. Si hay señal, lo sube en el momento con ProductionBatchUploader
+  ///    (una sola llamada atómica e idempotente).
+  /// 3. Si no hay señal o la subida falla, queda pendiente y se sube solo
+  ///    después (ProductionSyncService), con el mismo id y código.
   Future<ProductionBatch> createProductionBatch(
       CreateProductionBatchRequest request) async {
     DebugLogger.info('ProductionBatchService', 'createProductionBatch',
         'Iniciando registro de lote de producción');
-
-    // Verify if offline is enabled
-    final offlineEnabled = OfflineConfig.instance.features.production;
-    DebugLogger.debug('ProductionBatchService', 'createProductionBatch',
-        'Offline enabled: $offlineEnabled, Database available: ${_db != null}');
-
-    if (!offlineEnabled || _db == null) {
-      DebugLogger.info('ProductionBatchService', 'createProductionBatch',
-          'Modo online - registrando directamente en Supabase');
-      return await createOnline(request);
-    }
 
     try {
       final db = _db;
@@ -160,6 +151,7 @@ class ProductionBatchService {
           plotLocalId: drift.Value(plotLocalId),
           cooperativeId: AppConfig.current.id,
           syncStatus: drift.Value(SyncStatus.pending.value),
+          clientId: drift.Value(generateUuidV4()),
         ),
       );
 
@@ -172,86 +164,9 @@ class ProductionBatchService {
       await _saveBatchHarvestDates(batchLocalId, request.additionalHarvestDates);
       await _saveBatchPhControl(batchLocalId, request);
 
-      // 6. Check connectivity
-      final isConnected = await NetworkDetector().isConnected;
-      DebugLogger.debug('ProductionBatchService', 'createProductionBatch',
-          'Network status: ${isConnected ? "ONLINE" : "OFFLINE"}');
-
-      // 7. Try immediate sync if online
-      if (isConnected) {
-        DebugLogger.info('ProductionBatchService', 'createProductionBatch',
-            'Intentando sincronización inmediata');
-
-        try {
-          // Check if producer and plot are synced
-          final producer = await db.producersDao.getById(producerLocalId);
-          if (producer?.remoteId == null) {
-            throw Exception('Producer not synced yet');
-          }
-
-          String? plotRemoteId;
-          if (plotLocalId != null) {
-            final plot = await db.plotsDao.getById(plotLocalId);
-            if (plot?.remoteId == null) {
-              throw Exception('Plot not synced yet');
-            }
-            plotRemoteId = plot!.remoteId;
-          }
-
-          // Create request with remote IDs
-          final remoteRequest = CreateProductionBatchRequest(
-            producerId: producer!.remoteId!,
-            plotId: plotRemoteId,
-            harvestDate: request.harvestDate,
-            additionalHarvestDates: request.additionalHarvestDates,
-            processDate: request.processDate,
-            juiceLiters: request.juiceLiters,
-            panelaKg: request.panelaKg,
-            confitilloKg: request.confitilloKg,
-            extractionPercentage: request.extractionPercentage,
-            cachazaPercentage: request.cachazaPercentage,
-            selectedCertificateIds: request.selectedCertificateIds,
-            temperatures: request.temperatures,
-            timeBetweenMielesMinutes: request.timeBetweenMielesMinutes,
-            phInitial: request.phInitial,
-            phFinal: request.phFinal,
-            regulatorType: request.regulatorType,
-            regulatorQuantityValue: request.regulatorQuantityValue,
-            regulatorQuantityUnit: request.regulatorQuantityUnit,
-            brix: request.brix,
-            correctiveAction: request.correctiveAction,
-            density: request.density,
-            latitude: request.latitude,
-            longitude: request.longitude,
-            locationText: request.locationText,
-            cooperativeId: request.cooperativeId,
-            observations: request.observations,
-          );
-
-          final remoteBatch = await createOnline(remoteRequest);
-
-          DebugLogger.info('ProductionBatchService', 'createProductionBatch',
-              'Sync exitoso, marcando como synced');
-
-          await db.productionBatchesDao.markAsSynced(
-            localId: batchLocalId,
-            remoteId: remoteBatch.id,
-          );
-
-          // Mark related tables as synced
-          DebugLogger.debug('ProductionBatchService', 'createProductionBatch',
-              'Marking related tables as synced');
-
-          await _markRelatedAsSynced(db, batchLocalId);
-
-          DebugLogger.info('ProductionBatchService', 'createProductionBatch',
-              'All tables marked as synced successfully');
-
-          return remoteBatch;
-        } catch (e) {
-          DebugLogger.warning('ProductionBatchService', 'createProductionBatch',
-              'Sync inmediato falló: $e. Se sincronizará después.');
-        }
+      // 6. Si hay señal, se sube ya; si no, queda pendiente.
+      if (await NetworkDetector().isConnected) {
+        await _tryUploadNow(batchLocalId);
       } else {
         DebugLogger.info('ProductionBatchService', 'createProductionBatch',
             'Sin conexión - lote quedará pendiente de sync');
@@ -268,163 +183,50 @@ class ProductionBatchService {
     }
   }
 
-  /// Creates production batch directly in Supabase
-  ///
-  /// This is the original implementation, now called when offline is disabled
-  /// or during sync operations.
-  ///
-  /// Made public for use by ProductionSyncService.
-  Future<ProductionBatch> createOnline(
-      CreateProductionBatchRequest request) async {
-    DebugLogger.info('ProductionBatchService', 'createOnline',
-        'Registrando en Supabase');
-
-    try {
-      // Check user authentication
-      if (_supabase.auth.currentUser == null) {
-        throw Exception('Usuario no autenticado');
+  /// Elimina del celular un lote que todavía no se subió (decisión del
+  /// usuario, p. ej. uno rechazado que ya no se puede corregir), junto con
+  /// sus datos y los controles guardados sin señal que dependían de él.
+  /// No toca nada del servidor. Un lote ya subido no se puede descartar.
+  Future<void> discardUnsentBatch(int batchLocalId) async {
+    await _db.transaction(() async {
+      final batch = await _db.productionBatchesDao.getById(batchLocalId);
+      if (batch == null) return;
+      if (batch.remoteId != null) {
+        throw StateError('El lote ${batch.batchCode} ya se subió y no se puede descartar');
       }
-
-      // Bug B fix: use cooperativeId from request (sync path) or current config (direct path)
-      final cooperativeId = request.cooperativeId ?? AppConfig.current.id;
-
-      // Use pre-generated batch code or generate new one
-      final batchCode = request.batchCode ?? BatchCodeGenerator.generate(
-        cooperativePrefix: AppConfig.current.batchCodePrefix,
-        harvestDate: request.harvestDate,
-      );
-
-      // Calculate cane quantity and efficiency
-      final juiceWeightKg =
-          ProductionCalculator.calculateJuiceWeight(request.juiceLiters, density: request.density);
-      final caneKg = ProductionCalculator.calculateCaneInput(
-          juiceWeightKg, request.extractionPercentage);
-      final efficiency = ProductionCalculator.calculateYield(
-          request.panelaKg, request.juiceLiters).clamp(0.0, 999.99);
-
-      // 1. Create production batch
-      final insertData = {
-        'batch_code': batchCode,
-        'harvest_date': request.harvestDate.toIso8601String().split('T')[0],
-        'process_date': request.processDate.toIso8601String().split('T')[0],
-        'cane_kg': caneKg,
-        'juice_liters': request.juiceLiters,
-        'panela_kg': request.panelaKg,
-        'confitillo_kg': request.confitilloKg,
-        'porcentaje_extraccion': request.extractionPercentage,
-        'cachaza_percentage': request.cachazaPercentage,
-        'efficiency_percentage': efficiency,
-        'cane_density': request.density,
-        'producer_id': request.producerId,
-        'cooperative_id': cooperativeId,
-      };
-
-      // Only include plot_id if provided
-      if (request.plotId != null && request.plotId!.isNotEmpty) {
-        insertData['plot_id'] = request.plotId!;
-      }
-
-      // Include location data if available
-      if (request.latitude != null) {
-        insertData['latitude'] = request.latitude!;
-      }
-      if (request.longitude != null) {
-        insertData['longitude'] = request.longitude!;
-      }
-      if (request.locationText != null) {
-        insertData['location_text'] = request.locationText!;
-      }
-      if (request.observations != null && request.observations!.isNotEmpty) {
-        insertData['observations'] = request.observations!;
-      }
-
-      DebugLogger.debug('ProductionBatchService', 'createOnline',
-          'Sending to Supabase: $insertData');
-
-      final batchResponse = await _supabase
-          .from('production_batches')
-          .insert(insertData)
-          .select()
-          .single();
-
-      DebugLogger.debug('ProductionBatchService', 'createOnline',
-          'Received from Supabase: $batchResponse');
-
-      final productionBatch = ProductionBatch.fromJson(batchResponse);
-      final batchId = productionBatch.id;
-
-      // 2. Create batch certificates
-      if (request.selectedCertificateIds.isNotEmpty) {
-        final certInserts = request.selectedCertificateIds.map((certId) => {
-          'production_batch_id': batchId,
-          'batch_cert_id': certId,
-          'cooperative_id': cooperativeId,
-        }).toList();
-
-        await _supabase.from('production_batch_certs').insert(certInserts);
-      }
-
-      // 3. Create batch temperatures
-      if (request.temperatures.isNotEmpty) {
-        final tempInserts = request.temperatures.asMap().entries.map((entry) => {
-          'production_batch_id': batchId,
-          'temperature': entry.value,
-          'sequence_number': entry.key + 1,
-          'time_between_mieles_minutes': entry.key < request.timeBetweenMielesMinutes.length
-              ? request.timeBetweenMielesMinutes[entry.key]
-              : null,
-          'cooperative_id': cooperativeId,
-        }).toList();
-
-        await _supabase.from('batch_temperatures').insert(tempInserts);
-      }
-
-      // 3b. Create additional harvest dates
-      if (request.additionalHarvestDates.isNotEmpty) {
-        final harvestDateInserts = request.additionalHarvestDates.map((date) => {
-          'production_batch_id': batchId,
-          'harvest_date': date.toIso8601String().split('T')[0],
-          'cooperative_id': cooperativeId,
-        }).toList();
-
-        await _supabase.from('production_batch_harvest_dates').insert(harvestDateInserts);
-      }
-
-      // 4. Create pH control record
-      await _supabase.from('batch_ph_controls').insert({
-        'production_batch_id': batchId,
-        'record_date': DateTime.now().toIso8601String(),
-        'regulator_type': request.regulatorType,
-        'ph_initial': request.phInitial,
-        'ph_final': request.phFinal,
-        'regulator_quantity_value': request.regulatorQuantityValue,
-        'regulator_quantity_unit': request.regulatorQuantityUnit,
-        'brix': request.brix,
-        'corrective_action': request.correctiveAction,
-        'cooperative_id': cooperativeId,
-      });
-
-      DebugLogger.info('ProductionBatchService', 'createOnline',
-          'Lote creado en Supabase con ID: ${productionBatch.id}');
-
-      return productionBatch;
-    } catch (e, st) {
-      if (e is PostgrestException) {
-        if (e.code == '23505' && e.message.contains('batch_code')) {
-          throw Exception('Ya existe un lote con este código');
-        }
-        if (e.message.contains('foreign key')) {
-          throw Exception('El productor seleccionado no es válido');
-        }
-      }
-      DebugLogger.error('ProductionBatchService', 'createOnline',
-          'Error en Supabase insert: $e',
-          stackTrace: st);
-      throw Exception('Error al crear lote de producción: $e');
-    }
+      await _db.pendingSubmissionsDao.deleteByProductionBatchLocalId(batchLocalId);
+      await _db.productionBatchCertsDao.deleteByBatchLocalId(batchLocalId);
+      await _db.batchTemperaturesDao.deleteByBatchLocalId(batchLocalId);
+      await _db.productionBatchHarvestDatesDao.deleteByBatchLocalId(batchLocalId);
+      await _db.batchPhControlsDao.deleteByBatchLocalId(batchLocalId);
+      await _db.productionBatchesDao.deleteById(batchLocalId);
+    });
+    DebugLogger.warning('ProductionBatchService', 'discardUnsentBatch',
+        'Lote local $batchLocalId descartado por el usuario');
   }
 
-
+  /// Intenta subir en el momento un lote recién guardado. Nunca falla: si
+  /// no se puede (sin señal, productor/parcela aún sin subir, rechazo), el
+  /// lote queda pendiente y ProductionSyncService lo reintenta.
+  Future<void> _tryUploadNow(int batchLocalId) async {
+    final batch = await _db.productionBatchesDao.getById(batchLocalId);
+    if (batch == null) return;
+    try {
+      await ProductionBatchUploader(_db, supabase: _supabase).upload(batch);
+    } on BatchDependencyPendingException catch (e) {
+      DebugLogger.info('ProductionBatchService', '_tryUploadNow',
+          'Lote ${batch.batchCode} queda pendiente: $e');
+    } catch (e) {
+      if (!isTransientNetworkError(e)) {
+        await _db.productionBatchesDao.markSyncRejected(
+          batchLocalId,
+          e is PostgrestException ? e.message : e.toString().replaceAll('Exception: ', ''),
+        );
+      }
+      DebugLogger.warning('ProductionBatchService', '_tryUploadNow',
+          'Subida inmediata falló: $e. Se sincronizará después.');
+    }
+  }
 
   /// Fetches all production batches for the current user's cooperative
   Future<List<ProductionBatch>> getProductionBatches() async {
@@ -515,7 +317,7 @@ class ProductionBatchService {
     DateTime? from,
     DateTime? to,
   }) async {
-    if (!OfflineConfig.instance.features.production || _db == null) {
+    if (!OfflineConfig.instance.features.production) {
       return await _getProductionFromSupabase(from: from, to: to);
     }
 
@@ -537,7 +339,7 @@ class ProductionBatchService {
     DebugLogger.info('ProductionBatchService', '_getLocalPendingBatches',
         'Fetching local pending batches for historial');
 
-    final pending = await _db!.productionBatchesDao.getPending(AppConfig.current.id);
+    final pending = await _db.productionBatchesDao.getPending(AppConfig.current.id);
     final results = <Map<String, dynamic>>[];
 
     for (final batch in pending) {
@@ -670,7 +472,7 @@ class ProductionBatchService {
     DebugLogger.debug('ProductionBatchService', '_resolveProducerLocalId',
         'Producer ID is UUID, finding local producer: $producerId');
 
-    final producer = await _db!.producersDao.getByRemoteId(producerId);
+    final producer = await _db.producersDao.getByRemoteId(producerId);
     if (producer == null) {
       throw Exception('Producer not found with remoteId: $producerId');
     }
@@ -695,7 +497,7 @@ class ProductionBatchService {
     DebugLogger.debug('ProductionBatchService', '_resolvePlotLocalId',
         'Plot ID is UUID, finding local plot: $plotId');
 
-    final plot = await _db!.plotsDao.getByRemoteId(plotId);
+    final plot = await _db.plotsDao.getByRemoteId(plotId);
     if (plot == null) {
       throw Exception('Plot not found with remoteId: $plotId');
     }
@@ -723,7 +525,7 @@ class ProductionBatchService {
             ))
         .toList();
 
-    await _db!.productionBatchCertsDao.createBatch(companions);
+    await _db.productionBatchCertsDao.createBatch(companions);
   }
 
   /// Save batch temperatures to local DB
@@ -748,7 +550,7 @@ class ProductionBatchService {
             ))
         .toList();
 
-    await _db!.batchTemperaturesDao.createBatch(companions);
+    await _db.batchTemperaturesDao.createBatch(companions);
   }
 
   /// Save additional harvest dates to local DB
@@ -768,7 +570,7 @@ class ProductionBatchService {
             ))
         .toList();
 
-    await _db!.productionBatchHarvestDatesDao.createBatch(companions);
+    await _db.productionBatchHarvestDatesDao.createBatch(companions);
   }
 
   /// Save batch pH control to local DB
@@ -777,7 +579,7 @@ class ProductionBatchService {
     DebugLogger.debug('ProductionBatchService', '_saveBatchPhControl',
         'Saving pH control for batch $batchLocalId');
 
-    await _db!.batchPhControlsDao.create(
+    await _db.batchPhControlsDao.create(
       BatchPhControlsCompanion.insert(
         productionBatchLocalId: batchLocalId,
         recordDate: DateTime.now(),
@@ -821,67 +623,5 @@ class ProductionBatchService {
     );
   }
 
-  /// Mark related tables as synced after immediate sync success
-  ///
-  /// This marks certificates, temperatures, and pH control as synced
-  /// using placeholder remote IDs since we don't track individual IDs.
-  Future<void> _markRelatedAsSynced(AppDatabase db, int batchLocalId) async {
-    DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
-        'Marking related tables for batch $batchLocalId');
 
-    try {
-      // Get all related records
-      final certs = await db.productionBatchCertsDao.getByBatchLocalId(batchLocalId);
-      final temps = await db.batchTemperaturesDao.getByBatchLocalId(batchLocalId);
-      final harvestDates = await db.productionBatchHarvestDatesDao.getByBatchLocalId(batchLocalId);
-      final phControl = await db.batchPhControlsDao.getByBatchLocalId(batchLocalId);
-
-      // Mark certs as synced
-      if (certs.isNotEmpty) {
-        final certRemoteIds = certs.map((c) => 'SYNCED_${c.id}').toList();
-        await db.productionBatchCertsDao.markBatchAsSynced(
-          batchLocalId,
-          certRemoteIds,
-        );
-        DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
-            'Marked ${certs.length} certificates as synced');
-      }
-
-      // Mark temps as synced
-      if (temps.isNotEmpty) {
-        final tempRemoteIds = temps.map((t) => 'SYNCED_${t.id}').toList();
-        await db.batchTemperaturesDao.markBatchAsSynced(
-          batchLocalId,
-          tempRemoteIds,
-        );
-        DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
-            'Marked ${temps.length} temperatures as synced');
-      }
-
-      // Mark harvest dates as synced
-      if (harvestDates.isNotEmpty) {
-        final harvestDateRemoteIds = harvestDates.map((h) => 'SYNCED_${h.id}').toList();
-        await db.productionBatchHarvestDatesDao.markBatchAsSynced(
-          batchLocalId,
-          harvestDateRemoteIds,
-        );
-        DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
-            'Marked ${harvestDates.length} harvest dates as synced');
-      }
-
-      // Mark pH control as synced
-      if (phControl != null) {
-        await db.batchPhControlsDao.markAsSynced(
-          localId: phControl.id,
-          remoteId: 'SYNCED_${phControl.id}',
-        );
-        DebugLogger.debug('ProductionBatchService', '_markRelatedAsSynced',
-            'Marked pH control as synced');
-      }
-    } catch (e, st) {
-      DebugLogger.error('ProductionBatchService', '_markRelatedAsSynced',
-          'Error marking related tables: $e', stackTrace: st);
-      rethrow;
-    }
-  }
 }

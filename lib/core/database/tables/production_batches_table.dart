@@ -41,6 +41,17 @@ class ProductionBatches extends Table {
   /// Remote UUID from Supabase (null if not synced yet)
   TextColumn get remoteId => text().nullable()();
 
+  /// UUID generado en el celular al registrar el lote; es el id con el que
+  /// se crea en el servidor (submit_production_batch), así un reenvío tras
+  /// un corte de señal no lo duplica. Nullable solo por los lotes ya
+  /// sincronizados antes de la v13; los pendientes lo reciben al migrar.
+  TextColumn get clientId => text().nullable()();
+
+  /// Motivo por el que el servidor rechazó el lote (dato inválido, parcela
+  /// que no corresponde, etc.); null si nunca fue rechazado. Un lote
+  /// rechazado no frena el envío de los demás.
+  TextColumn get syncError => text().nullable()();
+
   /// Created at timestamp (local)
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 

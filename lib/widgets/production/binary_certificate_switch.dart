@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/models/batch_cert.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 class BinaryCertificateSwitch extends StatelessWidget {
   final String groupName;
@@ -50,7 +51,7 @@ class BinaryCertificateSwitch extends StatelessWidget {
               Text(
                 ' *',
                 style: AppTextStyles.bodyText.copyWith(
-                  color: Colors.red,
+                  color: AppColors.error,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -61,9 +62,9 @@ class BinaryCertificateSwitch extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(8),
-            color: Colors.grey.shade50,
+            color: AppColors.surfaceVariant,
           ),
           child: Row(
             children: [
@@ -71,7 +72,7 @@ class BinaryCertificateSwitch extends StatelessWidget {
                 child: Text(
                   alternateCert.name,
                   style: AppTextStyles.bodyTextSmall.copyWith(
-                    color: isDefaultSelected ? Colors.grey.shade600 : Colors.black,
+                    color: isDefaultSelected ? AppColors.textPrimary : AppColors.textPrimary,
                     fontWeight: isDefaultSelected ? FontWeight.normal : FontWeight.w600,
                   ),
                 ),
@@ -89,7 +90,7 @@ class BinaryCertificateSwitch extends StatelessWidget {
                   defaultCert.name,
                   textAlign: TextAlign.right,
                   style: AppTextStyles.bodyTextSmall.copyWith(
-                    color: isDefaultSelected ? Colors.black : Colors.grey.shade600,
+                    color: isDefaultSelected ? AppColors.textPrimary : AppColors.textPrimary,
                     fontWeight: isDefaultSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
@@ -117,7 +118,7 @@ class BinaryCertificateSwitch extends StatelessWidget {
               Text(
                 ' *',
                 style: AppTextStyles.bodyText.copyWith(
-                  color: Colors.red,
+                  color: AppColors.error,
                   fontWeight: FontWeight.bold,
                 ),
               ),

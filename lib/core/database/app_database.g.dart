@@ -759,6 +759,28 @@ class $PlotsTable extends Plots with TableInfo<$PlotsTable, Plot> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _defaultExtractionPercentageMeta =
+      const VerificationMeta('defaultExtractionPercentage');
+  @override
+  late final GeneratedColumn<double> defaultExtractionPercentage =
+      GeneratedColumn<double>(
+        'default_extraction_percentage',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _defaultCachazaPercentageMeta =
+      const VerificationMeta('defaultCachazaPercentage');
+  @override
+  late final GeneratedColumn<double> defaultCachazaPercentage =
+      GeneratedColumn<double>(
+        'default_cachaza_percentage',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _producerLocalIdMeta = const VerificationMeta(
     'producerLocalId',
   );
@@ -832,6 +854,8 @@ class $PlotsTable extends Plots with TableInfo<$PlotsTable, Plot> {
     id,
     name,
     code,
+    defaultExtractionPercentage,
+    defaultCachazaPercentage,
     producerLocalId,
     syncStatus,
     remoteId,
@@ -869,6 +893,24 @@ class $PlotsTable extends Plots with TableInfo<$PlotsTable, Plot> {
       );
     } else if (isInserting) {
       context.missing(_codeMeta);
+    }
+    if (data.containsKey('default_extraction_percentage')) {
+      context.handle(
+        _defaultExtractionPercentageMeta,
+        defaultExtractionPercentage.isAcceptableOrUnknown(
+          data['default_extraction_percentage']!,
+          _defaultExtractionPercentageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('default_cachaza_percentage')) {
+      context.handle(
+        _defaultCachazaPercentageMeta,
+        defaultCachazaPercentage.isAcceptableOrUnknown(
+          data['default_cachaza_percentage']!,
+          _defaultCachazaPercentageMeta,
+        ),
+      );
     }
     if (data.containsKey('producer_local_id')) {
       context.handle(
@@ -935,6 +977,14 @@ class $PlotsTable extends Plots with TableInfo<$PlotsTable, Plot> {
         DriftSqlType.string,
         data['${effectivePrefix}code'],
       )!,
+      defaultExtractionPercentage: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}default_extraction_percentage'],
+      ),
+      defaultCachazaPercentage: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}default_cachaza_percentage'],
+      ),
       producerLocalId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}producer_local_id'],
@@ -974,6 +1024,12 @@ class Plot extends DataClass implements Insertable<Plot> {
   final String name;
   final String code;
 
+  /// % por defecto de la parcela (los del último lote, o los que fijó un
+  /// administrador). Se guardan para que el registro de producción los use
+  /// también sin conexión; null = se usa el del productor o el del sistema.
+  final double? defaultExtractionPercentage;
+  final double? defaultCachazaPercentage;
+
   /// Foreign key to local producers table
   final int producerLocalId;
 
@@ -995,6 +1051,8 @@ class Plot extends DataClass implements Insertable<Plot> {
     required this.id,
     required this.name,
     required this.code,
+    this.defaultExtractionPercentage,
+    this.defaultCachazaPercentage,
     required this.producerLocalId,
     required this.syncStatus,
     this.remoteId,
@@ -1008,6 +1066,16 @@ class Plot extends DataClass implements Insertable<Plot> {
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
     map['code'] = Variable<String>(code);
+    if (!nullToAbsent || defaultExtractionPercentage != null) {
+      map['default_extraction_percentage'] = Variable<double>(
+        defaultExtractionPercentage,
+      );
+    }
+    if (!nullToAbsent || defaultCachazaPercentage != null) {
+      map['default_cachaza_percentage'] = Variable<double>(
+        defaultCachazaPercentage,
+      );
+    }
     map['producer_local_id'] = Variable<int>(producerLocalId);
     map['sync_status'] = Variable<int>(syncStatus);
     if (!nullToAbsent || remoteId != null) {
@@ -1028,6 +1096,13 @@ class Plot extends DataClass implements Insertable<Plot> {
       id: Value(id),
       name: Value(name),
       code: Value(code),
+      defaultExtractionPercentage:
+          defaultExtractionPercentage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultExtractionPercentage),
+      defaultCachazaPercentage: defaultCachazaPercentage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultCachazaPercentage),
       producerLocalId: Value(producerLocalId),
       syncStatus: Value(syncStatus),
       remoteId: remoteId == null && nullToAbsent
@@ -1052,6 +1127,12 @@ class Plot extends DataClass implements Insertable<Plot> {
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       code: serializer.fromJson<String>(json['code']),
+      defaultExtractionPercentage: serializer.fromJson<double?>(
+        json['defaultExtractionPercentage'],
+      ),
+      defaultCachazaPercentage: serializer.fromJson<double?>(
+        json['defaultCachazaPercentage'],
+      ),
       producerLocalId: serializer.fromJson<int>(json['producerLocalId']),
       syncStatus: serializer.fromJson<int>(json['syncStatus']),
       remoteId: serializer.fromJson<String?>(json['remoteId']),
@@ -1067,6 +1148,12 @@ class Plot extends DataClass implements Insertable<Plot> {
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
       'code': serializer.toJson<String>(code),
+      'defaultExtractionPercentage': serializer.toJson<double?>(
+        defaultExtractionPercentage,
+      ),
+      'defaultCachazaPercentage': serializer.toJson<double?>(
+        defaultCachazaPercentage,
+      ),
       'producerLocalId': serializer.toJson<int>(producerLocalId),
       'syncStatus': serializer.toJson<int>(syncStatus),
       'remoteId': serializer.toJson<String?>(remoteId),
@@ -1080,6 +1167,8 @@ class Plot extends DataClass implements Insertable<Plot> {
     int? id,
     String? name,
     String? code,
+    Value<double?> defaultExtractionPercentage = const Value.absent(),
+    Value<double?> defaultCachazaPercentage = const Value.absent(),
     int? producerLocalId,
     int? syncStatus,
     Value<String?> remoteId = const Value.absent(),
@@ -1090,6 +1179,12 @@ class Plot extends DataClass implements Insertable<Plot> {
     id: id ?? this.id,
     name: name ?? this.name,
     code: code ?? this.code,
+    defaultExtractionPercentage: defaultExtractionPercentage.present
+        ? defaultExtractionPercentage.value
+        : this.defaultExtractionPercentage,
+    defaultCachazaPercentage: defaultCachazaPercentage.present
+        ? defaultCachazaPercentage.value
+        : this.defaultCachazaPercentage,
     producerLocalId: producerLocalId ?? this.producerLocalId,
     syncStatus: syncStatus ?? this.syncStatus,
     remoteId: remoteId.present ? remoteId.value : this.remoteId,
@@ -1104,6 +1199,12 @@ class Plot extends DataClass implements Insertable<Plot> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       code: data.code.present ? data.code.value : this.code,
+      defaultExtractionPercentage: data.defaultExtractionPercentage.present
+          ? data.defaultExtractionPercentage.value
+          : this.defaultExtractionPercentage,
+      defaultCachazaPercentage: data.defaultCachazaPercentage.present
+          ? data.defaultCachazaPercentage.value
+          : this.defaultCachazaPercentage,
       producerLocalId: data.producerLocalId.present
           ? data.producerLocalId.value
           : this.producerLocalId,
@@ -1125,6 +1226,8 @@ class Plot extends DataClass implements Insertable<Plot> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('code: $code, ')
+          ..write('defaultExtractionPercentage: $defaultExtractionPercentage, ')
+          ..write('defaultCachazaPercentage: $defaultCachazaPercentage, ')
           ..write('producerLocalId: $producerLocalId, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
@@ -1140,6 +1243,8 @@ class Plot extends DataClass implements Insertable<Plot> {
     id,
     name,
     code,
+    defaultExtractionPercentage,
+    defaultCachazaPercentage,
     producerLocalId,
     syncStatus,
     remoteId,
@@ -1154,6 +1259,9 @@ class Plot extends DataClass implements Insertable<Plot> {
           other.id == this.id &&
           other.name == this.name &&
           other.code == this.code &&
+          other.defaultExtractionPercentage ==
+              this.defaultExtractionPercentage &&
+          other.defaultCachazaPercentage == this.defaultCachazaPercentage &&
           other.producerLocalId == this.producerLocalId &&
           other.syncStatus == this.syncStatus &&
           other.remoteId == this.remoteId &&
@@ -1166,6 +1274,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
   final Value<int> id;
   final Value<String> name;
   final Value<String> code;
+  final Value<double?> defaultExtractionPercentage;
+  final Value<double?> defaultCachazaPercentage;
   final Value<int> producerLocalId;
   final Value<int> syncStatus;
   final Value<String?> remoteId;
@@ -1176,6 +1286,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.code = const Value.absent(),
+    this.defaultExtractionPercentage = const Value.absent(),
+    this.defaultCachazaPercentage = const Value.absent(),
     this.producerLocalId = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
@@ -1187,6 +1299,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
     this.id = const Value.absent(),
     required String name,
     required String code,
+    this.defaultExtractionPercentage = const Value.absent(),
+    this.defaultCachazaPercentage = const Value.absent(),
     required int producerLocalId,
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
@@ -1200,6 +1314,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
     Expression<int>? id,
     Expression<String>? name,
     Expression<String>? code,
+    Expression<double>? defaultExtractionPercentage,
+    Expression<double>? defaultCachazaPercentage,
     Expression<int>? producerLocalId,
     Expression<int>? syncStatus,
     Expression<String>? remoteId,
@@ -1211,6 +1327,10 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (code != null) 'code': code,
+      if (defaultExtractionPercentage != null)
+        'default_extraction_percentage': defaultExtractionPercentage,
+      if (defaultCachazaPercentage != null)
+        'default_cachaza_percentage': defaultCachazaPercentage,
       if (producerLocalId != null) 'producer_local_id': producerLocalId,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (remoteId != null) 'remote_id': remoteId,
@@ -1224,6 +1344,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
     Value<int>? id,
     Value<String>? name,
     Value<String>? code,
+    Value<double?>? defaultExtractionPercentage,
+    Value<double?>? defaultCachazaPercentage,
     Value<int>? producerLocalId,
     Value<int>? syncStatus,
     Value<String?>? remoteId,
@@ -1235,6 +1357,10 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
       id: id ?? this.id,
       name: name ?? this.name,
       code: code ?? this.code,
+      defaultExtractionPercentage:
+          defaultExtractionPercentage ?? this.defaultExtractionPercentage,
+      defaultCachazaPercentage:
+          defaultCachazaPercentage ?? this.defaultCachazaPercentage,
       producerLocalId: producerLocalId ?? this.producerLocalId,
       syncStatus: syncStatus ?? this.syncStatus,
       remoteId: remoteId ?? this.remoteId,
@@ -1255,6 +1381,16 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
     }
     if (code.present) {
       map['code'] = Variable<String>(code.value);
+    }
+    if (defaultExtractionPercentage.present) {
+      map['default_extraction_percentage'] = Variable<double>(
+        defaultExtractionPercentage.value,
+      );
+    }
+    if (defaultCachazaPercentage.present) {
+      map['default_cachaza_percentage'] = Variable<double>(
+        defaultCachazaPercentage.value,
+      );
     }
     if (producerLocalId.present) {
       map['producer_local_id'] = Variable<int>(producerLocalId.value);
@@ -1283,6 +1419,8 @@ class PlotsCompanion extends UpdateCompanion<Plot> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('code: $code, ')
+          ..write('defaultExtractionPercentage: $defaultExtractionPercentage, ')
+          ..write('defaultCachazaPercentage: $defaultCachazaPercentage, ')
           ..write('producerLocalId: $producerLocalId, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
@@ -1900,6 +2038,28 @@ class $ProductionBatchesTable extends ProductionBatches
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _clientIdMeta = const VerificationMeta(
+    'clientId',
+  );
+  @override
+  late final GeneratedColumn<String> clientId = GeneratedColumn<String>(
+    'client_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncErrorMeta = const VerificationMeta(
+    'syncError',
+  );
+  @override
+  late final GeneratedColumn<String> syncError = GeneratedColumn<String>(
+    'sync_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1946,6 +2106,8 @@ class $ProductionBatchesTable extends ProductionBatches
     observations,
     syncStatus,
     remoteId,
+    clientId,
+    syncError,
     createdAt,
     syncedAt,
   ];
@@ -2143,6 +2305,18 @@ class $ProductionBatchesTable extends ProductionBatches
         remoteId.isAcceptableOrUnknown(data['remote_id']!, _remoteIdMeta),
       );
     }
+    if (data.containsKey('client_id')) {
+      context.handle(
+        _clientIdMeta,
+        clientId.isAcceptableOrUnknown(data['client_id']!, _clientIdMeta),
+      );
+    }
+    if (data.containsKey('sync_error')) {
+      context.handle(
+        _syncErrorMeta,
+        syncError.isAcceptableOrUnknown(data['sync_error']!, _syncErrorMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -2248,6 +2422,14 @@ class $ProductionBatchesTable extends ProductionBatches
         DriftSqlType.string,
         data['${effectivePrefix}remote_id'],
       ),
+      clientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}client_id'],
+      ),
+      syncError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_error'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -2294,6 +2476,17 @@ class ProductionBatchLocal extends DataClass
   /// Remote UUID from Supabase (null if not synced yet)
   final String? remoteId;
 
+  /// UUID generado en el celular al registrar el lote; es el id con el que
+  /// se crea en el servidor (submit_production_batch), así un reenvío tras
+  /// un corte de señal no lo duplica. Nullable solo por los lotes ya
+  /// sincronizados antes de la v13; los pendientes lo reciben al migrar.
+  final String? clientId;
+
+  /// Motivo por el que el servidor rechazó el lote (dato inválido, parcela
+  /// que no corresponde, etc.); null si nunca fue rechazado. Un lote
+  /// rechazado no frena el envío de los demás.
+  final String? syncError;
+
   /// Created at timestamp (local)
   final DateTime createdAt;
 
@@ -2321,6 +2514,8 @@ class ProductionBatchLocal extends DataClass
     this.observations,
     required this.syncStatus,
     this.remoteId,
+    this.clientId,
+    this.syncError,
     required this.createdAt,
     this.syncedAt,
   });
@@ -2363,6 +2558,12 @@ class ProductionBatchLocal extends DataClass
     map['sync_status'] = Variable<int>(syncStatus);
     if (!nullToAbsent || remoteId != null) {
       map['remote_id'] = Variable<String>(remoteId);
+    }
+    if (!nullToAbsent || clientId != null) {
+      map['client_id'] = Variable<String>(clientId);
+    }
+    if (!nullToAbsent || syncError != null) {
+      map['sync_error'] = Variable<String>(syncError);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || syncedAt != null) {
@@ -2410,6 +2611,12 @@ class ProductionBatchLocal extends DataClass
       remoteId: remoteId == null && nullToAbsent
           ? const Value.absent()
           : Value(remoteId),
+      clientId: clientId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clientId),
+      syncError: syncError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncError),
       createdAt: Value(createdAt),
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
@@ -2450,6 +2657,8 @@ class ProductionBatchLocal extends DataClass
       observations: serializer.fromJson<String?>(json['observations']),
       syncStatus: serializer.fromJson<int>(json['syncStatus']),
       remoteId: serializer.fromJson<String?>(json['remoteId']),
+      clientId: serializer.fromJson<String?>(json['clientId']),
+      syncError: serializer.fromJson<String?>(json['syncError']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
     );
@@ -2479,6 +2688,8 @@ class ProductionBatchLocal extends DataClass
       'observations': serializer.toJson<String?>(observations),
       'syncStatus': serializer.toJson<int>(syncStatus),
       'remoteId': serializer.toJson<String?>(remoteId),
+      'clientId': serializer.toJson<String?>(clientId),
+      'syncError': serializer.toJson<String?>(syncError),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
     };
@@ -2506,6 +2717,8 @@ class ProductionBatchLocal extends DataClass
     Value<String?> observations = const Value.absent(),
     int? syncStatus,
     Value<String?> remoteId = const Value.absent(),
+    Value<String?> clientId = const Value.absent(),
+    Value<String?> syncError = const Value.absent(),
     DateTime? createdAt,
     Value<DateTime?> syncedAt = const Value.absent(),
   }) => ProductionBatchLocal(
@@ -2534,6 +2747,8 @@ class ProductionBatchLocal extends DataClass
     observations: observations.present ? observations.value : this.observations,
     syncStatus: syncStatus ?? this.syncStatus,
     remoteId: remoteId.present ? remoteId.value : this.remoteId,
+    clientId: clientId.present ? clientId.value : this.clientId,
+    syncError: syncError.present ? syncError.value : this.syncError,
     createdAt: createdAt ?? this.createdAt,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
   );
@@ -2588,6 +2803,8 @@ class ProductionBatchLocal extends DataClass
           ? data.syncStatus.value
           : this.syncStatus,
       remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
+      clientId: data.clientId.present ? data.clientId.value : this.clientId,
+      syncError: data.syncError.present ? data.syncError.value : this.syncError,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
     );
@@ -2617,6 +2834,8 @@ class ProductionBatchLocal extends DataClass
           ..write('observations: $observations, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
+          ..write('clientId: $clientId, ')
+          ..write('syncError: $syncError, ')
           ..write('createdAt: $createdAt, ')
           ..write('syncedAt: $syncedAt')
           ..write(')'))
@@ -2646,6 +2865,8 @@ class ProductionBatchLocal extends DataClass
     observations,
     syncStatus,
     remoteId,
+    clientId,
+    syncError,
     createdAt,
     syncedAt,
   ]);
@@ -2674,6 +2895,8 @@ class ProductionBatchLocal extends DataClass
           other.observations == this.observations &&
           other.syncStatus == this.syncStatus &&
           other.remoteId == this.remoteId &&
+          other.clientId == this.clientId &&
+          other.syncError == this.syncError &&
           other.createdAt == this.createdAt &&
           other.syncedAt == this.syncedAt);
 }
@@ -2700,6 +2923,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
   final Value<String?> observations;
   final Value<int> syncStatus;
   final Value<String?> remoteId;
+  final Value<String?> clientId;
+  final Value<String?> syncError;
   final Value<DateTime> createdAt;
   final Value<DateTime?> syncedAt;
   const ProductionBatchesCompanion({
@@ -2724,6 +2949,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.observations = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
+    this.clientId = const Value.absent(),
+    this.syncError = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.syncedAt = const Value.absent(),
   });
@@ -2749,6 +2976,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     this.observations = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.remoteId = const Value.absent(),
+    this.clientId = const Value.absent(),
+    this.syncError = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.syncedAt = const Value.absent(),
   }) : batchCode = Value(batchCode),
@@ -2783,6 +3012,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Expression<String>? observations,
     Expression<int>? syncStatus,
     Expression<String>? remoteId,
+    Expression<String>? clientId,
+    Expression<String>? syncError,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? syncedAt,
   }) {
@@ -2810,6 +3041,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       if (observations != null) 'observations': observations,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (remoteId != null) 'remote_id': remoteId,
+      if (clientId != null) 'client_id': clientId,
+      if (syncError != null) 'sync_error': syncError,
       if (createdAt != null) 'created_at': createdAt,
       if (syncedAt != null) 'synced_at': syncedAt,
     });
@@ -2837,6 +3070,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     Value<String?>? observations,
     Value<int>? syncStatus,
     Value<String?>? remoteId,
+    Value<String?>? clientId,
+    Value<String?>? syncError,
     Value<DateTime>? createdAt,
     Value<DateTime?>? syncedAt,
   }) {
@@ -2862,6 +3097,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
       observations: observations ?? this.observations,
       syncStatus: syncStatus ?? this.syncStatus,
       remoteId: remoteId ?? this.remoteId,
+      clientId: clientId ?? this.clientId,
+      syncError: syncError ?? this.syncError,
       createdAt: createdAt ?? this.createdAt,
       syncedAt: syncedAt ?? this.syncedAt,
     );
@@ -2937,6 +3174,12 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
     if (remoteId.present) {
       map['remote_id'] = Variable<String>(remoteId.value);
     }
+    if (clientId.present) {
+      map['client_id'] = Variable<String>(clientId.value);
+    }
+    if (syncError.present) {
+      map['sync_error'] = Variable<String>(syncError.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2970,6 +3213,8 @@ class ProductionBatchesCompanion extends UpdateCompanion<ProductionBatchLocal> {
           ..write('observations: $observations, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('remoteId: $remoteId, ')
+          ..write('clientId: $clientId, ')
+          ..write('syncError: $syncError, ')
           ..write('createdAt: $createdAt, ')
           ..write('syncedAt: $syncedAt')
           ..write(')'))
@@ -6011,6 +6256,1526 @@ class ProductionBatchHarvestDatesCompanion
   }
 }
 
+class $CertifiedWorkersTable extends CertifiedWorkers
+    with TableInfo<$CertifiedWorkersTable, CertifiedWorkerLocal> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CertifiedWorkersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _coopModuleIdMeta = const VerificationMeta(
+    'coopModuleId',
+  );
+  @override
+  late final GeneratedColumn<String> coopModuleId = GeneratedColumn<String>(
+    'coop_module_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _firstNameMeta = const VerificationMeta(
+    'firstName',
+  );
+  @override
+  late final GeneratedColumn<String> firstName = GeneratedColumn<String>(
+    'first_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastNameMeta = const VerificationMeta(
+    'lastName',
+  );
+  @override
+  late final GeneratedColumn<String> lastName = GeneratedColumn<String>(
+    'last_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<String> position = GeneratedColumn<String>(
+    'position',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _certifiedUntilMeta = const VerificationMeta(
+    'certifiedUntil',
+  );
+  @override
+  late final GeneratedColumn<String> certifiedUntil = GeneratedColumn<String>(
+    'certified_until',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> cachedAt = GeneratedColumn<DateTime>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    coopModuleId,
+    firstName,
+    lastName,
+    position,
+    certifiedUntil,
+    cachedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'certified_workers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CertifiedWorkerLocal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('coop_module_id')) {
+      context.handle(
+        _coopModuleIdMeta,
+        coopModuleId.isAcceptableOrUnknown(
+          data['coop_module_id']!,
+          _coopModuleIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_coopModuleIdMeta);
+    }
+    if (data.containsKey('first_name')) {
+      context.handle(
+        _firstNameMeta,
+        firstName.isAcceptableOrUnknown(data['first_name']!, _firstNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_firstNameMeta);
+    }
+    if (data.containsKey('last_name')) {
+      context.handle(
+        _lastNameMeta,
+        lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lastNameMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    if (data.containsKey('certified_until')) {
+      context.handle(
+        _certifiedUntilMeta,
+        certifiedUntil.isAcceptableOrUnknown(
+          data['certified_until']!,
+          _certifiedUntilMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CertifiedWorkerLocal map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CertifiedWorkerLocal(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      coopModuleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}coop_module_id'],
+      )!,
+      firstName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}first_name'],
+      )!,
+      lastName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_name'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}position'],
+      ),
+      certifiedUntil: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}certified_until'],
+      ),
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}cached_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CertifiedWorkersTable createAlias(String alias) {
+    return $CertifiedWorkersTable(attachedDatabase, alias);
+  }
+}
+
+class CertifiedWorkerLocal extends DataClass
+    implements Insertable<CertifiedWorkerLocal> {
+  final String id;
+  final String coopModuleId;
+  final String firstName;
+  final String lastName;
+  final String? position;
+
+  /// Certification end date as 'YYYY-MM-DD' (same as Supabase `date`).
+  /// Null = no expiry. Only used to warn, never to hide the worker.
+  final String? certifiedUntil;
+  final DateTime cachedAt;
+  const CertifiedWorkerLocal({
+    required this.id,
+    required this.coopModuleId,
+    required this.firstName,
+    required this.lastName,
+    this.position,
+    this.certifiedUntil,
+    required this.cachedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['coop_module_id'] = Variable<String>(coopModuleId);
+    map['first_name'] = Variable<String>(firstName);
+    map['last_name'] = Variable<String>(lastName);
+    if (!nullToAbsent || position != null) {
+      map['position'] = Variable<String>(position);
+    }
+    if (!nullToAbsent || certifiedUntil != null) {
+      map['certified_until'] = Variable<String>(certifiedUntil);
+    }
+    map['cached_at'] = Variable<DateTime>(cachedAt);
+    return map;
+  }
+
+  CertifiedWorkersCompanion toCompanion(bool nullToAbsent) {
+    return CertifiedWorkersCompanion(
+      id: Value(id),
+      coopModuleId: Value(coopModuleId),
+      firstName: Value(firstName),
+      lastName: Value(lastName),
+      position: position == null && nullToAbsent
+          ? const Value.absent()
+          : Value(position),
+      certifiedUntil: certifiedUntil == null && nullToAbsent
+          ? const Value.absent()
+          : Value(certifiedUntil),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory CertifiedWorkerLocal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CertifiedWorkerLocal(
+      id: serializer.fromJson<String>(json['id']),
+      coopModuleId: serializer.fromJson<String>(json['coopModuleId']),
+      firstName: serializer.fromJson<String>(json['firstName']),
+      lastName: serializer.fromJson<String>(json['lastName']),
+      position: serializer.fromJson<String?>(json['position']),
+      certifiedUntil: serializer.fromJson<String?>(json['certifiedUntil']),
+      cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'coopModuleId': serializer.toJson<String>(coopModuleId),
+      'firstName': serializer.toJson<String>(firstName),
+      'lastName': serializer.toJson<String>(lastName),
+      'position': serializer.toJson<String?>(position),
+      'certifiedUntil': serializer.toJson<String?>(certifiedUntil),
+      'cachedAt': serializer.toJson<DateTime>(cachedAt),
+    };
+  }
+
+  CertifiedWorkerLocal copyWith({
+    String? id,
+    String? coopModuleId,
+    String? firstName,
+    String? lastName,
+    Value<String?> position = const Value.absent(),
+    Value<String?> certifiedUntil = const Value.absent(),
+    DateTime? cachedAt,
+  }) => CertifiedWorkerLocal(
+    id: id ?? this.id,
+    coopModuleId: coopModuleId ?? this.coopModuleId,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName ?? this.lastName,
+    position: position.present ? position.value : this.position,
+    certifiedUntil: certifiedUntil.present
+        ? certifiedUntil.value
+        : this.certifiedUntil,
+    cachedAt: cachedAt ?? this.cachedAt,
+  );
+  CertifiedWorkerLocal copyWithCompanion(CertifiedWorkersCompanion data) {
+    return CertifiedWorkerLocal(
+      id: data.id.present ? data.id.value : this.id,
+      coopModuleId: data.coopModuleId.present
+          ? data.coopModuleId.value
+          : this.coopModuleId,
+      firstName: data.firstName.present ? data.firstName.value : this.firstName,
+      lastName: data.lastName.present ? data.lastName.value : this.lastName,
+      position: data.position.present ? data.position.value : this.position,
+      certifiedUntil: data.certifiedUntil.present
+          ? data.certifiedUntil.value
+          : this.certifiedUntil,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CertifiedWorkerLocal(')
+          ..write('id: $id, ')
+          ..write('coopModuleId: $coopModuleId, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('position: $position, ')
+          ..write('certifiedUntil: $certifiedUntil, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    coopModuleId,
+    firstName,
+    lastName,
+    position,
+    certifiedUntil,
+    cachedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CertifiedWorkerLocal &&
+          other.id == this.id &&
+          other.coopModuleId == this.coopModuleId &&
+          other.firstName == this.firstName &&
+          other.lastName == this.lastName &&
+          other.position == this.position &&
+          other.certifiedUntil == this.certifiedUntil &&
+          other.cachedAt == this.cachedAt);
+}
+
+class CertifiedWorkersCompanion extends UpdateCompanion<CertifiedWorkerLocal> {
+  final Value<String> id;
+  final Value<String> coopModuleId;
+  final Value<String> firstName;
+  final Value<String> lastName;
+  final Value<String?> position;
+  final Value<String?> certifiedUntil;
+  final Value<DateTime> cachedAt;
+  final Value<int> rowid;
+  const CertifiedWorkersCompanion({
+    this.id = const Value.absent(),
+    this.coopModuleId = const Value.absent(),
+    this.firstName = const Value.absent(),
+    this.lastName = const Value.absent(),
+    this.position = const Value.absent(),
+    this.certifiedUntil = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CertifiedWorkersCompanion.insert({
+    required String id,
+    required String coopModuleId,
+    required String firstName,
+    required String lastName,
+    this.position = const Value.absent(),
+    this.certifiedUntil = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       coopModuleId = Value(coopModuleId),
+       firstName = Value(firstName),
+       lastName = Value(lastName);
+  static Insertable<CertifiedWorkerLocal> custom({
+    Expression<String>? id,
+    Expression<String>? coopModuleId,
+    Expression<String>? firstName,
+    Expression<String>? lastName,
+    Expression<String>? position,
+    Expression<String>? certifiedUntil,
+    Expression<DateTime>? cachedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (coopModuleId != null) 'coop_module_id': coopModuleId,
+      if (firstName != null) 'first_name': firstName,
+      if (lastName != null) 'last_name': lastName,
+      if (position != null) 'position': position,
+      if (certifiedUntil != null) 'certified_until': certifiedUntil,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CertifiedWorkersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? coopModuleId,
+    Value<String>? firstName,
+    Value<String>? lastName,
+    Value<String?>? position,
+    Value<String?>? certifiedUntil,
+    Value<DateTime>? cachedAt,
+    Value<int>? rowid,
+  }) {
+    return CertifiedWorkersCompanion(
+      id: id ?? this.id,
+      coopModuleId: coopModuleId ?? this.coopModuleId,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      position: position ?? this.position,
+      certifiedUntil: certifiedUntil ?? this.certifiedUntil,
+      cachedAt: cachedAt ?? this.cachedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (coopModuleId.present) {
+      map['coop_module_id'] = Variable<String>(coopModuleId.value);
+    }
+    if (firstName.present) {
+      map['first_name'] = Variable<String>(firstName.value);
+    }
+    if (lastName.present) {
+      map['last_name'] = Variable<String>(lastName.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<String>(position.value);
+    }
+    if (certifiedUntil.present) {
+      map['certified_until'] = Variable<String>(certifiedUntil.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<DateTime>(cachedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CertifiedWorkersCompanion(')
+          ..write('id: $id, ')
+          ..write('coopModuleId: $coopModuleId, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('position: $position, ')
+          ..write('certifiedUntil: $certifiedUntil, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PendingSubmissionsTable extends PendingSubmissions
+    with TableInfo<$PendingSubmissionsTable, PendingSubmissionLocal> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PendingSubmissionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cooperativeIdMeta = const VerificationMeta(
+    'cooperativeId',
+  );
+  @override
+  late final GeneratedColumn<String> cooperativeId = GeneratedColumn<String>(
+    'cooperative_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByAuthUserIdMeta =
+      const VerificationMeta('createdByAuthUserId');
+  @override
+  late final GeneratedColumn<String> createdByAuthUserId =
+      GeneratedColumn<String>(
+        'created_by_auth_user_id',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _productionBatchLocalIdMeta =
+      const VerificationMeta('productionBatchLocalId');
+  @override
+  late final GeneratedColumn<int> productionBatchLocalId = GeneratedColumn<int>(
+    'production_batch_local_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _lastAttemptAtMeta = const VerificationMeta(
+    'lastAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAttemptAt =
+      GeneratedColumn<DateTime>(
+        'last_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    payload,
+    cooperativeId,
+    createdByAuthUserId,
+    productionBatchLocalId,
+    attempts,
+    lastError,
+    createdAt,
+    lastAttemptAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pending_submissions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PendingSubmissionLocal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('cooperative_id')) {
+      context.handle(
+        _cooperativeIdMeta,
+        cooperativeId.isAcceptableOrUnknown(
+          data['cooperative_id']!,
+          _cooperativeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cooperativeIdMeta);
+    }
+    if (data.containsKey('created_by_auth_user_id')) {
+      context.handle(
+        _createdByAuthUserIdMeta,
+        createdByAuthUserId.isAcceptableOrUnknown(
+          data['created_by_auth_user_id']!,
+          _createdByAuthUserIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByAuthUserIdMeta);
+    }
+    if (data.containsKey('production_batch_local_id')) {
+      context.handle(
+        _productionBatchLocalIdMeta,
+        productionBatchLocalId.isAcceptableOrUnknown(
+          data['production_batch_local_id']!,
+          _productionBatchLocalIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('last_attempt_at')) {
+      context.handle(
+        _lastAttemptAtMeta,
+        lastAttemptAt.isAcceptableOrUnknown(
+          data['last_attempt_at']!,
+          _lastAttemptAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PendingSubmissionLocal map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PendingSubmissionLocal(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      cooperativeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cooperative_id'],
+      )!,
+      createdByAuthUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by_auth_user_id'],
+      )!,
+      productionBatchLocalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}production_batch_local_id'],
+      ),
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      lastAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_attempt_at'],
+      ),
+    );
+  }
+
+  @override
+  $PendingSubmissionsTable createAlias(String alias) {
+    return $PendingSubmissionsTable(attachedDatabase, alias);
+  }
+}
+
+class PendingSubmissionLocal extends DataClass
+    implements Insertable<PendingSubmissionLocal> {
+  /// UUID generado en el celular. Es también el id del registro en el
+  /// servidor, lo que hace idempotente el reenvío.
+  final String id;
+
+  /// Tipo de registro (ej. 'worker_control'); elige el manejador de envío.
+  final String kind;
+
+  /// Datos del registro en JSON.
+  final String payload;
+  final String cooperativeId;
+
+  /// Usuario (auth) que lo creó: solo se envía con la sesión de ese mismo
+  /// usuario, para que no quede registrado a nombre de otro.
+  final String createdByAuthUserId;
+
+  /// Lote creado en este celular y aún no enviado del que depende el
+  /// registro. Se resuelve a su id del servidor al momento del envío.
+  final int? productionBatchLocalId;
+  final int attempts;
+
+  /// Último error al enviar (null = nunca falló). Se reintenta igual en la
+  /// siguiente sincronización.
+  final String? lastError;
+  final DateTime createdAt;
+  final DateTime? lastAttemptAt;
+  const PendingSubmissionLocal({
+    required this.id,
+    required this.kind,
+    required this.payload,
+    required this.cooperativeId,
+    required this.createdByAuthUserId,
+    this.productionBatchLocalId,
+    required this.attempts,
+    this.lastError,
+    required this.createdAt,
+    this.lastAttemptAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['payload'] = Variable<String>(payload);
+    map['cooperative_id'] = Variable<String>(cooperativeId);
+    map['created_by_auth_user_id'] = Variable<String>(createdByAuthUserId);
+    if (!nullToAbsent || productionBatchLocalId != null) {
+      map['production_batch_local_id'] = Variable<int>(productionBatchLocalId);
+    }
+    map['attempts'] = Variable<int>(attempts);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt);
+    }
+    return map;
+  }
+
+  PendingSubmissionsCompanion toCompanion(bool nullToAbsent) {
+    return PendingSubmissionsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      payload: Value(payload),
+      cooperativeId: Value(cooperativeId),
+      createdByAuthUserId: Value(createdByAuthUserId),
+      productionBatchLocalId: productionBatchLocalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productionBatchLocalId),
+      attempts: Value(attempts),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      createdAt: Value(createdAt),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+    );
+  }
+
+  factory PendingSubmissionLocal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PendingSubmissionLocal(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      payload: serializer.fromJson<String>(json['payload']),
+      cooperativeId: serializer.fromJson<String>(json['cooperativeId']),
+      createdByAuthUserId: serializer.fromJson<String>(
+        json['createdByAuthUserId'],
+      ),
+      productionBatchLocalId: serializer.fromJson<int?>(
+        json['productionBatchLocalId'],
+      ),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'payload': serializer.toJson<String>(payload),
+      'cooperativeId': serializer.toJson<String>(cooperativeId),
+      'createdByAuthUserId': serializer.toJson<String>(createdByAuthUserId),
+      'productionBatchLocalId': serializer.toJson<int?>(productionBatchLocalId),
+      'attempts': serializer.toJson<int>(attempts),
+      'lastError': serializer.toJson<String?>(lastError),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
+    };
+  }
+
+  PendingSubmissionLocal copyWith({
+    String? id,
+    String? kind,
+    String? payload,
+    String? cooperativeId,
+    String? createdByAuthUserId,
+    Value<int?> productionBatchLocalId = const Value.absent(),
+    int? attempts,
+    Value<String?> lastError = const Value.absent(),
+    DateTime? createdAt,
+    Value<DateTime?> lastAttemptAt = const Value.absent(),
+  }) => PendingSubmissionLocal(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    payload: payload ?? this.payload,
+    cooperativeId: cooperativeId ?? this.cooperativeId,
+    createdByAuthUserId: createdByAuthUserId ?? this.createdByAuthUserId,
+    productionBatchLocalId: productionBatchLocalId.present
+        ? productionBatchLocalId.value
+        : this.productionBatchLocalId,
+    attempts: attempts ?? this.attempts,
+    lastError: lastError.present ? lastError.value : this.lastError,
+    createdAt: createdAt ?? this.createdAt,
+    lastAttemptAt: lastAttemptAt.present
+        ? lastAttemptAt.value
+        : this.lastAttemptAt,
+  );
+  PendingSubmissionLocal copyWithCompanion(PendingSubmissionsCompanion data) {
+    return PendingSubmissionLocal(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      cooperativeId: data.cooperativeId.present
+          ? data.cooperativeId.value
+          : this.cooperativeId,
+      createdByAuthUserId: data.createdByAuthUserId.present
+          ? data.createdByAuthUserId.value
+          : this.createdByAuthUserId,
+      productionBatchLocalId: data.productionBatchLocalId.present
+          ? data.productionBatchLocalId.value
+          : this.productionBatchLocalId,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingSubmissionLocal(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('cooperativeId: $cooperativeId, ')
+          ..write('createdByAuthUserId: $createdByAuthUserId, ')
+          ..write('productionBatchLocalId: $productionBatchLocalId, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    payload,
+    cooperativeId,
+    createdByAuthUserId,
+    productionBatchLocalId,
+    attempts,
+    lastError,
+    createdAt,
+    lastAttemptAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PendingSubmissionLocal &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.payload == this.payload &&
+          other.cooperativeId == this.cooperativeId &&
+          other.createdByAuthUserId == this.createdByAuthUserId &&
+          other.productionBatchLocalId == this.productionBatchLocalId &&
+          other.attempts == this.attempts &&
+          other.lastError == this.lastError &&
+          other.createdAt == this.createdAt &&
+          other.lastAttemptAt == this.lastAttemptAt);
+}
+
+class PendingSubmissionsCompanion
+    extends UpdateCompanion<PendingSubmissionLocal> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<String> payload;
+  final Value<String> cooperativeId;
+  final Value<String> createdByAuthUserId;
+  final Value<int?> productionBatchLocalId;
+  final Value<int> attempts;
+  final Value<String?> lastError;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> lastAttemptAt;
+  final Value<int> rowid;
+  const PendingSubmissionsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.cooperativeId = const Value.absent(),
+    this.createdByAuthUserId = const Value.absent(),
+    this.productionBatchLocalId = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PendingSubmissionsCompanion.insert({
+    required String id,
+    required String kind,
+    required String payload,
+    required String cooperativeId,
+    required String createdByAuthUserId,
+    this.productionBatchLocalId = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       payload = Value(payload),
+       cooperativeId = Value(cooperativeId),
+       createdByAuthUserId = Value(createdByAuthUserId);
+  static Insertable<PendingSubmissionLocal> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? payload,
+    Expression<String>? cooperativeId,
+    Expression<String>? createdByAuthUserId,
+    Expression<int>? productionBatchLocalId,
+    Expression<int>? attempts,
+    Expression<String>? lastError,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? lastAttemptAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (payload != null) 'payload': payload,
+      if (cooperativeId != null) 'cooperative_id': cooperativeId,
+      if (createdByAuthUserId != null)
+        'created_by_auth_user_id': createdByAuthUserId,
+      if (productionBatchLocalId != null)
+        'production_batch_local_id': productionBatchLocalId,
+      if (attempts != null) 'attempts': attempts,
+      if (lastError != null) 'last_error': lastError,
+      if (createdAt != null) 'created_at': createdAt,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PendingSubmissionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? kind,
+    Value<String>? payload,
+    Value<String>? cooperativeId,
+    Value<String>? createdByAuthUserId,
+    Value<int?>? productionBatchLocalId,
+    Value<int>? attempts,
+    Value<String?>? lastError,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? lastAttemptAt,
+    Value<int>? rowid,
+  }) {
+    return PendingSubmissionsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      payload: payload ?? this.payload,
+      cooperativeId: cooperativeId ?? this.cooperativeId,
+      createdByAuthUserId: createdByAuthUserId ?? this.createdByAuthUserId,
+      productionBatchLocalId:
+          productionBatchLocalId ?? this.productionBatchLocalId,
+      attempts: attempts ?? this.attempts,
+      lastError: lastError ?? this.lastError,
+      createdAt: createdAt ?? this.createdAt,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (cooperativeId.present) {
+      map['cooperative_id'] = Variable<String>(cooperativeId.value);
+    }
+    if (createdByAuthUserId.present) {
+      map['created_by_auth_user_id'] = Variable<String>(
+        createdByAuthUserId.value,
+      );
+    }
+    if (productionBatchLocalId.present) {
+      map['production_batch_local_id'] = Variable<int>(
+        productionBatchLocalId.value,
+      );
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingSubmissionsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('cooperativeId: $cooperativeId, ')
+          ..write('createdByAuthUserId: $createdByAuthUserId, ')
+          ..write('productionBatchLocalId: $productionBatchLocalId, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CachedProductionBatchesTable extends CachedProductionBatches
+    with TableInfo<$CachedProductionBatchesTable, CachedProductionBatchLocal> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedProductionBatchesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _coopModuleIdMeta = const VerificationMeta(
+    'coopModuleId',
+  );
+  @override
+  late final GeneratedColumn<String> coopModuleId = GeneratedColumn<String>(
+    'coop_module_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _processDateMeta = const VerificationMeta(
+    'processDate',
+  );
+  @override
+  late final GeneratedColumn<String> processDate = GeneratedColumn<String>(
+    'process_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> cachedAt = GeneratedColumn<DateTime>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    coopModuleId,
+    processDate,
+    payload,
+    cachedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_production_batches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CachedProductionBatchLocal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('coop_module_id')) {
+      context.handle(
+        _coopModuleIdMeta,
+        coopModuleId.isAcceptableOrUnknown(
+          data['coop_module_id']!,
+          _coopModuleIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_coopModuleIdMeta);
+    }
+    if (data.containsKey('process_date')) {
+      context.handle(
+        _processDateMeta,
+        processDate.isAcceptableOrUnknown(
+          data['process_date']!,
+          _processDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_processDateMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CachedProductionBatchLocal map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedProductionBatchLocal(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      coopModuleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}coop_module_id'],
+      )!,
+      processDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}process_date'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}cached_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CachedProductionBatchesTable createAlias(String alias) {
+    return $CachedProductionBatchesTable(attachedDatabase, alias);
+  }
+}
+
+class CachedProductionBatchLocal extends DataClass
+    implements Insertable<CachedProductionBatchLocal> {
+  /// UUID del lote en el servidor.
+  final String id;
+  final String coopModuleId;
+
+  /// Fecha de proceso 'YYYY-MM-DD' (mismo formato que Supabase `date`).
+  final String processDate;
+
+  /// Fila tal como la devuelve el servidor (lote + productor), en JSON.
+  final String payload;
+  final DateTime cachedAt;
+  const CachedProductionBatchLocal({
+    required this.id,
+    required this.coopModuleId,
+    required this.processDate,
+    required this.payload,
+    required this.cachedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['coop_module_id'] = Variable<String>(coopModuleId);
+    map['process_date'] = Variable<String>(processDate);
+    map['payload'] = Variable<String>(payload);
+    map['cached_at'] = Variable<DateTime>(cachedAt);
+    return map;
+  }
+
+  CachedProductionBatchesCompanion toCompanion(bool nullToAbsent) {
+    return CachedProductionBatchesCompanion(
+      id: Value(id),
+      coopModuleId: Value(coopModuleId),
+      processDate: Value(processDate),
+      payload: Value(payload),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory CachedProductionBatchLocal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedProductionBatchLocal(
+      id: serializer.fromJson<String>(json['id']),
+      coopModuleId: serializer.fromJson<String>(json['coopModuleId']),
+      processDate: serializer.fromJson<String>(json['processDate']),
+      payload: serializer.fromJson<String>(json['payload']),
+      cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'coopModuleId': serializer.toJson<String>(coopModuleId),
+      'processDate': serializer.toJson<String>(processDate),
+      'payload': serializer.toJson<String>(payload),
+      'cachedAt': serializer.toJson<DateTime>(cachedAt),
+    };
+  }
+
+  CachedProductionBatchLocal copyWith({
+    String? id,
+    String? coopModuleId,
+    String? processDate,
+    String? payload,
+    DateTime? cachedAt,
+  }) => CachedProductionBatchLocal(
+    id: id ?? this.id,
+    coopModuleId: coopModuleId ?? this.coopModuleId,
+    processDate: processDate ?? this.processDate,
+    payload: payload ?? this.payload,
+    cachedAt: cachedAt ?? this.cachedAt,
+  );
+  CachedProductionBatchLocal copyWithCompanion(
+    CachedProductionBatchesCompanion data,
+  ) {
+    return CachedProductionBatchLocal(
+      id: data.id.present ? data.id.value : this.id,
+      coopModuleId: data.coopModuleId.present
+          ? data.coopModuleId.value
+          : this.coopModuleId,
+      processDate: data.processDate.present
+          ? data.processDate.value
+          : this.processDate,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedProductionBatchLocal(')
+          ..write('id: $id, ')
+          ..write('coopModuleId: $coopModuleId, ')
+          ..write('processDate: $processDate, ')
+          ..write('payload: $payload, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, coopModuleId, processDate, payload, cachedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedProductionBatchLocal &&
+          other.id == this.id &&
+          other.coopModuleId == this.coopModuleId &&
+          other.processDate == this.processDate &&
+          other.payload == this.payload &&
+          other.cachedAt == this.cachedAt);
+}
+
+class CachedProductionBatchesCompanion
+    extends UpdateCompanion<CachedProductionBatchLocal> {
+  final Value<String> id;
+  final Value<String> coopModuleId;
+  final Value<String> processDate;
+  final Value<String> payload;
+  final Value<DateTime> cachedAt;
+  final Value<int> rowid;
+  const CachedProductionBatchesCompanion({
+    this.id = const Value.absent(),
+    this.coopModuleId = const Value.absent(),
+    this.processDate = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CachedProductionBatchesCompanion.insert({
+    required String id,
+    required String coopModuleId,
+    required String processDate,
+    required String payload,
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       coopModuleId = Value(coopModuleId),
+       processDate = Value(processDate),
+       payload = Value(payload);
+  static Insertable<CachedProductionBatchLocal> custom({
+    Expression<String>? id,
+    Expression<String>? coopModuleId,
+    Expression<String>? processDate,
+    Expression<String>? payload,
+    Expression<DateTime>? cachedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (coopModuleId != null) 'coop_module_id': coopModuleId,
+      if (processDate != null) 'process_date': processDate,
+      if (payload != null) 'payload': payload,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CachedProductionBatchesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? coopModuleId,
+    Value<String>? processDate,
+    Value<String>? payload,
+    Value<DateTime>? cachedAt,
+    Value<int>? rowid,
+  }) {
+    return CachedProductionBatchesCompanion(
+      id: id ?? this.id,
+      coopModuleId: coopModuleId ?? this.coopModuleId,
+      processDate: processDate ?? this.processDate,
+      payload: payload ?? this.payload,
+      cachedAt: cachedAt ?? this.cachedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (coopModuleId.present) {
+      map['coop_module_id'] = Variable<String>(coopModuleId.value);
+    }
+    if (processDate.present) {
+      map['process_date'] = Variable<String>(processDate.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<DateTime>(cachedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedProductionBatchesCompanion(')
+          ..write('id: $id, ')
+          ..write('coopModuleId: $coopModuleId, ')
+          ..write('processDate: $processDate, ')
+          ..write('payload: $payload, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6029,6 +7794,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BatchCertsTable batchCerts = $BatchCertsTable(this);
   late final $ProductionBatchHarvestDatesTable productionBatchHarvestDates =
       $ProductionBatchHarvestDatesTable(this);
+  late final $CertifiedWorkersTable certifiedWorkers = $CertifiedWorkersTable(
+    this,
+  );
+  late final $PendingSubmissionsTable pendingSubmissions =
+      $PendingSubmissionsTable(this);
+  late final $CachedProductionBatchesTable cachedProductionBatches =
+      $CachedProductionBatchesTable(this);
   late final ProducersDao producersDao = ProducersDao(this as AppDatabase);
   late final PlotsDao plotsDao = PlotsDao(this as AppDatabase);
   late final CoopModulesDao coopModulesDao = CoopModulesDao(
@@ -6048,6 +7820,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final BatchCertsDao batchCertsDao = BatchCertsDao(this as AppDatabase);
   late final ProductionBatchHarvestDatesDao productionBatchHarvestDatesDao =
       ProductionBatchHarvestDatesDao(this as AppDatabase);
+  late final CertifiedWorkersDao certifiedWorkersDao = CertifiedWorkersDao(
+    this as AppDatabase,
+  );
+  late final PendingSubmissionsDao pendingSubmissionsDao =
+      PendingSubmissionsDao(this as AppDatabase);
+  late final CachedProductionBatchesDao cachedProductionBatchesDao =
+      CachedProductionBatchesDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6062,6 +7841,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     productionBatchCerts,
     batchCerts,
     productionBatchHarvestDates,
+    certifiedWorkers,
+    pendingSubmissions,
+    cachedProductionBatches,
   ];
 }
 
@@ -6399,6 +8181,8 @@ typedef $$PlotsTableCreateCompanionBuilder =
       Value<int> id,
       required String name,
       required String code,
+      Value<double?> defaultExtractionPercentage,
+      Value<double?> defaultCachazaPercentage,
       required int producerLocalId,
       Value<int> syncStatus,
       Value<String?> remoteId,
@@ -6411,6 +8195,8 @@ typedef $$PlotsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> name,
       Value<String> code,
+      Value<double?> defaultExtractionPercentage,
+      Value<double?> defaultCachazaPercentage,
       Value<int> producerLocalId,
       Value<int> syncStatus,
       Value<String?> remoteId,
@@ -6439,6 +8225,16 @@ class $$PlotsTableFilterComposer extends Composer<_$AppDatabase, $PlotsTable> {
 
   ColumnFilters<String> get code => $composableBuilder(
     column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get defaultExtractionPercentage => $composableBuilder(
+    column: $table.defaultExtractionPercentage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get defaultCachazaPercentage => $composableBuilder(
+    column: $table.defaultCachazaPercentage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6497,6 +8293,16 @@ class $$PlotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get defaultExtractionPercentage => $composableBuilder(
+    column: $table.defaultExtractionPercentage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get defaultCachazaPercentage => $composableBuilder(
+    column: $table.defaultCachazaPercentage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get producerLocalId => $composableBuilder(
     column: $table.producerLocalId,
     builder: (column) => ColumnOrderings(column),
@@ -6545,6 +8351,16 @@ class $$PlotsTableAnnotationComposer
 
   GeneratedColumn<String> get code =>
       $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<double> get defaultExtractionPercentage => $composableBuilder(
+    column: $table.defaultExtractionPercentage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get defaultCachazaPercentage => $composableBuilder(
+    column: $table.defaultCachazaPercentage,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get producerLocalId => $composableBuilder(
     column: $table.producerLocalId,
@@ -6602,6 +8418,9 @@ class $$PlotsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> code = const Value.absent(),
+                Value<double?> defaultExtractionPercentage =
+                    const Value.absent(),
+                Value<double?> defaultCachazaPercentage = const Value.absent(),
                 Value<int> producerLocalId = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
@@ -6612,6 +8431,8 @@ class $$PlotsTableTableManager
                 id: id,
                 name: name,
                 code: code,
+                defaultExtractionPercentage: defaultExtractionPercentage,
+                defaultCachazaPercentage: defaultCachazaPercentage,
                 producerLocalId: producerLocalId,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
@@ -6624,6 +8445,9 @@ class $$PlotsTableTableManager
                 Value<int> id = const Value.absent(),
                 required String name,
                 required String code,
+                Value<double?> defaultExtractionPercentage =
+                    const Value.absent(),
+                Value<double?> defaultCachazaPercentage = const Value.absent(),
                 required int producerLocalId,
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
@@ -6634,6 +8458,8 @@ class $$PlotsTableTableManager
                 id: id,
                 name: name,
                 code: code,
+                defaultExtractionPercentage: defaultExtractionPercentage,
+                defaultCachazaPercentage: defaultCachazaPercentage,
                 producerLocalId: producerLocalId,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
@@ -6886,6 +8712,8 @@ typedef $$ProductionBatchesTableCreateCompanionBuilder =
       Value<String?> observations,
       Value<int> syncStatus,
       Value<String?> remoteId,
+      Value<String?> clientId,
+      Value<String?> syncError,
       Value<DateTime> createdAt,
       Value<DateTime?> syncedAt,
     });
@@ -6912,6 +8740,8 @@ typedef $$ProductionBatchesTableUpdateCompanionBuilder =
       Value<String?> observations,
       Value<int> syncStatus,
       Value<String?> remoteId,
+      Value<String?> clientId,
+      Value<String?> syncError,
       Value<DateTime> createdAt,
       Value<DateTime?> syncedAt,
     });
@@ -7027,6 +8857,16 @@ class $$ProductionBatchesTableFilterComposer
 
   ColumnFilters<String> get remoteId => $composableBuilder(
     column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clientId => $composableBuilder(
+    column: $table.clientId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncError => $composableBuilder(
+    column: $table.syncError,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7155,6 +8995,16 @@ class $$ProductionBatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get clientId => $composableBuilder(
+    column: $table.clientId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncError => $composableBuilder(
+    column: $table.syncError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7266,6 +9116,12 @@ class $$ProductionBatchesTableAnnotationComposer
   GeneratedColumn<String> get remoteId =>
       $composableBuilder(column: $table.remoteId, builder: (column) => column);
 
+  GeneratedColumn<String> get clientId =>
+      $composableBuilder(column: $table.clientId, builder: (column) => column);
+
+  GeneratedColumn<String> get syncError =>
+      $composableBuilder(column: $table.syncError, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -7334,6 +9190,8 @@ class $$ProductionBatchesTableTableManager
                 Value<String?> observations = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
+                Value<String?> clientId = const Value.absent(),
+                Value<String?> syncError = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
               }) => ProductionBatchesCompanion(
@@ -7358,6 +9216,8 @@ class $$ProductionBatchesTableTableManager
                 observations: observations,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
+                clientId: clientId,
+                syncError: syncError,
                 createdAt: createdAt,
                 syncedAt: syncedAt,
               ),
@@ -7384,6 +9244,8 @@ class $$ProductionBatchesTableTableManager
                 Value<String?> observations = const Value.absent(),
                 Value<int> syncStatus = const Value.absent(),
                 Value<String?> remoteId = const Value.absent(),
+                Value<String?> clientId = const Value.absent(),
+                Value<String?> syncError = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
               }) => ProductionBatchesCompanion.insert(
@@ -7408,6 +9270,8 @@ class $$ProductionBatchesTableTableManager
                 observations: observations,
                 syncStatus: syncStatus,
                 remoteId: remoteId,
+                clientId: clientId,
+                syncError: syncError,
                 createdAt: createdAt,
                 syncedAt: syncedAt,
               ),
@@ -8938,6 +10802,797 @@ typedef $$ProductionBatchHarvestDatesTableProcessedTableManager =
       ProductionBatchHarvestDateLocal,
       PrefetchHooks Function()
     >;
+typedef $$CertifiedWorkersTableCreateCompanionBuilder =
+    CertifiedWorkersCompanion Function({
+      required String id,
+      required String coopModuleId,
+      required String firstName,
+      required String lastName,
+      Value<String?> position,
+      Value<String?> certifiedUntil,
+      Value<DateTime> cachedAt,
+      Value<int> rowid,
+    });
+typedef $$CertifiedWorkersTableUpdateCompanionBuilder =
+    CertifiedWorkersCompanion Function({
+      Value<String> id,
+      Value<String> coopModuleId,
+      Value<String> firstName,
+      Value<String> lastName,
+      Value<String?> position,
+      Value<String?> certifiedUntil,
+      Value<DateTime> cachedAt,
+      Value<int> rowid,
+    });
+
+class $$CertifiedWorkersTableFilterComposer
+    extends Composer<_$AppDatabase, $CertifiedWorkersTable> {
+  $$CertifiedWorkersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get certifiedUntil => $composableBuilder(
+    column: $table.certifiedUntil,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CertifiedWorkersTableOrderingComposer
+    extends Composer<_$AppDatabase, $CertifiedWorkersTable> {
+  $$CertifiedWorkersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get certifiedUntil => $composableBuilder(
+    column: $table.certifiedUntil,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CertifiedWorkersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CertifiedWorkersTable> {
+  $$CertifiedWorkersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get firstName =>
+      $composableBuilder(column: $table.firstName, builder: (column) => column);
+
+  GeneratedColumn<String> get lastName =>
+      $composableBuilder(column: $table.lastName, builder: (column) => column);
+
+  GeneratedColumn<String> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get certifiedUntil => $composableBuilder(
+    column: $table.certifiedUntil,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$CertifiedWorkersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CertifiedWorkersTable,
+          CertifiedWorkerLocal,
+          $$CertifiedWorkersTableFilterComposer,
+          $$CertifiedWorkersTableOrderingComposer,
+          $$CertifiedWorkersTableAnnotationComposer,
+          $$CertifiedWorkersTableCreateCompanionBuilder,
+          $$CertifiedWorkersTableUpdateCompanionBuilder,
+          (
+            CertifiedWorkerLocal,
+            BaseReferences<
+              _$AppDatabase,
+              $CertifiedWorkersTable,
+              CertifiedWorkerLocal
+            >,
+          ),
+          CertifiedWorkerLocal,
+          PrefetchHooks Function()
+        > {
+  $$CertifiedWorkersTableTableManager(
+    _$AppDatabase db,
+    $CertifiedWorkersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CertifiedWorkersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CertifiedWorkersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CertifiedWorkersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> coopModuleId = const Value.absent(),
+                Value<String> firstName = const Value.absent(),
+                Value<String> lastName = const Value.absent(),
+                Value<String?> position = const Value.absent(),
+                Value<String?> certifiedUntil = const Value.absent(),
+                Value<DateTime> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CertifiedWorkersCompanion(
+                id: id,
+                coopModuleId: coopModuleId,
+                firstName: firstName,
+                lastName: lastName,
+                position: position,
+                certifiedUntil: certifiedUntil,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String coopModuleId,
+                required String firstName,
+                required String lastName,
+                Value<String?> position = const Value.absent(),
+                Value<String?> certifiedUntil = const Value.absent(),
+                Value<DateTime> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CertifiedWorkersCompanion.insert(
+                id: id,
+                coopModuleId: coopModuleId,
+                firstName: firstName,
+                lastName: lastName,
+                position: position,
+                certifiedUntil: certifiedUntil,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CertifiedWorkersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CertifiedWorkersTable,
+      CertifiedWorkerLocal,
+      $$CertifiedWorkersTableFilterComposer,
+      $$CertifiedWorkersTableOrderingComposer,
+      $$CertifiedWorkersTableAnnotationComposer,
+      $$CertifiedWorkersTableCreateCompanionBuilder,
+      $$CertifiedWorkersTableUpdateCompanionBuilder,
+      (
+        CertifiedWorkerLocal,
+        BaseReferences<
+          _$AppDatabase,
+          $CertifiedWorkersTable,
+          CertifiedWorkerLocal
+        >,
+      ),
+      CertifiedWorkerLocal,
+      PrefetchHooks Function()
+    >;
+typedef $$PendingSubmissionsTableCreateCompanionBuilder =
+    PendingSubmissionsCompanion Function({
+      required String id,
+      required String kind,
+      required String payload,
+      required String cooperativeId,
+      required String createdByAuthUserId,
+      Value<int?> productionBatchLocalId,
+      Value<int> attempts,
+      Value<String?> lastError,
+      Value<DateTime> createdAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<int> rowid,
+    });
+typedef $$PendingSubmissionsTableUpdateCompanionBuilder =
+    PendingSubmissionsCompanion Function({
+      Value<String> id,
+      Value<String> kind,
+      Value<String> payload,
+      Value<String> cooperativeId,
+      Value<String> createdByAuthUserId,
+      Value<int?> productionBatchLocalId,
+      Value<int> attempts,
+      Value<String?> lastError,
+      Value<DateTime> createdAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<int> rowid,
+    });
+
+class $$PendingSubmissionsTableFilterComposer
+    extends Composer<_$AppDatabase, $PendingSubmissionsTable> {
+  $$PendingSubmissionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdByAuthUserId => $composableBuilder(
+    column: $table.createdByAuthUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PendingSubmissionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PendingSubmissionsTable> {
+  $$PendingSubmissionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdByAuthUserId => $composableBuilder(
+    column: $table.createdByAuthUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PendingSubmissionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingSubmissionsTable> {
+  $$PendingSubmissionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<String> get cooperativeId => $composableBuilder(
+    column: $table.cooperativeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdByAuthUserId => $composableBuilder(
+    column: $table.createdByAuthUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get productionBatchLocalId => $composableBuilder(
+    column: $table.productionBatchLocalId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => column,
+  );
+}
+
+class $$PendingSubmissionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PendingSubmissionsTable,
+          PendingSubmissionLocal,
+          $$PendingSubmissionsTableFilterComposer,
+          $$PendingSubmissionsTableOrderingComposer,
+          $$PendingSubmissionsTableAnnotationComposer,
+          $$PendingSubmissionsTableCreateCompanionBuilder,
+          $$PendingSubmissionsTableUpdateCompanionBuilder,
+          (
+            PendingSubmissionLocal,
+            BaseReferences<
+              _$AppDatabase,
+              $PendingSubmissionsTable,
+              PendingSubmissionLocal
+            >,
+          ),
+          PendingSubmissionLocal,
+          PrefetchHooks Function()
+        > {
+  $$PendingSubmissionsTableTableManager(
+    _$AppDatabase db,
+    $PendingSubmissionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingSubmissionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PendingSubmissionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PendingSubmissionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<String> cooperativeId = const Value.absent(),
+                Value<String> createdByAuthUserId = const Value.absent(),
+                Value<int?> productionBatchLocalId = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingSubmissionsCompanion(
+                id: id,
+                kind: kind,
+                payload: payload,
+                cooperativeId: cooperativeId,
+                createdByAuthUserId: createdByAuthUserId,
+                productionBatchLocalId: productionBatchLocalId,
+                attempts: attempts,
+                lastError: lastError,
+                createdAt: createdAt,
+                lastAttemptAt: lastAttemptAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String kind,
+                required String payload,
+                required String cooperativeId,
+                required String createdByAuthUserId,
+                Value<int?> productionBatchLocalId = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingSubmissionsCompanion.insert(
+                id: id,
+                kind: kind,
+                payload: payload,
+                cooperativeId: cooperativeId,
+                createdByAuthUserId: createdByAuthUserId,
+                productionBatchLocalId: productionBatchLocalId,
+                attempts: attempts,
+                lastError: lastError,
+                createdAt: createdAt,
+                lastAttemptAt: lastAttemptAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PendingSubmissionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PendingSubmissionsTable,
+      PendingSubmissionLocal,
+      $$PendingSubmissionsTableFilterComposer,
+      $$PendingSubmissionsTableOrderingComposer,
+      $$PendingSubmissionsTableAnnotationComposer,
+      $$PendingSubmissionsTableCreateCompanionBuilder,
+      $$PendingSubmissionsTableUpdateCompanionBuilder,
+      (
+        PendingSubmissionLocal,
+        BaseReferences<
+          _$AppDatabase,
+          $PendingSubmissionsTable,
+          PendingSubmissionLocal
+        >,
+      ),
+      PendingSubmissionLocal,
+      PrefetchHooks Function()
+    >;
+typedef $$CachedProductionBatchesTableCreateCompanionBuilder =
+    CachedProductionBatchesCompanion Function({
+      required String id,
+      required String coopModuleId,
+      required String processDate,
+      required String payload,
+      Value<DateTime> cachedAt,
+      Value<int> rowid,
+    });
+typedef $$CachedProductionBatchesTableUpdateCompanionBuilder =
+    CachedProductionBatchesCompanion Function({
+      Value<String> id,
+      Value<String> coopModuleId,
+      Value<String> processDate,
+      Value<String> payload,
+      Value<DateTime> cachedAt,
+      Value<int> rowid,
+    });
+
+class $$CachedProductionBatchesTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedProductionBatchesTable> {
+  $$CachedProductionBatchesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get processDate => $composableBuilder(
+    column: $table.processDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CachedProductionBatchesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedProductionBatchesTable> {
+  $$CachedProductionBatchesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get processDate => $composableBuilder(
+    column: $table.processDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CachedProductionBatchesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedProductionBatchesTable> {
+  $$CachedProductionBatchesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get coopModuleId => $composableBuilder(
+    column: $table.coopModuleId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get processDate => $composableBuilder(
+    column: $table.processDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$CachedProductionBatchesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CachedProductionBatchesTable,
+          CachedProductionBatchLocal,
+          $$CachedProductionBatchesTableFilterComposer,
+          $$CachedProductionBatchesTableOrderingComposer,
+          $$CachedProductionBatchesTableAnnotationComposer,
+          $$CachedProductionBatchesTableCreateCompanionBuilder,
+          $$CachedProductionBatchesTableUpdateCompanionBuilder,
+          (
+            CachedProductionBatchLocal,
+            BaseReferences<
+              _$AppDatabase,
+              $CachedProductionBatchesTable,
+              CachedProductionBatchLocal
+            >,
+          ),
+          CachedProductionBatchLocal,
+          PrefetchHooks Function()
+        > {
+  $$CachedProductionBatchesTableTableManager(
+    _$AppDatabase db,
+    $CachedProductionBatchesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedProductionBatchesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$CachedProductionBatchesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CachedProductionBatchesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> coopModuleId = const Value.absent(),
+                Value<String> processDate = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<DateTime> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CachedProductionBatchesCompanion(
+                id: id,
+                coopModuleId: coopModuleId,
+                processDate: processDate,
+                payload: payload,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String coopModuleId,
+                required String processDate,
+                required String payload,
+                Value<DateTime> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CachedProductionBatchesCompanion.insert(
+                id: id,
+                coopModuleId: coopModuleId,
+                processDate: processDate,
+                payload: payload,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CachedProductionBatchesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CachedProductionBatchesTable,
+      CachedProductionBatchLocal,
+      $$CachedProductionBatchesTableFilterComposer,
+      $$CachedProductionBatchesTableOrderingComposer,
+      $$CachedProductionBatchesTableAnnotationComposer,
+      $$CachedProductionBatchesTableCreateCompanionBuilder,
+      $$CachedProductionBatchesTableUpdateCompanionBuilder,
+      (
+        CachedProductionBatchLocal,
+        BaseReferences<
+          _$AppDatabase,
+          $CachedProductionBatchesTable,
+          CachedProductionBatchLocal
+        >,
+      ),
+      CachedProductionBatchLocal,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8963,5 +11618,14 @@ class $AppDatabaseManager {
       $$ProductionBatchHarvestDatesTableTableManager(
         _db,
         _db.productionBatchHarvestDates,
+      );
+  $$CertifiedWorkersTableTableManager get certifiedWorkers =>
+      $$CertifiedWorkersTableTableManager(_db, _db.certifiedWorkers);
+  $$PendingSubmissionsTableTableManager get pendingSubmissions =>
+      $$PendingSubmissionsTableTableManager(_db, _db.pendingSubmissions);
+  $$CachedProductionBatchesTableTableManager get cachedProductionBatches =>
+      $$CachedProductionBatchesTableTableManager(
+        _db,
+        _db.cachedProductionBatches,
       );
 }

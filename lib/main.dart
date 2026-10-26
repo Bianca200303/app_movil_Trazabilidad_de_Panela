@@ -8,6 +8,7 @@ import 'package:panela_sys/core/theme/app_colors.dart';
 import 'package:panela_sys/providers/offline_provider.dart';
 import 'package:panela_sys/models/auto_sync_event.dart';
 import 'package:panela_sys/services/cooperative_preferences_service.dart';
+import 'package:panela_sys/widgets/common/responsive_text_scale.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Global key for showing SnackBars from auto-sync events
@@ -61,7 +62,7 @@ class MyApp extends ConsumerWidget {
               messenger.showSnackBar(
                 const SnackBar(
                   content: Text('Conectado - Subiendo datos pendientes...'),
-                  backgroundColor: Colors.blue,
+                  backgroundColor: AppColors.primary,
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -71,7 +72,7 @@ class MyApp extends ConsumerWidget {
               messenger.showSnackBar(
                 const SnackBar(
                   content: Text('Datos subidos correctamente ✓'),
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.success,
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -81,10 +82,10 @@ class MyApp extends ConsumerWidget {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Error al subir datos: ${event.errorMessage ?? "Error desconocido"}',
+                    event.errorMessage ?? 'No se pudieron subir los datos.',
                   ),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 3),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 4),
                 ),
               );
               break;
@@ -113,8 +114,22 @@ class MyApp extends ConsumerWidget {
         Locale('es', ''),
       ],
       locale: const Locale('es', 'PE'),
+      builder: (context, child) => ResponsiveTextScale(child: child!),
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+        // Los widgets de Material (switches, diálogos, selectores de fecha)
+        // toman los colores exactos de AppColors, no tonos derivados.
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.primary,
+          primary: AppColors.primary,
+          onPrimary: AppColors.textWhite,
+          secondary: AppColors.primaryLight,
+          error: AppColors.error,
+          surface: AppColors.surface,
+          onSurface: AppColors.textPrimary,
+          outline: AppColors.inputBorder,
+          outlineVariant: AppColors.border,
+        ),
+        scaffoldBackgroundColor: AppColors.background,
         useMaterial3: true,
         datePickerTheme: DatePickerThemeData(
           backgroundColor: AppColors.surface,

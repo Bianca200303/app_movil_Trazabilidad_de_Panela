@@ -149,14 +149,17 @@ class _ChlorineCard extends StatelessWidget {
     final observations = data['observations'] as String?;
     final responsiblePerson = data['responsible_person'] as String;
 
-    final Color backgroundColor = bothSafe ? Colors.green[50]! : Colors.orange[50]!;
-    final Color badgeColor = bothSafe ? AppColors.success : Colors.orange[700]!;
+    final Color backgroundColor = bothSafe ? AppColors.successLight : AppColors.warningLight;
+    final Color badgeColor = bothSafe ? AppColors.success : AppColors.warningDark;
 
     return HistorialExpandableCard(
       isExpanded: isExpanded,
       onToggle: onToggle,
       backgroundColor: backgroundColor,
+      // Todo apilado en una sola columna: en pantallas angostas o con letra
+      // grande, una columna fija de fecha a la derecha aplastaba el nombre.
       header: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(bothSafe ? Icons.check_circle : Icons.warning_amber_rounded, color: badgeColor, size: 20),
           SizedBox(width: context.responsiveSpacing / 2),
@@ -170,15 +173,19 @@ class _ChlorineCard extends StatelessWidget {
                   bothSafe ? 'EN RANGO SEGURO' : 'FUERA DE RANGO',
                   style: AppTextStyles.captionText.copyWith(color: badgeColor, fontWeight: FontWeight.w600),
                 ),
+                const SizedBox(height: 2),
+                Text.rich(
+                  TextSpan(children: [
+                    const TextSpan(text: 'Fecha de producción: '),
+                    TextSpan(
+                      text: '$controlDate $controlTime',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ]),
+                  style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary),
+                ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Fecha de producción', style: AppTextStyles.captionText.copyWith(color: AppColors.textPrimary, fontSize: 11)),
-              Text('$controlDate $controlTime', style: AppTextStyles.bodyText.copyWith(fontWeight: FontWeight.bold)),
-            ],
           ),
         ],
       ),
@@ -189,7 +196,7 @@ class _ChlorineCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(context.responsiveSpacing / 2),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
             ),
             child: Column(
@@ -197,39 +204,9 @@ class _ChlorineCard extends StatelessWidget {
               children: [
                 Text('Mediciones (ppm)', style: AppTextStyles.fieldLabel),
                 SizedBox(height: context.responsiveSpacing / 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      Icon(isM1Safe ? Icons.check_circle : Icons.warning, size: 16,
-                          color: isM1Safe ? AppColors.success : AppColors.warning),
-                      const SizedBox(width: 8),
-                      Text('M1 - Sanitización:', style: AppTextStyles.bodyText.copyWith(fontSize: 13)),
-                    ]),
-                    Text(m1.toStringAsFixed(2),
-                        style: AppTextStyles.bodyText.copyWith(
-                          fontSize: 13, fontWeight: FontWeight.w600,
-                          color: isM1Safe ? AppColors.success : AppColors.warning,
-                        )),
-                  ],
-                ),
+                _MeasurementRow(label: 'M1 - Sanitización:', value: m1, isSafe: isM1Safe),
                 SizedBox(height: context.responsiveSpacing / 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      Icon(isM2Safe ? Icons.check_circle : Icons.warning, size: 16,
-                          color: isM2Safe ? AppColors.success : AppColors.warning),
-                      const SizedBox(width: 8),
-                      Text('M2 - Proceso:', style: AppTextStyles.bodyText.copyWith(fontSize: 13)),
-                    ]),
-                    Text(m2.toStringAsFixed(2),
-                        style: AppTextStyles.bodyText.copyWith(
-                          fontSize: 13, fontWeight: FontWeight.w600,
-                          color: isM2Safe ? AppColors.success : AppColors.warning,
-                        )),
-                  ],
-                ),
+                _MeasurementRow(label: 'M2 - Proceso:', value: m2, isSafe: isM2Safe),
                 SizedBox(height: context.responsiveSpacing / 4),
                 Text('Rango seguro: 0.5 - 2.0 ppm',
                     style: AppTextStyles.captionText.copyWith(fontStyle: FontStyle.italic)),
@@ -241,14 +218,14 @@ class _ChlorineCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.orange[100],
+                color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
               ),
               child: Row(children: [
-                Icon(Icons.warning_amber, color: Colors.orange[900], size: 16),
+                Icon(Icons.warning_amber, color: AppColors.warningDark, size: 16),
                 SizedBox(width: context.responsiveSpacing / 4),
                 Expanded(child: Text(safetyWarning,
-                    style: TextStyle(color: Colors.orange[900], fontSize: 12, fontWeight: FontWeight.w500))),
+                    style: TextStyle(color: AppColors.warningDark, fontSize: 12, fontWeight: FontWeight.w500))),
               ]),
             ),
           ],
@@ -257,21 +234,21 @@ class _ChlorineCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                border: Border.all(color: Colors.blue[200]!),
+                border: Border.all(color: AppColors.infoBorder),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.build, size: 16, color: Colors.blue[900]),
+                    Icon(Icons.build, size: 16, color: AppColors.primaryDark),
                     const SizedBox(width: 8),
                     Text('Acciones correctivas:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue[900])),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primaryDark)),
                   ]),
                   const SizedBox(height: 8),
-                  Text(correctiveActions, style: TextStyle(fontSize: 12, color: Colors.blue[900])),
+                  Text(correctiveActions, style: TextStyle(fontSize: 12, color: AppColors.primaryDark)),
                 ],
               ),
             ),
@@ -281,21 +258,21 @@ class _ChlorineCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(context.responsiveSpacing / 2),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: AppColors.surfaceVariant,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                border: Border.all(color: Colors.grey[300]!),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.notes, size: 16, color: Colors.grey[700]),
+                    Icon(Icons.notes, size: 16, color: AppColors.textPrimary),
                     const SizedBox(width: 8),
                     Text('Observaciones:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey[700])),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary)),
                   ]),
                   const SizedBox(height: 8),
-                  Text(observations, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                  Text(observations, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
                 ],
               ),
             ),
@@ -310,6 +287,36 @@ class _ChlorineCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Medición con ícono de estado: la etiqueta ocupa el espacio libre (y baja
+/// de línea si hace falta) para que el valor nunca se salga de la tarjeta.
+class _MeasurementRow extends StatelessWidget {
+  const _MeasurementRow({required this.label, required this.value, required this.isSafe});
+  final String label;
+  final double value;
+  final bool isSafe;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSafe ? AppColors.success : AppColors.warning;
+    return Row(
+      children: [
+        Icon(isSafe ? Icons.check_circle : Icons.warning, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(label, style: AppTextStyles.bodyText.copyWith(fontSize: 13)),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value.toStringAsFixed(2),
+          style: AppTextStyles.bodyText.copyWith(
+            fontSize: 13, fontWeight: FontWeight.w600, color: color,
+          ),
+        ),
+      ],
     );
   }
 }

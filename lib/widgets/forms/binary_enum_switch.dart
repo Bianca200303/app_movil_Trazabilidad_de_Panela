@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_text_styles.dart';
+import 'package:panela_sys/core/theme/app_colors.dart';
 
 /// Generic option for binary enum switch
 class BinaryOption<T> {
@@ -97,7 +98,7 @@ class BinaryEnumSwitch<T> extends StatelessWidget {
               const Text(
                 '*',
                 style: TextStyle(
-                  color: Colors.red,
+                  color: AppColors.error,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -109,8 +110,8 @@ class BinaryEnumSwitch<T> extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border.all(color: Colors.grey[300]!),
+            color: AppColors.surfaceVariant,
+            border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -131,7 +132,7 @@ class BinaryEnumSwitch<T> extends StatelessWidget {
                 onChanged: (value) {
                   onChanged(value ? defaultOption.value : alternateOption.value);
                 },
-                activeColor: Colors.green,
+                activeColor: AppColors.success,
               ),
             ],
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:panela_sys/core/offline/user_error_message.dart';
 import 'package:panela_sys/core/routes.dart';
 import 'package:panela_sys/core/screen_utils.dart';
 import 'package:panela_sys/core/theme/app_colors.dart';
@@ -23,14 +24,15 @@ import 'package:panela_sys/services/stowage_transport_inspection_service.dart';
 import 'package:panela_sys/services/worker_control_service.dart';
 import 'package:panela_sys/widgets/common/app_card.dart';
 import 'package:panela_sys/widgets/common/app_scaffold.dart';
+import 'package:panela_sys/widgets/plots/producer_plots_sheet.dart';
 import 'package:panela_sys/widgets/sync_progress_dialog.dart';
 
 // Widgets locales del historial
 import 'widgets/producer_edit_dialog.dart';
+import 'widgets/historial_producers_list.dart';
 import 'widgets/historial_main_menu.dart';
 import 'widgets/historial_control_submenu.dart';
 import 'widgets/historial_exits_section.dart';
-import 'widgets/shared/historial_date_range.dart';
 import 'widgets/shared/historial_period_filter.dart';
 import 'widgets/shared/historial_error.dart';
 import 'widgets/shared/historial_loading.dart';
@@ -86,11 +88,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
   bool _isLoadingProducers = false;
   String? _producersError;
 
-  // ── Estado de producción ─────────────────────────────────────────────────────
-  List<Map<String, dynamic>> _productionData = [];
-  bool _isLoadingProduction = false;
-  String? _productionError;
-
   // ── Estado de salidas ────────────────────────────────────────────────────────
   List<Map<String, dynamic>> _exitsData = [];
   bool _isLoadingExits = false;
@@ -125,19 +122,18 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     final autoSyncNotifier = ref.read(autoSyncStateProvider.notifier);
 
     try {
-      await showDialog(
+      final syncError = await showDialog<Object?>(
         context: context,
         barrierDismissible: false,
         builder: (context) => SyncProgressDialog(
           syncStream: autoSyncNotifier.startManualSync(),
         ),
       );
+      if (syncError != null) throw syncError;
 
       // Recargar datos del tab activo tras sync exitoso
       if (_selectedOption == 0) {
         await _loadProducersData();
-      } else if (_selectedOption == 1) {
-        await _loadProductionData();
       } else if (_selectedOption == 2) {
         await _loadExitsData();
       }
@@ -146,7 +142,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Datos subidos correctamente'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -154,8 +150,8 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al subir datos: $e'),
-            backgroundColor: Colors.red,
+            content: Text(userErrorMessage(e, action: 'No se pudieron subir los datos')),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -215,42 +211,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     }
 
     return null; // No restriction for adminSistema
-  }
-
-  Future<void> _loadProductionData() async {
-    if (_isLoadingProduction) return;
-    setState(() {
-      _isLoadingProduction = true;
-      _productionError = null;
-    });
-    try {
-      final allowedDnis = await _getAllowedProducerDnis();
-      var data =
-          await _productionBatchService.getProductionBatchesForHistorial();
-      if (allowedDnis != null) {
-        data = data.where((item) => allowedDnis.contains(item['dni_productor'])).toList();
-      }
-      final formattedData = data.map((item) {
-        final processDate = item['fecha_proceso'] as DateTime;
-        final harvestDate = item['fecha_cosecha'] as DateTime?;
-        final registroDate = item['fecha_registro'] as DateTime?;
-        return {
-          ...item,
-          'fecha_proceso': AppDateUtils.formatDDMMYYYY(processDate),
-          if (harvestDate != null) 'fecha_cosecha': AppDateUtils.formatDDMMYYYY(harvestDate),
-          if (registroDate != null) 'fecha_registro': AppDateUtils.formatDDMMYYYY(registroDate),
-        };
-      }).toList();
-      setState(() {
-        _productionData = formattedData;
-        _isLoadingProduction = false;
-      });
-    } catch (e) {
-      setState(() {
-        _productionError = e.toString().replaceFirst('Exception: ', '');
-        _isLoadingProduction = false;
-      });
-    }
   }
 
   Future<void> _loadExitsData() async {
@@ -329,7 +289,7 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Guía de Remisión agregada correctamente'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -402,8 +362,6 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     switch (index) {
       case 0:
         _loadProducersData();
-      case 1:
-        _loadProductionData();
       case 2:
         _loadExitsData();
     }
@@ -437,76 +395,16 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
     }
   }
 
-  // ── Parcelas en cards de productores ────────────────────────────────────────
-
-  Widget _buildProducerParcelas(Map<String, dynamic> item) {
-    final parcelas = (item['parcelas'] as List<dynamic>?) ?? [];
-    if (parcelas.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(height: context.responsiveSpacing / 2),
-        const Divider(height: 1),
-        SizedBox(height: context.responsiveSpacing / 2),
-        Row(
-          children: [
-            const Icon(Icons.landscape, size: 14, color: AppColors.primary),
-            SizedBox(width: context.responsiveSpacing / 4),
-            Text(
-              'Parcelas (${parcelas.length})',
-              style: AppTextStyles.smallText.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: context.responsiveSpacing / 4),
-        ...parcelas.map((p) {
-          final name = (p['name'] as String?) ?? '';
-          final code = (p['code'] as String?) ?? '';
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: context.responsiveSpacing / 4,
-              left: 4,
-            ),
-            child: Row(
-              children: [
-                const Text('•  ',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12)),
-                Text(
-                  code,
-                  style: AppTextStyles.smallText.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                if (name.isNotEmpty) ...[
-                  const Text('  ·  ',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12)),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: AppTextStyles.smallText.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
   // ── Edición de productores ───────────────────────────────────────────────────
+
+  Future<void> _onManagePlots(Map<String, dynamic> producerData) async {
+    await showProducerPlotsSheet(
+      context,
+      producerId: producerData['id'].toString(),
+      producerName: producerData['nombre'].toString(),
+    );
+    if (mounted) _loadProducersData();
+  }
 
   void _onEditProducer(Map<String, dynamic> producerData) {
     showDialog(
@@ -581,12 +479,13 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
             onRetry: _loadProducersData,
           );
         }
-        return HistorialMobileDataView(
-          data: _producersData,
-          headers: ['Nombre', 'DNI', 'Módulo', 'Condición'],
-          keys: ['nombre', 'dni', 'modulo', 'condicion'],
-          onEdit: _onEditProducer,
-          footerBuilder: _buildProducerParcelas,
+        return HistorialProducersList(
+          producers: _producersData,
+          canManagePlots: ref.read(currentUserProvider)?.canManagePlots ?? false,
+          onEdit: (ref.read(currentUserProvider)?.canManageProducers ?? false)
+              ? _onEditProducer
+              : null,
+          onManagePlots: _onManagePlots,
         );
 
       // ── Producción ───────────────────────────────────────────────────────────
@@ -707,11 +606,11 @@ class _HistorialScreenState extends ConsumerState<HistorialScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.construction, size: 64, color: Colors.grey[400]),
+              Icon(Icons.construction, size: 64, color: AppColors.textTertiary),
               SizedBox(height: context.responsiveSpacing),
               Text(
                 'Este formulario estará disponible próximamente',
-                style: AppTextStyles.bodyText.copyWith(color: Colors.grey[600]),
+                style: AppTextStyles.bodyText.copyWith(color: AppColors.textPrimary),
                 textAlign: TextAlign.center,
               ),
             ],
